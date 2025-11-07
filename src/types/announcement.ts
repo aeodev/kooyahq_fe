@@ -4,6 +4,7 @@ export interface Announcement {
   content: string
   authorId: string
   isActive: boolean
+  expiresAt: string | null
   createdAt: string
   updatedAt: string
   author: {
@@ -17,11 +18,12 @@ export type CreateAnnouncementInput = {
   title: string
   content: string
   isActive?: boolean
+  expiresAt?: string | null
 }
 
 export type UpdateAnnouncementInput = {
   title?: string
   content?: string
   isActive?: boolean
+  expiresAt?: string | null
 }
-

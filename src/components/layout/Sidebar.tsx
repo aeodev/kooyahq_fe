@@ -203,14 +203,14 @@ export function Sidebar({
     <>
       <div
         className={cn(
-          'fixed inset-0 z-50 bg-black/40 md:hidden',
+          'fixed inset-0 z-40 bg-black/40 md:hidden',
           mobileOpen ? 'block' : 'hidden',
         )}
         onClick={onCloseMobile}
       />
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-60 flex h-screen flex-col border-r border-border bg-background/98 backdrop-blur-xl shadow-xl transition-all duration-300 ease-in-out md:static md:h-full md:translate-x-0 md:z-auto',
+          'fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-border bg-background shadow-xl transition-all duration-300 ease-in-out md:static md:h-full md:translate-x-0 md:z-auto',
           collapsed ? 'w-20' : 'w-64',
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}

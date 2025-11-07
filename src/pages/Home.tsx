@@ -84,6 +84,8 @@ export function Home() {
 
   const recentBoards = boards.slice(0, 4)
   const recentEntries = todayEntries.slice(0, 5).reverse()
+  const activeAnnouncement = announcements[0]
+  const showAnnouncementSection = announcementsLoading || Boolean(activeAnnouncement)
 
   return (
     <section className="space-y-4 sm:space-y-6">
@@ -120,22 +122,20 @@ export function Home() {
       )}
 
       {/* Announcements Section */}
-      {announcements.length > 0 && (
+      {showAnnouncementSection && (
         <div className="space-y-3">
           {announcementsLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="space-y-3">
-              {announcements.map((announcement) => (
-                <AnnouncementCard
-                  key={announcement.id}
-                  announcement={announcement}
-                  onDelete={() => fetchAnnouncements(true)}
-                />
-              ))}
-            </div>
+            activeAnnouncement && (
+              <AnnouncementCard
+                key={activeAnnouncement.id}
+                announcement={activeAnnouncement}
+                onDelete={() => fetchAnnouncements(true)}
+              />
+            )
           )}
         </div>
       )}

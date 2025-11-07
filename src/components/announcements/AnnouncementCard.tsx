@@ -77,4 +77,3 @@ export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardPro
     </Card>
   )
 }
-
