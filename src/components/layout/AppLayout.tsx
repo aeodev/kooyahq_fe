@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, type PropsWithChildren } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Clock4, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Menu, Users } from 'lucide-react'
+import { Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Menu, Users } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -55,6 +55,7 @@ export function AppLayout({ children, className }: AppLayoutProps) {
       const nav = [
         { name: 'Dashboard', to: '/', icon: Home },
         { name: 'Workspace', to: '/workspace', icon: LayoutGrid },
+        { name: 'Presence', to: '/presence', icon: Globe },
         { name: 'Time Tracker', to: '/time-tracker', icon: Clock4 },
         { name: 'Gallery', to: '/gallery', icon: Images, adminOnly: true },
         { name: 'AI News', to: '/ai-news', icon: Sparkles },

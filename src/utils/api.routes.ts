@@ -85,6 +85,9 @@ export const DELETE_GALLERY_ITEM = (id: string) => `/gallery/${id}`
 // AI News routes
 export const GET_AI_NEWS = () => `/ai-news`
 
+// Presence routes
+export const GET_PRESENCE = () => `/presence`
+
 // Profile routes
 export const GET_PROFILE = () => `/users/profile`
 export const UPDATE_PROFILE = () => `/users/profile`
@@ -127,4 +130,3 @@ export const GET_ANNOUNCEMENT = (id: string) => `/announcements/${id}`
 export const CREATE_ANNOUNCEMENT = () => `/announcements`
 export const UPDATE_ANNOUNCEMENT = (id: string) => `/announcements/${id}`
 export const DELETE_ANNOUNCEMENT = (id: string) => `/announcements/${id}`
-

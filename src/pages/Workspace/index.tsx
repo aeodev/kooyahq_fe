@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useBoardStore } from '@/stores/board.store'
 
+type CreateBoardError = { message: string | string[]; statusCode?: number }
+
 export function Workspace() {
   const navigate = useNavigate()
   const boards = useBoardStore((state) => state.boards)
@@ -15,12 +17,13 @@ export function Workspace() {
   const deleteBoard = useBoardStore((state) => state.deleteBoard)
   
   const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState<{ message: string | string[]; statusCode?: number } | null>(null)
+  const [createError, setCreateError] = useState<CreateBoardError | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [boardName, setBoardName] = useState('')
   const [boardType, setBoardType] = useState<'kanban' | 'sprint'>('kanban')
+  
 
   useEffect(() => {
     fetchBoards()
@@ -41,8 +44,9 @@ export function Workspace() {
       } else {
         setCreateError({ message: 'Failed to create board' })
       }
-    } catch (error: any) {
-      setCreateError(error.response?.data || { message: 'Failed to create board' })
+    } catch (error) {
+      const serverError = (error as { response?: { data?: CreateBoardError } })?.response?.data
+      setCreateError(serverError || { message: 'Failed to create board' })
     } finally {
       setCreating(false)
     }
@@ -62,18 +66,25 @@ export function Workspace() {
 
   return (
     <section className="space-y-4 sm:space-y-6 lg:space-y-8">
-      <header className="space-y-2 sm:space-y-3">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Workspace</h1>
-        <p className="text-sm sm:text-base text-muted-foreground max-w-xl">
-          Manage your Kanban and Sprint boards. Create boards, organize tasks, and track your work.
-        </p>
+      <header className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Workspace</h1>
+            <p className="text-sm sm:text-base text-muted-foreground max-w-2xl">
+              Manage your Kanban and Sprint boards. Create boards, organize tasks, and track your work.
+            </p>
+          </div>
+          {!showCreateForm && (
+            <Button
+              onClick={() => setShowCreateForm(true)}
+              disabled={creating || boardsLoading}
+              className="w-full sm:w-auto"
+            >
+              Create board
+            </Button>
+          )}
+        </div>
       </header>
-
-      {!showCreateForm && (
-        <Button onClick={() => setShowCreateForm(true)} disabled={creating || boardsLoading}>
-          Create board
-        </Button>
-      )}
 
       {showCreateForm && (
         <Card className="p-4 sm:p-6">
