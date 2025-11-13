@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_PRESENCE } from '@/utils/api.routes'
 import { usePresenceStore } from '@/stores/presence.store'
@@ -57,52 +57,65 @@ export function usePresenceChannel() {
 
 export function useLiveLocationSharing() {
   const socket = useSocketStore((state) => state.socket)
+  const connected = useSocketStore((state) => state.connected)
   const setPermissionDenied = usePresenceStore((state) => state.setPermissionDenied)
   const setGeolocationSupported = usePresenceStore((state) => state.setGeolocationSupported)
+  const locationSharingEnabled = usePresenceStore((state) => state.locationSharingEnabled)
+  const watchIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     const supported = typeof window !== 'undefined' && 'geolocation' in navigator
     setGeolocationSupported(supported)
-    if (!supported) {
-      return
+    if (!supported) return
+
+    const stopWatching = () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+        watchIdRef.current = null
+      }
     }
 
-    if (!socket?.connected) {
+    if (!socket || !connected || !locationSharingEnabled) {
+      stopWatching()
       return
     }
-
-    let watchId: number | null = null
 
     const handleSuccess = (position: GeolocationPosition) => {
       setPermissionDenied(false)
       const { latitude, longitude, accuracy } = position.coords
-      socket.emit('presence:update-location', {
-        lat: latitude,
-        lng: longitude,
-        accuracy,
-      })
+      if (socket.connected) {
+        socket.emit('presence:update-location', {
+          lat: latitude,
+          lng: longitude,
+          accuracy,
+        })
+      }
     }
 
     const handleError = (error: GeolocationPositionError) => {
       if (error.code === error.PERMISSION_DENIED) {
         setPermissionDenied(true)
+        stopWatching()
       }
     }
 
-    try {
-      watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-        enableHighAccuracy: true,
-        maximumAge: 10_000,
-        timeout: 10_000,
-      })
-    } catch (error) {
-      console.error('Unable to start geolocation watcher', error)
+    const options: PositionOptions = {
+      enableHighAccuracy: false,
+      maximumAge: 30000,
+      timeout: 15000,
     }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        handleSuccess(position)
+        watchIdRef.current = navigator.geolocation.watchPosition(handleSuccess, handleError, options)
+      },
+      handleError,
+      options
+    )
 
     return () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId)
-      }
+      stopWatching()
     }
-  }, [socket?.connected, socket, setPermissionDenied, setGeolocationSupported])
+  }, [socket, connected, locationSharingEnabled, setPermissionDenied, setGeolocationSupported])
 }

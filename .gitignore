@@ -1,4 +1,30 @@
-# Logs
+# OS files
+Thumbs.db
+ehthumbs.db
+*.tmp
+*.bak
+*.old
+
+# Package managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build / Cache
+.cache
+.next
+out
+coverage
+*.tsbuildinfo
+vite.config.ts.timestamp*
+.eslintcache
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and diagnostics
 logs
 *.log
 npm-debug.log*
@@ -6,19 +32,117 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.pid
+*.seed
+*.pid.lock
 
-node_modules
-dist
-dist-ssr
-*.local
+# Dependencies
+node_modules/
+bower_components/
 
-# Editor directories and files
+# TypeScript
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Test outputs
+coverage/
+test-results/
+jest-*
+
+# IDEs and editors
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
+.idea/
+*.swp
+*.swo
+*.swn
 *.sw?
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# Windows
+Desktop.ini
+
+# Docker / Containers
+docker-compose.override.yml
+*.dockerfile
+.dockerignore
+
+# Build Artifacts
+dist/
+build/
+public/build/
+*.map
+
+# Database / Prisma / Migrations
+.prisma/
+*.db
+*.sqlite
+*.sqlite-journal
+migrations/
+
+# Uploads and generated assets
+uploads/
+storage/
+public/uploads/
+public/assets/generated/
+
+# Next.js specific
+.next/
+.vercel/
+
+# CesiumJS artifacts
+Cesium/
+Source/Cesium.js
+Build/
+Build/Cesium/
+Build/CesiumUnminified/
+Build/CesiumUnminified/**/*
+Build/Cesium/**/*
+Apps/Sandcastle/
+Apps/Specs/
+Specs/
+ThirdParty/
+Widgets/
+
+# Cesium build cache and output
+node_modules/cesium/Build/
+node_modules/cesium/Build/Cesium/
+node_modules/cesium/Build/CesiumUnminified/
+node_modules/cesium/Source/Workers/
+node_modules/cesium/Source/ThirdParty/
+node_modules/cesium/Source/Widgets/
+node_modules/cesium/Specs/
+
+# Cesium viewer static assets
+public/Cesium/
+public/Build/Cesium/
+public/Build/CesiumUnminified/
+public/ThirdParty/
+public/Workers/
+public/Widgets/
+
+# Cesium cache and logs
+.cesium-cache/
+.cesium/
+cesium_cache/
+
+
+cesium.config.json
+cesium.config.cjs
+cesium.config.js.timestamp*

@@ -1,6 +1,8 @@
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { usePresenceStore } from '@/stores/presence.store'
 import { usePresenceChannel, useLiveLocationSharing } from '@/hooks/presence.hooks'
+import { useUsers } from '@/hooks/user.hooks'
 import { EarthPresence } from './components/EarthPresence'
 import { PresenceSidebar } from './components/PresenceSidebar'
 
@@ -11,20 +13,28 @@ export function Presence() {
   const syncing = usePresenceStore((state) => state.syncing)
   const permissionDenied = usePresenceStore((state) => state.permissionDenied)
   const geolocationSupported = usePresenceStore((state) => state.geolocationSupported)
+  const locationSharingEnabled = usePresenceStore((state) => state.locationSharingEnabled)
+  const setLocationSharingEnabled = usePresenceStore((state) => state.setLocationSharingEnabled)
   const users = usePresenceStore((state) => state.users)
+  const { users: allSystemUsers } = useUsers()
   const activeCount = users.filter((user) => user.isActive).length
+  const totalUsers = allSystemUsers.length
 
   const statusLabel = !geolocationSupported
     ? 'Location API unavailable'
     : permissionDenied
       ? 'Enable location access to share your position'
-      : 'Ready to share your live location'
+      : locationSharingEnabled
+        ? 'Sharing your location'
+        : 'Location sharing disabled'
 
   const statusTone = !geolocationSupported
     ? 'border border-border/60 text-muted-foreground'
     : permissionDenied
       ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
-      : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+      : locationSharingEnabled
+        ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+        : 'border border-border/60 text-muted-foreground'
 
   return (
     <section className="space-y-4 sm:space-y-6 lg:space-y-8">
@@ -37,13 +47,22 @@ export function Presence() {
               collaborating in real time.
             </p>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>{activeCount} of {users.length || 0} teammates active</span>
+              <span>{activeCount} of {totalUsers || 0} teammates active</span>
               {syncing && <span className="text-primary">· syncing latest positions…</span>}
             </div>
           </div>
-          <Badge variant="outline" className={statusTone}>
-            {statusLabel}
-          </Badge>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 w-12">
+              <Switch
+                checked={locationSharingEnabled}
+                onCheckedChange={setLocationSharingEnabled}
+                disabled={!geolocationSupported || permissionDenied}
+              />
+            </div>
+            <Badge variant="outline" className={`${statusTone} min-w-[200px] text-center`}>
+              {statusLabel}
+            </Badge>
+          </div>
         </div>
       </header>
 

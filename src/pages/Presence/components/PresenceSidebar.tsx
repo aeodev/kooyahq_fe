@@ -1,13 +1,26 @@
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { usePresenceStore } from '@/stores/presence.store'
+import { getCesiumViewer } from './CesiumPresence/hooks'
+import * as Cesium from 'cesium'
 
 export function PresenceSidebar() {
   const users = usePresenceStore((state) => state.users)
 
-  const sortedUsers = [...users].sort(
-    (a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name),
-  )
+  const sortedUsers = [...users]
+    .filter((user) => user.isActive)
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  const handleLocate = (lat: number, lng: number) => {
+    const viewer = getCesiumViewer()
+    if (!viewer) return
+    
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, 100),
+      duration: 1.5,
+    })
+  }
 
   return (
     <Card className="flex h-full flex-col border-border/70 bg-card/80 shadow-md">
@@ -37,9 +50,17 @@ export function PresenceSidebar() {
                     <p className="text-xs text-muted-foreground">{formatCoordinates(user.lat, user.lng)}</p>
                   </div>
                 </div>
-                <Badge variant={user.isActive ? 'default' : 'secondary'}>
-                  {user.isActive ? 'Active' : 'Away'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleLocate(user.lat, user.lng)}
+                    className="h-7 px-3 text-xs"
+                  >
+                    Locate
+                  </Button>
+                  <Badge variant="default">Active</Badge>
+                </div>
               </li>
             ))}
           </ul>
