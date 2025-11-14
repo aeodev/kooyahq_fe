@@ -130,3 +130,10 @@ export const GET_ANNOUNCEMENT = (id: string) => `/announcements/${id}`
 export const CREATE_ANNOUNCEMENT = () => `/announcements`
 export const UPDATE_ANNOUNCEMENT = (id: string) => `/announcements/${id}`
 export const DELETE_ANNOUNCEMENT = (id: string) => `/announcements/${id}`
+
+// Projects routes
+export const GET_PROJECTS = () => `/projects`
+export const GET_PROJECT = (id: string) => `/projects/${id}`
+export const CREATE_PROJECT = () => `/projects`
+export const UPDATE_PROJECT = (id: string) => `/projects/${id}`
+export const DELETE_PROJECT = (id: string) => `/projects/${id}`

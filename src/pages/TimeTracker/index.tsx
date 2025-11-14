@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTimeEntries, useTimerDuration } from '@/hooks/time-entry.hooks'
+import { useProjects } from '@/hooks/project.hooks'
 import type { TimeEntry } from '@/types/time-entry'
 import { ActiveTimerCard } from './components/ActiveTimerCard'
 import { StartTimerForm } from './components/StartTimerForm'
@@ -14,9 +15,6 @@ import { ManualEntryModal } from './components/ManualEntryModal'
 import { STOP_TIMER, BASE_URL, GET_USERS } from '@/utils/api.routes'
 import axiosInstance from '@/utils/axios.instance'
 import type { User } from '@/types/user'
-
-// Mock projects - in real app, this would come from backend/boards
-const sampleProjects = ['Kooya', 'Talent Tap', 'Hello Alex', 'LeadON', 'Tradewise', 'Survey']
 
 type TabType = 'you' | 'all' | 'analytics'
 
@@ -48,6 +46,17 @@ export function TimeTracker() {
   const [showManualModal, setShowManualModal] = useState(false)
 
   const { data: allEntries, fetchEntries } = useTimeEntries()
+  const { data: projectsData, fetchProjects } = useProjects()
+  
+  // Convert projects to array of names for compatibility
+  const projects = useMemo(() => {
+    return projectsData?.map((p) => p.name) || []
+  }, [projectsData])
+
+  // Fetch projects on mount
+  useEffect(() => {
+    fetchProjects()
+  }, [fetchProjects])
   const myEntries = useTimeEntryStore((state) => state.entries)
   const fetchMyEntries = useTimeEntryStore((state) => state.fetchEntries)
   const activeTimer = useTimeEntryStore((state) => state.activeTimer)
@@ -381,7 +390,7 @@ export function TimeTracker() {
           {/* Start Timer Section */}
           {!activeTimer && (
             <StartTimerForm
-              projects={sampleProjects}
+              projects={projects}
               selectedProjects={selectedProjects}
               taskDescription={taskDescription}
               onToggleProject={toggleProject}
@@ -402,7 +411,7 @@ export function TimeTracker() {
 
           {/* Manual Entry Modal */}
           <ManualEntryModal
-            projects={sampleProjects}
+            projects={projects}
             open={showManualModal}
             onClose={() => setShowManualModal(false)}
             onSubmit={handleAddManualEntry}

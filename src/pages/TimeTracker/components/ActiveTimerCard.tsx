@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Plus } from 'lucide-react'
 
 type ActiveTimerCardProps = {
   duration: string
@@ -8,9 +11,19 @@ type ActiveTimerCardProps = {
   task: string
   isPaused: boolean
   onStop: () => void
+  onQuickAddTask?: (task: string) => void
 }
 
-export function ActiveTimerCard({ duration, projects, task, isPaused, onStop }: ActiveTimerCardProps) {
+export function ActiveTimerCard({ duration, projects, task, isPaused, onStop, onQuickAddTask }: ActiveTimerCardProps) {
+  const [quickTask, setQuickTask] = useState('')
+
+  const handleQuickAdd = () => {
+    if (quickTask.trim() && onQuickAddTask) {
+      onQuickAddTask(quickTask.trim())
+      setQuickTask('')
+    }
+  }
+
   return (
     <Card className="border-primary/50 bg-primary/5 backdrop-blur-sm">
       <CardHeader>
@@ -43,6 +56,39 @@ export function ActiveTimerCard({ duration, projects, task, isPaused, onStop }: 
           </div>
         </div>
       </CardHeader>
+      {onQuickAddTask && (
+        <CardContent className="pt-0">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Add Task:</span>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="What are you working on now?"
+                value={quickTask}
+                onChange={(e) => setQuickTask(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && quickTask.trim()) {
+                    handleQuickAdd()
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleQuickAdd}
+                disabled={!quickTask.trim()}
+                size="default"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Task
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Task will use current project{projects.length > 1 ? 's' : ''}: {projects.join(', ')}
+            </p>
+          </div>
+        </CardContent>
+      )}
     </Card>
   )
 }

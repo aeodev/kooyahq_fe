@@ -14,7 +14,7 @@ import { Notifications } from '@/pages/Notifications'
 import { KooyaFeed } from '@/pages/KooyaFeed'
 import { Games } from '@/pages/Games'
 import { PlayGame } from '@/pages/Games/PlayGame'
-import { AdminEmployees } from '@/pages/Admin/Employees'
+import { Admin } from '@/pages/Admin'
 import { Presence } from '@/pages/Presence'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
@@ -145,11 +145,11 @@ function App() {
               }
             />
             <Route
-              path="/admin/employees"
+              path="/admin"
               element={
                 <PrivateRoute fallback={null}>
                   <AppLayout>
-                    <AdminEmployees />
+                    <Admin />
                   </AppLayout>
                 </PrivateRoute>
               }

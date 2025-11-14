@@ -61,7 +61,7 @@ export function AppLayout({ children, className }: AppLayoutProps) {
         { name: 'AI News', to: '/ai-news', icon: Sparkles },
         { name: 'Feed', to: '/feed', icon: MessageSquare },
         { name: 'Games', to: '/games', icon: Gamepad2 },
-        { name: 'Employees', to: '/admin/employees', icon: Users, adminOnly: true },
+        { name: 'Admin', to: '/admin', icon: Users, adminOnly: true },
       ]
       
       // Filter admin-only items if user is not admin

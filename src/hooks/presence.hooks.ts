@@ -62,6 +62,7 @@ export function useLiveLocationSharing() {
   const setGeolocationSupported = usePresenceStore((state) => state.setGeolocationSupported)
   const locationSharingEnabled = usePresenceStore((state) => state.locationSharingEnabled)
   const watchIdRef = useRef<number | null>(null)
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const supported = typeof window !== 'undefined' && 'geolocation' in navigator
@@ -72,6 +73,10 @@ export function useLiveLocationSharing() {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
+      }
+      if (retryTimeoutRef.current !== null) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
       }
     }
 
@@ -92,17 +97,35 @@ export function useLiveLocationSharing() {
       }
     }
 
-    const handleError = (error: GeolocationPositionError) => {
-      if (error.code === error.PERMISSION_DENIED) {
-        setPermissionDenied(true)
-        stopWatching()
-      }
-    }
-
     const options: PositionOptions = {
       enableHighAccuracy: false,
       maximumAge: 30000,
       timeout: 15000,
+    }
+
+    const handleError = (error: GeolocationPositionError) => {
+      if (error.code === error.PERMISSION_DENIED) {
+        setPermissionDenied(true)
+        stopWatching()
+        return
+      }
+      
+      // For POSITION_UNAVAILABLE or TIMEOUT, retry after a delay
+      // This handles cases where macOS location services aren't ready yet
+      if (error.code === error.POSITION_UNAVAILABLE || error.code === error.TIMEOUT) {
+        if (retryTimeoutRef.current !== null) {
+          clearTimeout(retryTimeoutRef.current)
+        }
+        retryTimeoutRef.current = setTimeout(() => {
+          if (socket && connected && locationSharingEnabled) {
+            navigator.geolocation.getCurrentPosition(
+              handleSuccess,
+              handleError,
+              options
+            )
+          }
+        }, 2000)
+      }
     }
 
     navigator.geolocation.getCurrentPosition(
@@ -110,7 +133,15 @@ export function useLiveLocationSharing() {
         handleSuccess(position)
         watchIdRef.current = navigator.geolocation.watchPosition(handleSuccess, handleError, options)
       },
-      handleError,
+      (error) => {
+        // Even if initial getCurrentPosition fails, set up watchPosition
+        // (unless it's a permission denial) - this ensures monitoring continues
+        // when location services become available
+        if (error.code !== error.PERMISSION_DENIED) {
+          watchIdRef.current = navigator.geolocation.watchPosition(handleSuccess, handleError, options)
+        }
+        handleError(error)
+      },
       options
     )
 
