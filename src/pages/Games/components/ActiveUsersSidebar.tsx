@@ -56,7 +56,7 @@ export function ActiveUsersSidebar({
   return (
     <div
       className={cn(
-        'fixed right-0 top-14 md:top-0 z-40 flex flex-col border-l border-border bg-background/95 backdrop-blur-sm transition-all duration-300 shadow-lg',
+        'fixed right-0 top-14 md:top-0 z-40 hidden md:flex flex-col border-l border-border bg-background/95 backdrop-blur-sm transition-all duration-300 shadow-lg',
         'h-[calc(100vh-3.5rem)] md:h-screen',
         collapsed ? 'w-16' : 'w-64'
       )}

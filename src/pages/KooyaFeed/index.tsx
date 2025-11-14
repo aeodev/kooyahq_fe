@@ -134,7 +134,7 @@ export function KooyaFeed() {
 
   return (
     <div className="flex gap-0">
-      <div className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-12 pr-20 md:pr-16">
+      <div className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-12 pr-0 md:pr-16">
       {/* Header */}
       <div className="pt-6">
         <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent mb-2">

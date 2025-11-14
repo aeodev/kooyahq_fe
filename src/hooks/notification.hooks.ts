@@ -30,24 +30,55 @@ export const useNotifications = () => {
 
   const markAsRead = useCallback(async (id: string) => {
     try {
-      await axiosInstance.put(MARK_NOTIFICATION_READ(id))
+      // Optimistic update
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
       setUnreadCount((prev) => Math.max(0, prev - 1))
+      
+      // Trigger custom event for NotificationBell to refresh
+      window.dispatchEvent(new CustomEvent('notification:marked-read'))
+      
+      // Update server
+      await axiosInstance.put(MARK_NOTIFICATION_READ(id))
       return true
     } catch (err: any) {
       console.error('Failed to mark notification as read:', err)
+      // Revert optimistic update on error
+      const notification = notifications.find((n) => n.id === id)
+      if (notification) {
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)))
+        setUnreadCount((prev) => prev + 1)
+      }
       return false
     }
-  }, [])
+  }, [notifications])
 
   const markAllAsRead = useCallback(async () => {
+    // Store previous state for potential rollback
+    let previousNotifications: Notification[] = []
+    let previousUnreadCount = 0
+    
     try {
+      // Optimistic update
+      setNotifications((prev) => {
+        previousNotifications = [...prev]
+        return prev.map((n) => ({ ...n, read: true }))
+      })
+      setUnreadCount((prev) => {
+        previousUnreadCount = prev
+        return 0
+      })
+      
+      // Trigger custom event for NotificationBell to refresh
+      window.dispatchEvent(new CustomEvent('notification:marked-read'))
+      
+      // Update server
       await axiosInstance.put(MARK_ALL_NOTIFICATIONS_READ())
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-      setUnreadCount(0)
       return true
     } catch (err: any) {
       console.error('Failed to mark all as read:', err)
+      // Revert optimistic update on error
+      setNotifications(previousNotifications)
+      setUnreadCount(previousUnreadCount)
       return false
     }
   }, [])

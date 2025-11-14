@@ -67,39 +67,55 @@ export function Notifications() {
 
   const handleMarkAsRead = async (id: string) => {
     await markAsRead(id)
+    // Refresh notifications if showing unread only to update the list
+    if (showUnreadOnly) {
+      fetchNotifications(showUnreadOnly)
+    }
   }
 
   const handleMarkAllAsRead = async () => {
     await markAllAsRead()
+    // Refresh notifications if showing unread only to update the list
+    if (showUnreadOnly) {
+      fetchNotifications(showUnreadOnly)
+    }
   }
 
   if (!user) return null
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Notifications</h1>
-          <p className="text-muted-foreground mt-1">
-            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant={showUnreadOnly ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setShowUnreadOnly(!showUnreadOnly)}
-          >
-            {showUnreadOnly ? 'Show All' : 'Unread Only'}
-          </Button>
-          {unreadCount > 0 && (
-            <Button size="sm" variant="outline" onClick={handleMarkAllAsRead}>
-              <CheckCheck className="h-4 w-4 mr-2" />
-              Mark All Read
+      <header className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">Notifications</h1>
+            <p className="text-base sm:text-lg text-muted-foreground font-normal">
+              {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={showUnreadOnly ? 'default' : 'outline'}
+              size="default"
+              onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+              className="h-10 px-4 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
+            >
+              {showUnreadOnly ? 'Show All' : 'Unread Only'}
             </Button>
-          )}
+            {unreadCount > 0 && (
+              <Button 
+                size="default" 
+                variant="outline" 
+                onClick={handleMarkAllAsRead}
+                className="h-10 px-4 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                Mark All Read
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
 
       <Card>
         <CardContent className="p-0">

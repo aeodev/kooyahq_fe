@@ -89,19 +89,20 @@ export function Home() {
 
   return (
     <section className="space-y-4 sm:space-y-6">
-      <header className="space-y-1 sm:space-y-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+      <header className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
               {getGreeting()}, {user.name.split(' ')[0]}!
             </h1>
-            <p className="text-sm sm:text-base text-muted-foreground">Here's what's happening today</p>
+            <p className="text-base sm:text-lg text-muted-foreground font-normal">Here's what's happening today</p>
           </div>
           {user.isAdmin && (
             <Button
               onClick={() => setShowCreateAnnouncement(!showCreateAnnouncement)}
-              variant="outline"
-              size="sm"
+              variant={showCreateAnnouncement ? "outline" : "default"}
+              size="default"
+              className="h-11 px-5 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap"
             >
               <Megaphone className="h-4 w-4 mr-2" />
               {showCreateAnnouncement ? 'Cancel' : 'New Announcement'}
