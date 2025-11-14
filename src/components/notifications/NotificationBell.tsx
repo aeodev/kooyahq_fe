@@ -10,20 +10,8 @@ export function NotificationBell() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    // Initial fetch on mount - real-time updates handled by socket events
     fetchCount()
-    // Reduced polling interval from 30s to 5s for faster updates
-    const interval = setInterval(fetchCount, 5000)
-    
-    // Listen for immediate refresh events
-    const handleMarkedRead = () => {
-      fetchCount()
-    }
-    window.addEventListener('notification:marked-read', handleMarkedRead)
-    
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('notification:marked-read', handleMarkedRead)
-    }
   }, [fetchCount])
 
   // Refresh when navigating to/from notifications page
