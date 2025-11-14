@@ -29,8 +29,16 @@ export function EntryList({ entries }: EntryListProps) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-foreground">{entry.task}</p>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="border border-border/60 rounded-lg p-3 bg-background/50">
+                    <ul className="list-disc list-inside space-y-1">
+                      {entry.task.split(',').map((task, index) => (
+                        <li key={index} className="text-sm font-medium text-foreground">
+                          {task.trim()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
                     <p className="text-sm text-muted-foreground">{entry.project}</p>
                     <span className="text-muted-foreground">·</span>
                     <Badge variant="outline" className="text-xs">
