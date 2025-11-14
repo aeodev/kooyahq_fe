@@ -106,10 +106,8 @@ export function TimeTracker() {
 
   // Socket handles real-time updates, no need for polling
 
-  const toggleProject = (project: string) => {
-    setSelectedProjects((prev) =>
-      prev.includes(project) ? prev.filter((p) => p !== project) : [...prev, project]
-    )
+  const handleProjectSelection = (projects: string[]) => {
+    setSelectedProjects(projects)
   }
 
   const handleStart = async () => {
@@ -333,19 +331,19 @@ export function TimeTracker() {
   }, [allTodayEntries, now, timerDuration, user?.id, users])
 
   return (
-    <section className="space-y-4 sm:space-y-6">
-      <header className="space-y-1 sm:space-y-2">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Time Tracker</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">Track your work time across multiple projects</p>
+    <section className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Time Tracker</h1>
+        <p className="text-base font-normal text-muted-foreground leading-6">Track your work time across multiple projects</p>
       </header>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
         <button
           onClick={() => setActiveTab('you')}
-          className={`flex-shrink-0 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-xl transition-all duration-300 whitespace-nowrap ${
+          className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 whitespace-nowrap ${
             activeTab === 'you'
-              ? 'bg-primary/10 text-primary border border-primary/50 shadow-md'
+              ? 'bg-primary/10 text-primary border border-primary/50 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
           }`}
         >
@@ -353,9 +351,9 @@ export function TimeTracker() {
         </button>
         <button
           onClick={() => setActiveTab('all')}
-          className={`flex-shrink-0 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-xl transition-all duration-300 whitespace-nowrap ${
+          className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 whitespace-nowrap ${
             activeTab === 'all'
-              ? 'bg-primary/10 text-primary border border-primary/50 shadow-md'
+              ? 'bg-primary/10 text-primary border border-primary/50 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
           }`}
         >
@@ -363,9 +361,9 @@ export function TimeTracker() {
         </button>
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`flex-shrink-0 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-xl transition-all duration-300 whitespace-nowrap ${
+          className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 whitespace-nowrap ${
             activeTab === 'analytics'
-              ? 'bg-primary/10 text-primary border border-primary/50 shadow-md'
+              ? 'bg-primary/10 text-primary border border-primary/50 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
           }`}
         >
@@ -375,7 +373,7 @@ export function TimeTracker() {
 
       {/* Tab Content */}
       {activeTab === 'you' && (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-6">
           {/* Active Timer Card */}
           {activeTimer && (
             <ActiveTimerCard
@@ -389,25 +387,39 @@ export function TimeTracker() {
 
           {/* Start Timer Section */}
           {!activeTimer && (
-            <StartTimerForm
-              projects={projects}
-              selectedProjects={selectedProjects}
-              taskDescription={taskDescription}
-              onToggleProject={toggleProject}
-              onTaskChange={setTaskDescription}
-              onStart={handleStart}
-            />
+            <div className="space-y-6">
+              <StartTimerForm
+                projects={projects}
+                selectedProjects={selectedProjects}
+                taskDescription={taskDescription}
+                onSelectionChange={handleProjectSelection}
+                onTaskChange={setTaskDescription}
+                onStart={handleStart}
+              />
+
+              {/* Quick Actions */}
+              <QuickActions
+                isTimerRunning={!!activeTimer}
+                isPaused={activeTimer?.isPaused || false}
+                onPause={handlePause}
+                onResume={handleResume}
+                onAdd={() => setShowManualModal(true)}
+                onEndDay={handleEndDay}
+              />
+            </div>
           )}
 
-          {/* Quick Actions */}
-          <QuickActions
-            isTimerRunning={!!activeTimer}
-            isPaused={activeTimer?.isPaused || false}
-            onPause={handlePause}
-            onResume={handleResume}
-            onAdd={() => setShowManualModal(true)}
-            onEndDay={handleEndDay}
-          />
+          {/* Quick Actions - Show when timer is running */}
+          {activeTimer && (
+            <QuickActions
+              isTimerRunning={!!activeTimer}
+              isPaused={activeTimer?.isPaused || false}
+              onPause={handlePause}
+              onResume={handleResume}
+              onAdd={() => setShowManualModal(true)}
+              onEndDay={handleEndDay}
+            />
+          )}
 
           {/* Manual Entry Modal */}
           <ManualEntryModal

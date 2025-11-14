@@ -98,7 +98,7 @@ export function ProjectSelector({
       </div>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
+        <div className="absolute z-[100] mt-1 w-full rounded-md border bg-popover shadow-lg">
           <div className="p-2 border-b">
             <Input
               placeholder="Search projects..."
@@ -109,7 +109,7 @@ export function ProjectSelector({
               onClick={(e) => e.stopPropagation()}
             />
           </div>
-          <div className="max-h-60 overflow-auto p-1">
+          <div className="max-h-40 overflow-auto p-1">
             {filteredProjects.length === 0 ? (
               <div className="px-2 py-4 text-sm text-muted-foreground text-center">No projects found</div>
             ) : (

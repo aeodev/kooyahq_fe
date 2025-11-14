@@ -1,12 +1,13 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { ProjectSelector } from '@/components/ui/project-selector'
 
 type StartTimerFormProps = {
   projects: string[]
   selectedProjects: string[]
   taskDescription: string
-  onToggleProject: (project: string) => void
+  onSelectionChange: (projects: string[]) => void
   onTaskChange: (task: string) => void
   onStart: () => void
 }
@@ -15,40 +16,37 @@ export function StartTimerForm({
   projects,
   selectedProjects,
   taskDescription,
-  onToggleProject,
+  onSelectionChange,
   onTaskChange,
   onStart,
 }: StartTimerFormProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Start Timer</CardTitle>
+    <Card className="border-border/60 min-h-[400px]">
+      <CardHeader className="pb-5">
+        <CardTitle className="text-2xl font-semibold tracking-tight text-foreground">
+          Start Timer
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <label className="text-sm font-medium mb-2 block">Select Projects</label>
-          <div className="flex flex-wrap gap-2">
-            {projects.map((project) => (
-              <Button
-                key={project}
-                variant={selectedProjects.includes(project) ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => onToggleProject(project)}
-                className="h-9"
-              >
-                {project}
-              </Button>
-            ))}
-          </div>
-          {selectedProjects.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">
-              {selectedProjects.length} project{selectedProjects.length > 1 ? 's' : ''} selected
-            </p>
-          )}
+      <CardContent className="space-y-8">
+        {/* Projects Section */}
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-foreground leading-5 tracking-tight block">
+            Select Projects
+          </label>
+          <ProjectSelector
+            projects={projects}
+            selectedProjects={selectedProjects}
+            onSelectionChange={onSelectionChange}
+            placeholder="Select projects..."
+            showRecentFirst={true}
+          />
         </div>
 
-        <div>
-          <label className="text-sm font-medium mb-2 block">Task Description</label>
+        {/* Task Description Section */}
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-foreground leading-5 tracking-tight block">
+            Task Description
+          </label>
           <Input
             placeholder="What are you working on?"
             value={taskDescription}
@@ -58,15 +56,16 @@ export function StartTimerForm({
                 onStart()
               }
             }}
-            className="h-10"
+            className="h-12 text-base font-normal border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
           />
         </div>
 
-        <div className="flex gap-2">
+        {/* Start Button */}
+        <div className="pt-2">
           <Button
             onClick={onStart}
             disabled={selectedProjects.length === 0 || !taskDescription.trim()}
-            className="flex-1"
+            className="w-full h-12 text-base font-semibold tracking-tight shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             size="lg"
           >
             Start Timer

@@ -26,33 +26,38 @@ export function ActiveTimerCard({ duration, projects, task, isPaused, onStop, on
 
   return (
     <Card className="border-primary/50 bg-primary/5 backdrop-blur-sm">
-      <CardHeader>
+      <CardHeader className="pb-5">
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500'} ${isPaused ? '' : 'animate-pulse'}`}></span>
+          <div className="space-y-3">
+            <CardTitle className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
+              <span className={`h-2.5 w-2.5 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500'} ${isPaused ? '' : 'animate-pulse'}`}></span>
               {isPaused ? 'Paused Timer' : 'Active Timer'}
             </CardTitle>
-            <p className="text-2xl font-bold mt-2 text-primary">{duration}</p>
+            <p className="text-3xl font-bold text-primary tracking-tight">{duration}</p>
           </div>
-          <Button variant="destructive" onClick={onStop} size="lg">
+          <Button 
+            variant="destructive" 
+            onClick={onStop} 
+            size="lg"
+            className="h-11 px-6 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+          >
             Stop
           </Button>
         </div>
-        <div className="mt-4 space-y-2">
-          <div>
-            <p className="text-sm text-muted-foreground">Projects</p>
-            <div className="flex flex-wrap gap-2 mt-1">
+        <div className="mt-6 space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground leading-5">Projects</p>
+            <div className="flex flex-wrap gap-2">
               {projects.map((project) => (
-                <Badge key={project} variant="secondary">
+                <Badge key={project} variant="secondary" className="text-xs font-medium px-3 py-1">
                   {project}
                 </Badge>
               ))}
             </div>
           </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Task</p>
-            <p className="text-sm font-medium mt-1">{task}</p>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground leading-5">Task</p>
+            <p className="text-sm font-normal text-foreground leading-5">{task}</p>
           </div>
         </div>
       </CardHeader>
