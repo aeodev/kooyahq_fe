@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useProjectTaskStore } from '@/stores/project-task.store'
 import { useTimeEntries, useTimerDuration } from '@/hooks/time-entry.hooks'
 import { useProjects } from '@/hooks/project.hooks'
 import type { TimeEntry } from '@/types/time-entry'
@@ -43,9 +44,18 @@ export function TimeTracker() {
   const [activeTab, setActiveTab] = useState<TabType>('you')
   const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [activeProject, setActiveProject] = useState<string | null>(null)
-  const [projectTasks, setProjectTasks] = useState<Map<string, string>>(new Map())
   const [taskDescription, setTaskDescription] = useState('')
   const [showManualModal, setShowManualModal] = useState(false)
+
+  const {
+    projectTasks,
+    setProjectTask,
+    resetProjectTask,
+    markProjectVisited,
+    clearAll,
+    getProjectTask,
+    isProjectVisited,
+  } = useProjectTaskStore()
 
   const { data: allEntries, fetchEntries } = useTimeEntries()
   const { data: projectsData, fetchProjects } = useProjects()
@@ -87,19 +97,19 @@ export function TimeTracker() {
     }
   }, [user, isLoading, fetchMyEntries, fetchActiveTimer])
 
-  // Sync activeProject with activeTimer when it loads
   useEffect(() => {
-    if (activeTimer && activeTimer.projects.length > 0) {
-      const timerProject = activeTimer.projects[0]
-      if (timerProject !== activeProject) {
-        setActiveProject(timerProject)
-        // If timer has a task, update projectTasks
-        if (activeTimer.task) {
-          handleSetProjectTask(timerProject, activeTimer.task)
-        }
-      }
+    if (!activeTimer || activeTimer.projects.length === 0) return
+    const timerProject = activeTimer.projects[0]
+    if (
+      timerProject !== activeProject &&
+      !isProjectVisited(timerProject) &&
+      !getProjectTask(timerProject) &&
+      activeTimer.task
+    ) {
+      setActiveProject(timerProject)
+      setProjectTask(timerProject, activeTimer.task)
     }
-  }, [activeTimer])
+  }, [activeTimer, activeProject, isProjectVisited, getProjectTask, setProjectTask])
 
   // Fetch users for position and profile data
   useEffect(() => {
@@ -125,105 +135,80 @@ export function TimeTracker() {
 
   const handleProjectSelection = (projects: string[]) => {
     setSelectedProjects(projects)
-    // Set active project to first selected project
     if (projects.length > 0) {
       setActiveProject(projects[0])
     } else {
       setActiveProject(null)
     }
-    // Clear projectTasks for deselected projects
-    setProjectTasks((prev) => {
-      const newMap = new Map(prev)
-      // Remove tasks for projects that are no longer selected
-      prev.forEach((_, project) => {
-        if (!projects.includes(project)) {
-          newMap.delete(project)
-        }
-      })
-      return newMap
-    })
-  }
-
-  const handleSetProjectTask = (project: string, task: string) => {
-    setProjectTasks((prev) => {
-      const newMap = new Map(prev)
-      newMap.set(project, task)
-      return newMap
+    projectTasks.forEach((_, project) => {
+      if (!projects.includes(project)) {
+        resetProjectTask(project)
+      }
     })
   }
 
   const handleStart = async () => {
     if (selectedProjects.length === 0) return
-    
-    // Use activeProject (first selected) or fallback to first project
     const projectToStart = activeProject || selectedProjects[0]
     if (!projectToStart) return
-
-    // Get task for the active project from projectTasks, or use taskDescription as fallback
-    const taskForProject = projectTasks.get(projectToStart) || taskDescription.trim()
+    const taskForProject = getProjectTask(projectToStart) || taskDescription.trim()
     if (!taskForProject.trim()) return
-    
     const result = await startTimer({
-      projects: [projectToStart], // Only send the active project
+      projects: [projectToStart],
       task: taskForProject.trim(),
       status: 'Billable',
     })
-
     if (result) {
       setTaskDescription('')
-      // Keep selectedProjects and projectTasks for potential switching
-      // Timer and entries are automatically updated in store
     }
   }
 
   const handleSwitchProject = async (newProject: string) => {
     if (!activeTimer || !selectedProjects.includes(newProject)) return
-
-    // Stop current timer (saves current active project)
+    const currentProject = activeProject
+    const isVisited = isProjectVisited(newProject)
+    if (currentProject && !isProjectVisited(currentProject)) {
+      markProjectVisited(currentProject)
+    }
     await stopTimer()
-
-    // Set new active project
     setActiveProject(newProject)
-
-    // Get pre-set task for the new project, or use current task as fallback
-    const taskForNewProject = projectTasks.get(newProject) || activeTimer.task
-    
-    // Start new timer with new active project
-    if (taskForNewProject.trim()) {
+    if (isVisited) {
+      const clearedTask = getProjectTask(newProject)
+      resetProjectTask(newProject)
+      if (clearedTask && taskDescription === clearedTask) {
+        setTaskDescription('')
+      }
       await startTimer({
         projects: [newProject],
-        task: taskForNewProject.trim(),
+        task: '',
         status: 'Billable',
       })
+    } else {
+      const taskForNewProject = getProjectTask(newProject) || activeTimer.task || ''
+      if (taskForNewProject.trim()) {
+        await startTimer({
+          projects: [newProject],
+          task: taskForNewProject.trim(),
+          status: 'Billable',
+        })
+      }
     }
   }
 
   const handleQuickAddTask = async (task: string) => {
     if (!activeTimer || !activeProject || !task.trim()) return
-
-    // Get current task and append new task
     const currentTask = activeTimer.task || ''
-    const newTask = currentTask 
-      ? `${currentTask}, ${task.trim()}` 
-      : task.trim()
-
-    // Update the task for the current active project
-    handleSetProjectTask(activeProject, newTask)
-
-    // Update the timer's task via the backend (append to existing)
-    await updateEntry(activeTimer.id, {
-      task: newTask,
-    })
+    const newTask = currentTask ? `${currentTask}, ${task.trim()}` : task.trim()
+    setProjectTask(activeProject, newTask)
+    await updateEntry(activeTimer.id, { task: newTask })
   }
 
   const handleStop = async () => {
     await stopTimer()
-    // Clear state after stopping
     setSelectedProjects([])
     setActiveProject(null)
-    setProjectTasks(new Map())
+    clearAll()
     setTaskDescription('')
-    // Timer and entries are automatically updated in store
   }
 
   const handlePause = async () => {
@@ -495,7 +480,7 @@ export function TimeTracker() {
                 onTaskChange={setTaskDescription}
                 onStart={handleStart}
                 projectTasks={projectTasks}
-                onSetProjectTask={handleSetProjectTask}
+                onSetProjectTask={setProjectTask}
                 activeProject={activeProject}
               />
 
