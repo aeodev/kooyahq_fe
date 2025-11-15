@@ -1,7 +1,7 @@
 import { MoonStar, Sun } from 'lucide-react'
 import { type HTMLAttributes } from 'react'
 import { Button } from '@/components/ui/button'
-import { useTheme } from '@/hooks/useTheme'
+import { useTheme } from '@/composables/useTheme'
 import { cn } from '@/utils/cn'
 
 type ThemeToggleProps = HTMLAttributes<HTMLButtonElement>

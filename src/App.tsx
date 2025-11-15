@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { ThemeProvider } from '@/hooks/useTheme'
+import { ThemeProvider } from '@/composables/useTheme'
 import { Home } from '@/pages/Home'
 import { Login } from '@/pages/Login'
 import { Signup } from '@/pages/Signup'
@@ -16,6 +16,9 @@ import { Games } from '@/pages/Games'
 import { PlayGame } from '@/pages/Games/PlayGame'
 import { Admin } from '@/pages/Admin'
 import { Presence } from '@/pages/Presence'
+import { Meet } from '@/pages/Meet'
+import { MeetLanding } from '@/pages/Meet/Landing'
+import { PreJoin } from '@/pages/Meet/PreJoin'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
 
@@ -151,6 +154,34 @@ function App() {
                   <AppLayout>
                     <Admin />
                   </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/meet"
+              element={
+                <PrivateRoute fallback={null}>
+                  <AppLayout>
+                    <MeetLanding />
+                  </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/meet/:meetId/join"
+              element={
+                <PrivateRoute fallback={null}>
+                  <AppLayout>
+                    <Meet />
+                  </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/meet/:meetId"
+              element={
+                <PrivateRoute fallback={null}>
+                  <PreJoin />
                 </PrivateRoute>
               }
             />

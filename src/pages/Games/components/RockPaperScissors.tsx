@@ -8,7 +8,7 @@ import {
   ROCK_PAPER_SCISSORS_WIN_CONDITIONS,
   type RockPaperScissorsChoice,
 } from '@/hooks/game-constants'
-import { useGameMatch } from '@/hooks/useGameMatch'
+import { useGameMatch } from '@/composables/game/useGameMatch'
 
 type Choice = RockPaperScissorsChoice
 type RoundResult = 'win' | 'loss' | 'draw' | null

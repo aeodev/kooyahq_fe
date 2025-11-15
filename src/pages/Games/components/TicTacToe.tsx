@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { X, Circle, RotateCcw } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { TIC_TAC_TOE_WINNING_LINES, TIC_TAC_TOE_BOARD_SIZE, createEmptyTicTacToeBoard } from '@/hooks/game-constants'
-import { useGameMatch } from '@/hooks/useGameMatch'
-import { useMultiplayerGame } from '@/hooks/useMultiplayerGame'
+import { useGameMatch } from '@/composables/game/useGameMatch'
+import { useMultiplayerGame } from '@/composables/game/useMultiplayerGame'
 
 type Player = 'X' | 'O' | null
 type Board = Player[]

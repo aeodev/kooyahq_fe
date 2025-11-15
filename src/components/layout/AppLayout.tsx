@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, type PropsWithChildren } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Menu, Users } from 'lucide-react'
+import { Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Menu, Users, Video } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -61,6 +61,7 @@ export function AppLayout({ children, className }: AppLayoutProps) {
         { name: 'AI News', to: '/ai-news', icon: Sparkles },
         { name: 'Feed', to: '/feed', icon: MessageSquare },
         { name: 'Games', to: '/games', icon: Gamepad2 },
+        { name: 'Meet', to: '/meet', icon: Video },
         { name: 'Admin', to: '/admin', icon: Users, adminOnly: true },
       ]
       
@@ -69,6 +70,8 @@ export function AppLayout({ children, className }: AppLayoutProps) {
     },
     [user?.isAdmin],
   )
+
+  const isMeetPage = location.pathname.startsWith('/meet/')
 
   if (!user) {
     return (
@@ -79,12 +82,20 @@ export function AppLayout({ children, className }: AppLayoutProps) {
               KooyaHQ
             </Link>
             <div className="flex items-center gap-1 sm:gap-2">
-              <Button asChild variant="ghost" size="sm" className="text-xs sm:text-sm px-2 sm:px-3">
-                <Link to="/login">Log in</Link>
-              </Button>
-              <Button asChild size="sm" className="text-xs sm:text-sm px-2 sm:px-3">
-                <Link to="/signup">Sign up</Link>
-              </Button>
+              {[
+                { path: '/login', label: 'Log in' },
+                { path: '/signup', label: 'Sign up' },
+              ].map(({ path, label }) => (
+                <Button
+                  key={path}
+                  asChild
+                  variant={location.pathname === path ? 'default' : 'ghost'}
+                  size="sm"
+                  className="text-xs sm:text-sm px-2 sm:px-3"
+                >
+                  <Link to={path}>{label}</Link>
+                </Button>
+              ))}
               <ThemeToggle className="h-8 w-8 sm:h-9 sm:w-9" />
             </div>
           </div>
@@ -143,18 +154,24 @@ export function AppLayout({ children, className }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 py-4 sm:py-6 md:px-6">
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
+        <main className={cn('flex-1', isMeetPage ? 'overflow-hidden' : 'overflow-y-auto', isMeetPage ? '' : 'px-4 py-4 sm:py-6 md:px-6')}>
+          {isMeetPage ? (
+            children
+          ) : (
+            <div className="mx-auto w-full max-w-7xl">{children}</div>
+          )}
         </main>
 
-        <footer className="border-t border-border bg-background">
-          <div className="mx-auto w-full max-w-5xl px-4 py-3 sm:py-4">
-            <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
-              <span className="whitespace-nowrap">© {new Date().getFullYear()} KooyaHQ</span>
-              <span className="font-medium text-primary whitespace-nowrap">Ship work that matters.</span>
+        {!isMeetPage && (
+          <footer className="border-t border-border bg-background">
+            <div className="mx-auto w-full max-w-5xl px-4 py-3 sm:py-4">
+              <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
+                <span className="whitespace-nowrap">© {new Date().getFullYear()} KooyaHQ</span>
+                <span className="font-medium text-primary whitespace-nowrap">Ship work that matters.</span>
+              </div>
             </div>
-          </div>
-        </footer>
+          </footer>
+        )}
       </div>
     </div>
   )

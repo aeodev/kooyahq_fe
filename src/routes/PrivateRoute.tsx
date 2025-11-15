@@ -1,7 +1,7 @@
 import type { PropsWithChildren, ReactElement } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth.store'
-import { useSocket } from '@/hooks/useSocket'
+import { useSocket } from '@/composables/useSocket'
 
 type PrivateRouteProps = PropsWithChildren<{
   redirectTo?: string
