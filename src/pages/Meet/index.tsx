@@ -133,23 +133,28 @@ export function Meet() {
     return participantArray
   }, [participants, user, isVideoEnabled, isAudioEnabled, isScreenSharing])
 
-  // Determine which participant to show on mobile (active speaker or fallback)
+  // Determine which participant to show on mobile (prioritize screen sharing, then active speaker, then fallback)
   const mobileDisplayParticipant = useMemo(() => {
     // Edge case: Only one participant (self)
     if (allParticipants.length === 1) {
       return allParticipants[0] || null
     }
 
-    // If we have an active speaker, show them (but verify they still exist)
+    // Priority 1: Screen sharing participant (highest priority)
+    const screenSharingParticipant = allParticipants.find(p => p.isScreenSharing)
+    if (screenSharingParticipant) {
+      return screenSharingParticipant
+    }
+
+    // Priority 2: Active speaker
     if (activeSpeakerId) {
       const activeParticipant = allParticipants.find(p => p.userId === activeSpeakerId)
       if (activeParticipant) {
         return activeParticipant
       }
-      // Active speaker left, fall through to next logic
     }
     
-    // If no active speaker, show self if available
+    // Priority 3: Self if available
     if (user) {
       const selfParticipant = allParticipants.find(p => p.userId === user.id)
       if (selfParticipant) {
@@ -157,7 +162,7 @@ export function Meet() {
       }
     }
     
-    // Fallback to first other participant
+    // Priority 4: Fallback to first other participant
     const otherParticipants = allParticipants.filter(p => p.userId !== user?.id)
     return otherParticipants[0] || allParticipants[0] || null
   }, [activeSpeakerId, allParticipants, user])
