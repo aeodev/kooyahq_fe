@@ -82,7 +82,7 @@ export function ChatPanel({ meetId, isOpen, onClose }: ChatPanelProps) {
       />
       
       {/* Chat panel */}
-      <div className="fixed md:relative inset-0 md:inset-auto md:w-80 bg-background border-l border-border/50 flex flex-col flex-shrink-0 z-50 md:z-auto">
+      <div className="fixed md:relative inset-0 md:inset-auto md:w-80 bg-background border-l border-border/50 flex flex-col flex-shrink-0 z-50 md:z-auto pb-24 md:pb-0">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">Chat</h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -125,7 +125,7 @@ export function ChatPanel({ meetId, isOpen, onClose }: ChatPanelProps) {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border mb-4 md:mb-0">
           <div className="flex gap-2">
             <Input
               value={message}

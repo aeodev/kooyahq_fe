@@ -53,7 +53,9 @@ export function useMediaDevices({
 
           if (localStreamRef.current && newVideoTrack) {
             localStreamRef.current.addTrack(newVideoTrack)
-            setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
+            // Keep the same stream reference to avoid interrupting video playback
+            // VideoTile listens to track changes via event listeners
+            setLocalStream(localStreamRef.current)
             replaceTrackInPeerConnections(newVideoTrack, 'video')
           }
 
@@ -94,7 +96,9 @@ export function useMediaDevices({
 
           if (localStreamRef.current && newAudioTrack) {
             localStreamRef.current.addTrack(newAudioTrack)
-            setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
+            // Keep the same stream reference to avoid interrupting video playback
+            // VideoTile listens to track changes via event listeners
+            setLocalStream(localStreamRef.current)
             replaceTrackInPeerConnections(newAudioTrack, 'audio')
           }
 

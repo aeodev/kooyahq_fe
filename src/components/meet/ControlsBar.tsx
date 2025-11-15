@@ -1,6 +1,7 @@
 import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, Square, LogOut, FlipHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DeviceSettings } from './DeviceSettings'
+import { cn } from '@/utils/cn'
 
 interface ControlsBarProps {
   isVideoEnabled: boolean
@@ -8,6 +9,8 @@ interface ControlsBarProps {
   isScreenSharing: boolean
   isRecording: boolean
   isMirrored: boolean
+  isChatOpen?: boolean
+  isMobile?: boolean
   onToggleVideo: () => void
   onToggleAudio: () => void
   onToggleScreenShare: () => void
@@ -27,6 +30,8 @@ export function ControlsBar({
   isScreenSharing,
   isRecording,
   isMirrored,
+  isChatOpen = false,
+  isMobile = false,
   onToggleVideo,
   onToggleAudio,
   onToggleScreenShare,
@@ -39,27 +44,34 @@ export function ControlsBar({
   onAudioInputChange,
   onAudioOutputChange,
 }: ControlsBarProps) {
+  // On mobile, hide call controls when chat is open to prevent overlap with chat input
+  const hideCallControlsOnMobile = isMobile && isChatOpen
+
   return (
     <div className="flex items-center justify-center gap-3 md:gap-1 sm:gap-2 p-4 md:p-2 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg z-50 flex-shrink-0 flex-wrap">
-      <Button
-        variant={isAudioEnabled ? 'default' : 'destructive'}
-        size="icon"
-        onClick={onToggleAudio}
-        title={isAudioEnabled ? 'Mute' : 'Unmute'}
-        className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
-      >
-        {isAudioEnabled ? <Mic className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" /> : <MicOff className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />}
-      </Button>
+      {!hideCallControlsOnMobile && (
+        <Button
+          variant={isAudioEnabled ? 'default' : 'destructive'}
+          size="icon"
+          onClick={onToggleAudio}
+          title={isAudioEnabled ? 'Mute' : 'Unmute'}
+          className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
+        >
+          {isAudioEnabled ? <Mic className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" /> : <MicOff className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />}
+        </Button>
+      )}
 
-      <Button
-        variant={isVideoEnabled ? 'default' : 'destructive'}
-        size="icon"
-        onClick={onToggleVideo}
-        title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
-        className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
-      >
-        {isVideoEnabled ? <Video className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" /> : <VideoOff className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />}
-      </Button>
+      {!hideCallControlsOnMobile && (
+        <Button
+          variant={isVideoEnabled ? 'default' : 'destructive'}
+          size="icon"
+          onClick={onToggleVideo}
+          title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
+          className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
+        >
+          {isVideoEnabled ? <Video className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" /> : <VideoOff className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />}
+        </Button>
+      )}
 
       <Button
         variant={isScreenSharing ? 'default' : 'outline'}
@@ -81,22 +93,24 @@ export function ControlsBar({
         <FlipHorizontal className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
       </Button>
 
-      <div className="hidden sm:block">
-        <DeviceSettings
-          onVideoDeviceChange={onVideoDeviceChange}
-          onAudioInputChange={onAudioInputChange}
-          onAudioOutputChange={onAudioOutputChange}
-        />
-      </div>
+      {!hideCallControlsOnMobile && (
+        <div className="hidden sm:block">
+          <DeviceSettings
+            onVideoDeviceChange={onVideoDeviceChange}
+            onAudioInputChange={onAudioInputChange}
+            onAudioOutputChange={onAudioOutputChange}
+          />
+        </div>
+      )}
 
       <Button
         variant="outline"
         size="icon"
         onClick={onToggleChat}
         title="Toggle chat"
-        className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md bg-white/90 md:bg-transparent"
+        className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md bg-green-500 hover:bg-green-600 text-white border-green-500 hover:border-green-600"
       >
-        <MessageSquare className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
+        <MessageSquare className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5 text-white" />
       </Button>
 
       {!isRecording ? (
@@ -121,7 +135,9 @@ export function ControlsBar({
         </Button>
       )}
 
-      <div className="w-px h-6 sm:h-8 bg-border mx-1 sm:mx-2 hidden sm:block" />
+      {!hideCallControlsOnMobile && (
+        <div className="w-px h-6 sm:h-8 bg-border mx-1 sm:mx-2 hidden sm:block" />
+      )}
 
       <Button
         variant="destructive"

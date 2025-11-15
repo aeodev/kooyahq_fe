@@ -283,6 +283,8 @@ export function Meet() {
           isScreenSharing={isScreenSharing}
           isRecording={isRecording}
           isMirrored={isMirrored}
+          isChatOpen={isChatOpen}
+          isMobile={isMobile}
           onToggleVideo={toggleVideo}
           onToggleAudio={toggleAudio}
           onToggleScreenShare={toggleScreenShare}

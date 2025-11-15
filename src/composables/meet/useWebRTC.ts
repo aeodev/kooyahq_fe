@@ -304,7 +304,8 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
               })
               const newVideoTrack = stream.getVideoTracks()[0]
               localStreamRef.current.addTrack(newVideoTrack)
-              setLocalStream(new MediaStream(localStreamRef.current.getTracks()))
+              // Keep the same stream reference to avoid interrupting video playback
+              setLocalStream(localStreamRef.current)
 
               peerConnectionsRef.current.forEach(({ peerConnection }) => {
                 const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
