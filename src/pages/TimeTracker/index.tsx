@@ -13,6 +13,8 @@ import { EntryList } from './components/EntryList'
 import { AllTeamView } from './components/AllTeamView'
 import { AnalyticsView } from './components/AnalyticsView'
 import { ManualEntryModal } from './components/ManualEntryModal'
+import { EndDayModal } from './components/EndDayModal'
+import { OvertimeConfirmationModal } from './components/OvertimeConfirmationModal'
 import { STOP_TIMER, BASE_URL, GET_USERS } from '@/utils/api.routes'
 import axiosInstance from '@/utils/axios.instance'
 import type { User } from '@/types/user'
@@ -46,6 +48,11 @@ export function TimeTracker() {
   const [activeProject, setActiveProject] = useState<string | null>(null)
   const [taskDescription, setTaskDescription] = useState('')
   const [showManualModal, setShowManualModal] = useState(false)
+  const [showEndDayModal, setShowEndDayModal] = useState(false)
+  const [showOvertimeModal, setShowOvertimeModal] = useState(false)
+  const [dayEndedToday, setDayEndedToday] = useState(false)
+  const [pendingTimerStart, setPendingTimerStart] = useState<(() => void) | null>(null)
+  const [pendingManualEntryData, setPendingManualEntryData] = useState<{ projects: string[]; task: string; hours: number; minutes: number } | null>(null)
 
   const {
     projectTasks,
@@ -76,6 +83,7 @@ export function TimeTracker() {
   const resumeTimer = useTimeEntryStore((state) => state.resumeTimer)
   const stopTimer = useTimeEntryStore((state) => state.stopTimer)
   const endDay = useTimeEntryStore((state) => state.endDay)
+  const checkDayEndedStatus = useTimeEntryStore((state) => state.checkDayEndedStatus)
   const logManualEntry = useTimeEntryStore((state) => state.logManualEntry)
   const updateEntry = useTimeEntryStore((state) => state.updateEntry)
   const timerDuration = useTimerDuration(activeTimer)
@@ -92,8 +100,11 @@ export function TimeTracker() {
     if (user && !isLoading) {
       fetchMyEntries()
       fetchActiveTimer()
+      checkDayEndedStatus().then((status) => {
+        setDayEndedToday(status.dayEnded)
+      })
     }
-  }, [user, isLoading, fetchMyEntries, fetchActiveTimer])
+  }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus])
 
 
   // Fetch users for position and profile data
@@ -138,6 +149,24 @@ export function TimeTracker() {
     if (!projectToStart) return
     const taskForProject = getProjectTask(projectToStart) || taskDescription.trim()
     if (!taskForProject.trim()) return
+    
+    // Check if day was ended
+    if (dayEndedToday) {
+      setPendingTimerStart(() => async () => {
+        setProjectTask(projectToStart, taskForProject.trim())
+        const result = await startTimer({
+          projects: [projectToStart],
+          task: taskForProject.trim(),
+          isOvertime: true,
+        })
+        if (result) {
+          setTaskDescription('')
+          setDayEndedToday(false) // Allow End Day button to reappear
+        }
+      })
+      setShowOvertimeModal(true)
+      return
+    }
     
     // Save task to store before starting
     setProjectTask(projectToStart, taskForProject.trim())
@@ -220,13 +249,26 @@ export function TimeTracker() {
     }
   }
 
-  const handleEndDay = async () => {
+  const handleEndDay = () => {
+    setShowEndDayModal(true)
+  }
+
+  const handleEndDaySubmit = async () => {
     await endDay()
+    setShowEndDayModal(false)
+    setDayEndedToday(true)
     fetchEntries() // Still need to fetch all entries for analytics
     // Timer and my entries are automatically updated in store
   }
 
   const handleAddManualEntry = async (data: { projects: string[]; task: string; hours: number; minutes: number }) => {
+    // Check if day was ended
+    if (dayEndedToday) {
+      setPendingManualEntryData(data)
+      setShowOvertimeModal(true)
+      return
+    }
+
     const totalMinutes = data.hours * 60 + data.minutes
     
     setLoggingManual(true)
@@ -251,6 +293,45 @@ export function TimeTracker() {
     return entryDate.toDateString() === today.toDateString()
   })
 
+  // Check if there are overtime entries
+  const hasOvertimeEntries = todayMyEntries.some((entry) => entry.isOvertime)
+
+  // Show End Day button if day hasn't been ended, or if there are overtime entries
+  const showEndDayButton = !dayEndedToday || hasOvertimeEntries
+
+  const handleOvertimeConfirm = async () => {
+    setShowOvertimeModal(false)
+    if (pendingTimerStart) {
+      pendingTimerStart()
+      setPendingTimerStart(null)
+    } else if (pendingManualEntryData) {
+      const data = pendingManualEntryData
+      const totalMinutes = data.hours * 60 + data.minutes
+      setLoggingManual(true)
+      const result = await logManualEntry({
+        projects: data.projects,
+        task: data.task,
+        duration: totalMinutes,
+        isOvertime: true,
+      })
+      setLoggingManual(false)
+
+      if (result) {
+        setShowManualModal(false)
+        setDayEndedToday(false) // Allow End Day button to reappear
+        fetchEntries() // Still need to fetch all entries for analytics
+        // Entry is automatically added to store
+      }
+      setPendingManualEntryData(null)
+    }
+  }
+
+  const handleOvertimeCancel = () => {
+    setShowOvertimeModal(false)
+    setPendingTimerStart(null)
+    setPendingManualEntryData(null)
+  }
+
   const todayTotalMinutes = todayMyEntries.reduce((sum, entry) => {
     if (entry.isActive && entry.startTime) {
       const start = new Date(entry.startTime)
@@ -270,6 +351,7 @@ export function TimeTracker() {
     task: entry.task,
     duration: formatDuration(entry.duration),
     time: formatTimeRange(entry.startTime, entry.endTime),
+    isOvertime: entry.isOvertime,
   }))
 
   // Calculate analytics data
@@ -485,6 +567,7 @@ export function TimeTracker() {
                 onResume={handleResume}
                 onAdd={() => setShowManualModal(true)}
                 onEndDay={handleEndDay}
+                showEndDay={showEndDayButton}
               />
             </div>
           )}
@@ -498,6 +581,7 @@ export function TimeTracker() {
               onResume={handleResume}
               onAdd={() => setShowManualModal(true)}
               onEndDay={handleEndDay}
+              showEndDay={showEndDayButton}
             />
           )}
 
@@ -508,6 +592,22 @@ export function TimeTracker() {
             onClose={() => setShowManualModal(false)}
             onSubmit={handleAddManualEntry}
             loading={loggingManual}
+          />
+
+          {/* End Day Modal */}
+          <EndDayModal
+            open={showEndDayModal}
+            onClose={() => setShowEndDayModal(false)}
+            onSubmit={handleEndDaySubmit}
+            entries={todayMyEntries}
+            loading={false}
+          />
+
+          {/* Overtime Confirmation Modal */}
+          <OvertimeConfirmationModal
+            open={showOvertimeModal}
+            onClose={handleOvertimeCancel}
+            onConfirm={handleOvertimeConfirm}
           />
 
           {/* Today's Summary */}

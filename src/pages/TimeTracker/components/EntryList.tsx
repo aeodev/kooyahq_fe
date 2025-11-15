@@ -7,6 +7,7 @@ type TimeEntry = {
   task: string
   duration: string
   time: string
+  isOvertime?: boolean
 }
 
 type EntryListProps = {
@@ -39,6 +40,11 @@ export function EntryList({ entries }: EntryListProps) {
                   </div>
                   <div className="flex items-center gap-2 mt-2">
                     <p className="text-sm text-muted-foreground">{entry.project}</p>
+                    {entry.isOvertime && (
+                      <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-600 border-orange-500/30">
+                        Overtime
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{entry.time}</p>
                 </div>

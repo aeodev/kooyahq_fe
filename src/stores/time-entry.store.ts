@@ -8,6 +8,7 @@ import {
   RESUME_TIMER,
   STOP_TIMER,
   END_DAY,
+  GET_DAY_ENDED_STATUS,
   LOG_MANUAL_ENTRY,
   UPDATE_TIME_ENTRY,
   DELETE_TIME_ENTRY,
@@ -75,6 +76,7 @@ type TimeEntryActions = {
   resumeTimer: () => Promise<TimeEntry | null>
   stopTimer: () => Promise<TimeEntry | null>
   endDay: () => Promise<TimeEntry[]>
+  checkDayEndedStatus: () => Promise<{ dayEnded: boolean; endedAt: string | null }>
   logManualEntry: (input: ManualEntryInput) => Promise<TimeEntry | null>
   updateEntry: (id: string, updates: UpdateTimeEntryInput) => Promise<TimeEntry | null>
   deleteEntry: (id: string) => Promise<boolean>
@@ -213,6 +215,17 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       return entries
     } catch (err) {
       return []
+    }
+  },
+
+  checkDayEndedStatus: async () => {
+    try {
+      const response = await axiosInstance.get<{ status: string; data: { dayEnded: boolean; endedAt: string | null } }>(
+        GET_DAY_ENDED_STATUS()
+      )
+      return response.data.data
+    } catch (err) {
+      return { dayEnded: false, endedAt: null }
     }
   },
 

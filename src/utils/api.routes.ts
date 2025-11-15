@@ -70,6 +70,7 @@ export const PAUSE_TIMER = () => `/time-entries/timer/pause`
 export const RESUME_TIMER = () => `/time-entries/timer/resume`
 export const STOP_TIMER = () => `/time-entries/timer/stop`
 export const END_DAY = () => `/time-entries/timer/end-day`
+export const GET_DAY_ENDED_STATUS = () => `/time-entries/timer/day-ended-status`
 export const LOG_MANUAL_ENTRY = () => `/time-entries/manual`
 export const UPDATE_TIME_ENTRY = (id: string) => `/time-entries/${id}`
 export const DELETE_TIME_ENTRY = (id: string) => `/time-entries/${id}`

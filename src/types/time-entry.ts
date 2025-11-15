@@ -12,6 +12,7 @@ export type TimeEntry = {
   isPaused: boolean
   pausedDuration: number
   lastPausedAt: string | null
+  isOvertime: boolean
   canEdit: boolean
   createdAt: string
   updatedAt: string
@@ -20,6 +21,7 @@ export type TimeEntry = {
 export type StartTimerInput = {
   projects: string[]
   task: string
+  isOvertime?: boolean
 }
 
 export type UpdateTimeEntryInput = {
@@ -34,5 +36,6 @@ export type ManualEntryInput = {
   duration: number // in minutes
   startTime?: string
   endTime?: string
+  isOvertime?: boolean
 }
 

@@ -7,9 +7,10 @@ type QuickActionsProps = {
   onResume: () => void
   onAdd: () => void
   onEndDay: () => void
+  showEndDay?: boolean
 }
 
-export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAdd, onEndDay }: QuickActionsProps) {
+export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAdd, onEndDay, showEndDay = true }: QuickActionsProps) {
   return (
     <div className="flex gap-3">
       {isTimerRunning && !isPaused && (
@@ -37,13 +38,15 @@ export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAd
       >
         Add
       </Button>
-      <Button
-        variant="outline"
-        onClick={onEndDay}
-        className="flex-1 h-11 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
-      >
-        End Day
-      </Button>
+      {showEndDay && (
+        <Button
+          variant="outline"
+          onClick={onEndDay}
+          className="flex-1 h-11 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
+        >
+          End Day
+        </Button>
+      )}
     </div>
   )
 }

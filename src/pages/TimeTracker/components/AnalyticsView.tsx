@@ -23,7 +23,7 @@ export function AnalyticsView() {
   
   const [startDate, setStartDate] = useState(() => {
     const date = new Date()
-    date.setDate(date.getDate() - 30)
+    date.setDate(date.getDate() - 15)
     return date.toISOString().split('T')[0]
   })
   const [endDate, setEndDate] = useState(() => {
@@ -77,6 +77,19 @@ export function AnalyticsView() {
       name: user.userName,
       hours: formatHours(user.hours),
       entries: user.entries,
+      overtimeEntries: user.overtimeEntries,
+    }))
+    .slice(0, 10)
+
+  const overtimeRanks = data.byUser
+    .filter((user) => user.overtimeEntries > 0)
+    .sort((a, b) => b.overtimeHours - a.overtimeHours)
+    .map((user, index) => ({
+      rank: index + 1,
+      name: user.userName,
+      overtimeEntries: user.overtimeEntries,
+      overtimeHours: formatHours(user.overtimeHours),
+      totalEntries: user.entries,
     }))
     .slice(0, 10)
 
@@ -135,6 +148,9 @@ export function AnalyticsView() {
             <Button variant="outline" size="sm" onClick={() => quickRange(7)}>
               Last 7 days
             </Button>
+            <Button variant="outline" size="sm" onClick={() => quickRange(15)}>
+              Last 15 days
+            </Button>
             <Button variant="outline" size="sm" onClick={() => quickRange(30)}>
               Last 30 days
             </Button>
@@ -149,7 +165,7 @@ export function AnalyticsView() {
       </Card>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Hours</p>
@@ -160,6 +176,12 @@ export function AnalyticsView() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Entries</p>
             <p className="text-2xl font-bold">{data.totalEntries}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground mb-1">Overtime Entries</p>
+            <p className="text-2xl font-bold text-orange-600">{data.totalOvertimeEntries}</p>
           </CardContent>
         </Card>
       </div>
@@ -183,10 +205,58 @@ export function AnalyticsView() {
                     </div>
                     <div>
                       <p className="font-medium">{person.name}</p>
-                      <p className="text-xs text-muted-foreground">{person.entries} entries</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">{person.entries} entries</p>
+                        {person.overtimeEntries > 0 && (
+                          <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-600 border-orange-500/30">
+                            {person.overtimeEntries} overtime
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <p className="text-lg font-semibold">{person.hours}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Overtime Work */}
+      {overtimeRanks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Overtime Work</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Users with overtime entries (last 15 days)
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {overtimeRanks.map((person) => (
+                <div
+                  key={person.rank}
+                  className="flex items-center justify-between p-3 rounded-xl border border-orange-500/30 bg-orange-500/5 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center h-8 w-8 rounded-xl ring-1 ring-orange-500/30 bg-orange-500/10 backdrop-blur-sm text-sm font-bold text-orange-600">
+                      {person.rank}
+                    </div>
+                    <div>
+                      <p className="font-medium">{person.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">{person.totalEntries} total entries</p>
+                        <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-600 border-orange-500/30">
+                          {person.overtimeEntries} entries
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-orange-600">{person.overtimeHours}</p>
+                    <p className="text-xs text-muted-foreground">overtime</p>
+                  </div>
                 </div>
               ))}
             </div>
