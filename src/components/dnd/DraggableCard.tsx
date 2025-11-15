@@ -16,6 +16,7 @@ export function DraggableCard({
   className = '',
 }: DraggableCardProps) {
   const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation() // Prevent bubbling to parent draggable elements
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', id)
     e.dataTransfer.setData('application/json', JSON.stringify({ id }))

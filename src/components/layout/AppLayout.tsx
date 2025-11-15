@@ -94,10 +94,12 @@ export function AppLayout({ children, className }: AppLayoutProps) {
           <div className="mx-auto w-full max-w-3xl">{children}</div>
         </main>
 
-        <footer className="border-t border-border px-4 py-3 sm:py-4">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 text-xs sm:text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <span>© {new Date().getFullYear()} KooyaHQ</span>
-            <span className="font-medium text-primary">Ship work that matters.</span>
+        <footer className="border-t border-border bg-background">
+          <div className="mx-auto w-full max-w-3xl px-4 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
+              <span className="whitespace-nowrap">© {new Date().getFullYear()} KooyaHQ</span>
+              <span className="font-medium text-primary whitespace-nowrap">Ship work that matters.</span>
+            </div>
           </div>
         </footer>
       </div>
@@ -145,10 +147,12 @@ export function AppLayout({ children, className }: AppLayoutProps) {
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>
 
-        <footer className="border-t border-border px-4 py-3 sm:py-4">
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 text-xs sm:text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <span>© {new Date().getFullYear()} KooyaHQ</span>
-            <span className="font-medium text-primary">Ship work that matters.</span>
+        <footer className="border-t border-border bg-background">
+          <div className="mx-auto w-full max-w-5xl px-4 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
+              <span className="whitespace-nowrap">© {new Date().getFullYear()} KooyaHQ</span>
+              <span className="font-medium text-primary whitespace-nowrap">Ship work that matters.</span>
+            </div>
           </div>
         </footer>
       </div>

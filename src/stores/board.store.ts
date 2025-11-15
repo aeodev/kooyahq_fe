@@ -11,6 +11,7 @@ import {
   MOVE_CARD,
   UPDATE_BOARD,
   UPDATE_CARD,
+  BULK_UPDATE_RANKS,
 } from '@/utils/api.routes'
 import type {
   Board,
@@ -88,6 +89,7 @@ type BoardActions = {
   updateCard: (cardId: string, updates: UpdateCardInput) => Promise<Card | null>
   moveCard: (cardId: string, columnId: string, boardId: string) => Promise<Card | null>
   deleteCard: (cardId: string, boardId: string) => Promise<boolean>
+  bulkUpdateRanks: (boardId: string, rankUpdates: Array<{ id: string; rank: number }>) => Promise<Card[]>
   setCurrentBoard: (board: Board | null) => void
   clearBoardCache: (boardId: string) => void
 }
@@ -333,6 +335,28 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       return true
     } catch (err) {
       return false
+    }
+  },
+
+  bulkUpdateRanks: async (boardId: string, rankUpdates: Array<{ id: string; rank: number }>) => {
+    try {
+      const response = await axiosInstance.post<{ status: string; data: Card[] }>(
+        BULK_UPDATE_RANKS(boardId),
+        { rankUpdates }
+      )
+      const updatedCards = response.data.data
+
+      // Update in cards cache
+      const cardsByBoardId = { ...get().cardsByBoardId }
+      if (cardsByBoardId[boardId]) {
+        const cardMap = new Map(updatedCards.map((c) => [c.id, c]))
+        cardsByBoardId[boardId] = cardsByBoardId[boardId].map((c) => cardMap.get(c.id) || c)
+      }
+
+      set({ cardsByBoardId })
+      return updatedCards
+    } catch (err) {
+      return []
     }
   },
 

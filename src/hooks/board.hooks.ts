@@ -11,6 +11,7 @@ import {
   GET_BOARDS,
   GET_CARDS_BY_BOARD,
   GET_COMMENTS_BY_CARD,
+  GET_CARD_ACTIVITIES,
   MOVE_CARD,
   UPDATE_BOARD,
   UPDATE_CARD,
@@ -20,6 +21,7 @@ import type {
   Board,
   Card,
   Comment,
+  CardActivity,
   CreateBoardInput,
   UpdateBoardInput,
   CreateCardInput,
@@ -499,6 +501,43 @@ export const useDeleteComment = () => {
     loading,
     error,
     deleteComment,
+  }
+}
+
+export const useCardActivities = () => {
+  const [data, setData] = useState<CardActivity[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Errors | null>(null)
+
+  const fetchActivities = useCallback(async (cardId: string) => {
+    if (!cardId) {
+      setData([])
+      return []
+    }
+
+    setError(null)
+    setLoading(true)
+
+    try {
+      const response = await axiosInstance.get<{ status: string; data: CardActivity[] }>(
+        GET_CARD_ACTIVITIES(cardId),
+      )
+      setData(response.data.data)
+      return response.data.data
+    } catch (err) {
+      const normalized = normalizeError(err)
+      setError(normalized)
+      return []
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  return {
+    data,
+    loading,
+    error,
+    fetchActivities,
   }
 }
 

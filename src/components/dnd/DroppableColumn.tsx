@@ -7,6 +7,7 @@ type DroppableColumnProps = {
   onDrop: (cardId: string, targetColumnId: string) => void
   onDragOver?: (e: React.DragEvent) => void
   className?: string
+  disabled?: boolean
 }
 
 export function DroppableColumn({
@@ -15,10 +16,19 @@ export function DroppableColumn({
   onDrop,
   onDragOver,
   className = '',
+  disabled = false,
 }: DroppableColumnProps) {
   const [isDraggingOver, setIsDraggingOver] = useState(false)
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (disabled) return
+    
+    // Only handle card drags, not column drags
+    const data = e.dataTransfer.getData('text/plain')
+    if (data && data.startsWith('column:')) {
+      return
+    }
+    
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setIsDraggingOver(true)
@@ -31,9 +41,17 @@ export function DroppableColumn({
   }
 
   const handleDrop = (e: React.DragEvent) => {
+    if (disabled) return
+    
+    // Only handle card drags, not column drags
+    const data = e.dataTransfer.getData('text/plain')
+    if (data && data.startsWith('column:')) {
+      return
+    }
+    
     e.preventDefault()
     setIsDraggingOver(false)
-    const cardId = e.dataTransfer.getData('text/plain')
+    const cardId = data
     if (cardId) {
       onDrop(cardId, id)
     }

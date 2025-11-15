@@ -4,15 +4,24 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { DraggableCard, DroppableColumn } from '@/components/dnd'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { DraggableCard, DraggableColumn, DroppableColumn, DroppableList, DroppableColumnContainer } from '@/components/dnd'
 import { UserAvatar } from '@/components/ui/user-selector'
 import { useBoardStore } from '@/stores/board.store'
 import { useUsers } from '@/hooks/user.hooks'
 import { cn } from '@/utils/cn'
+import axiosInstance from '@/utils/axios.instance'
+import { GET_CARD_FILE } from '@/utils/api.routes'
 import type { Card as CardType } from '@/types/board'
 import { CreateIssueModal } from './components/CreateIssueModal'
 import { CardDetailDrawer } from './components/CardDetailDrawer'
 import { BoardMembersModal } from './components/BoardMembersModal'
+import { BacklogItem } from './components/backlog/BacklogItem'
+import { BacklogFilters } from './components/backlog/BacklogFilters'
+import { EpicPanel } from './components/backlog/EpicPanel'
+import { StoryPointsSummary } from './components/backlog/StoryPointsSummary'
+import { KanbanMetricsPanel } from './components/KanbanMetricsPanel'
+import { ArrowLeft, GripVertical } from 'lucide-react'
 
 const PRIORITY_COLORS: Record<string, string> = {
   highest: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
@@ -42,6 +51,13 @@ function stripHtml(html: string): string {
   return tmp.textContent || tmp.innerText || ''
 }
 
+const getWipStatus = (currentCount: number, limit?: number): 'ok' | 'warning' | 'exceeded' => {
+  if (!limit) return 'ok'
+  if (currentCount >= limit) return 'exceeded'
+  if (currentCount >= limit * 0.8) return 'warning'
+  return 'ok'
+}
+
 export function BoardDetail() {
   const { boardId } = useParams<{ boardId: string }>()
   const navigate = useNavigate()
@@ -58,6 +74,7 @@ export function BoardDetail() {
   const updateCard = useBoardStore((state) => state.updateCard)
   const deleteCard = useBoardStore((state) => state.deleteCard)
   const setCurrentBoard = useBoardStore((state) => state.setCurrentBoard)
+  const bulkUpdateRanks = useBoardStore((state) => state.bulkUpdateRanks)
   
   const { users } = useUsers()
   const [creatingCardLoading, setCreatingCardLoading] = useState(false)
@@ -72,8 +89,156 @@ export function BoardDetail() {
   const [viewMode, setViewMode] = useState<'board' | 'backlog'>('board')
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [showMembersModal, setShowMembersModal] = useState(false)
+  const [showMetrics, setShowMetrics] = useState(false)
   const [editingColumn, setEditingColumn] = useState<string | null>(null)
   const [newColumnName, setNewColumnName] = useState('')
+  
+  // Backlog state
+  const [backlogFilters, setBacklogFilters] = useState<{
+    assigneeId?: string
+    priorities: string[]
+    labels: string[]
+    issueTypes: string[]
+    flagged?: boolean
+    epicId?: string
+  }>({
+    priorities: [],
+    labels: [],
+    issueTypes: [],
+  })
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+
+  // Backlog-related computations (must be at top level for hooks)
+  const backlogCards = useMemo(() => {
+    if (!board) return []
+    return cards.filter((c) => c.columnId === 'Backlog' || (board.columns[0] === c.columnId && board.type === 'sprint'))
+  }, [cards, board])
+
+  const epics = useMemo(() => {
+    return cards.filter((c) => c.issueType === 'epic')
+  }, [cards])
+
+  const cardsByEpic = useMemo(() => {
+    const map: Record<string, CardType[]> = {}
+    backlogCards.forEach((card) => {
+      if (card.epicId) {
+        if (!map[card.epicId]) map[card.epicId] = []
+        map[card.epicId].push(card)
+      }
+    })
+    return map
+  }, [backlogCards])
+
+  const filteredBacklogCards = useMemo(() => {
+    let filtered = backlogCards
+
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter((c) =>
+        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    }
+
+    // Assignee filter
+    if (backlogFilters.assigneeId) {
+      filtered = filtered.filter((c) => c.assigneeId === backlogFilters.assigneeId)
+    }
+
+    // Priority filter
+    if (backlogFilters.priorities.length > 0) {
+      filtered = filtered.filter((c) => backlogFilters.priorities.includes(c.priority))
+    }
+
+    // Labels filter
+    if (backlogFilters.labels.length > 0) {
+      filtered = filtered.filter((c) =>
+        backlogFilters.labels.some((label) => c.labels.includes(label))
+      )
+    }
+
+    // Issue type filter
+    if (backlogFilters.issueTypes.length > 0) {
+      filtered = filtered.filter((c) => backlogFilters.issueTypes.includes(c.issueType))
+    }
+
+    // Flagged filter
+    if (backlogFilters.flagged !== undefined) {
+      filtered = filtered.filter((c) => c.flagged === backlogFilters.flagged)
+    }
+
+    // Epic filter
+    if (backlogFilters.epicId) {
+      filtered = filtered.filter((c) => c.epicId === backlogFilters.epicId)
+    }
+
+    // Sort by rank (if available), then by creation date
+    return filtered.sort((a, b) => {
+      if (a.rank !== undefined && b.rank !== undefined) {
+        return a.rank - b.rank
+      }
+      if (a.rank !== undefined) return -1
+      if (b.rank !== undefined) return 1
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+  }, [backlogCards, searchQuery, backlogFilters])
+
+  // Backlog handler functions
+  const handleRankUpdate = async (cardId: string, newIndex: number) => {
+    if (!boardId) return
+
+    const currentIndex = filteredBacklogCards.findIndex((c) => c.id === cardId)
+    if (currentIndex === -1 || currentIndex === newIndex) return
+
+    // Calculate new ranks
+    const rankUpdates = filteredBacklogCards.map((card, index) => {
+      if (index === currentIndex) {
+        // Moving card - assign rank based on new position
+        const targetCard = filteredBacklogCards[newIndex]
+        if (newIndex < currentIndex) {
+          // Moving up - rank should be between previous card and target
+          const prevCard = filteredBacklogCards[newIndex - 1]
+          const rank = prevCard?.rank !== undefined
+            ? (prevCard.rank + (targetCard?.rank || prevCard.rank + 1000)) / 2
+            : (targetCard?.rank || 1000) - 1000
+          return { id: card.id, rank: Math.floor(rank) }
+        } else {
+          // Moving down - rank should be between target and next card
+          const nextCard = filteredBacklogCards[newIndex + 1]
+          const rank = nextCard?.rank !== undefined
+            ? ((targetCard?.rank || 0) + nextCard.rank) / 2
+            : (targetCard?.rank || 0) + 1000
+          return { id: card.id, rank: Math.floor(rank) }
+        }
+      } else if (
+        (currentIndex < newIndex && index > currentIndex && index <= newIndex) ||
+        (currentIndex > newIndex && index >= newIndex && index < currentIndex)
+      ) {
+        // Cards that need rank adjustment
+        const baseRank = card.rank || index * 1000
+        return { id: card.id, rank: baseRank }
+      }
+      return { id: card.id, rank: card.rank || index * 1000 }
+    })
+
+    await bulkUpdateRanks(boardId, rankUpdates)
+    if (boardId) fetchCards(boardId)
+  }
+
+  const handleFlagToggle = async (cardId: string, flagged: boolean) => {
+    await updateCard(cardId, { flagged })
+    if (boardId) fetchCards(boardId)
+  }
+
+  const handleCardSelect = (cardId: string, selected: boolean) => {
+    const newSelected = new Set(selectedCardIds)
+    if (selected) {
+      newSelected.add(cardId)
+    } else {
+      newSelected.delete(cardId)
+    }
+    setSelectedCardIds(newSelected)
+  }
 
   useEffect(() => {
     if (boardId) {
@@ -97,6 +262,14 @@ export function BoardDetail() {
 
   const handleQuickCreate = async (columnId: string) => {
     if (!boardId || !quickCreateTitle.trim()) return
+
+    // Check WIP limit
+    const columnCards = getCardsForColumn(columnId)
+    const limit = board?.columnLimits?.[columnId]
+    if (limit && columnCards.length >= limit) {
+      alert(`Cannot add card: Column "${columnId}" has reached its WIP limit of ${limit}`)
+      return
+    }
 
     setCreatingCardLoading(true)
     const card = await createCard(boardId, {
@@ -126,6 +299,15 @@ export function BoardDetail() {
     columnId: string
   }) => {
     if (!boardId) return
+
+    // Check WIP limit
+    const columnCards = getCardsForColumn(input.columnId)
+    const limit = board?.columnLimits?.[input.columnId]
+    if (limit && columnCards.length >= limit) {
+      alert(`Cannot add card: Column "${input.columnId}" has reached its WIP limit of ${limit}`)
+      return
+    }
+
     setCreatingCardLoading(true)
     const card = await createCard(boardId, input)
     setCreatingCardLoading(false)
@@ -139,10 +321,39 @@ export function BoardDetail() {
     if (!boardId) return
 
     const card = cards.find((c) => c.id === cardId)
-    if (card?.columnId === targetColumnId) return
+    if (!card) return
+    if (card.columnId === targetColumnId) return
+
+    // Check WIP limit for target column
+    const targetColumnCards = getCardsForColumn(targetColumnId)
+    const limit = board?.columnLimits?.[targetColumnId]
+
+    // If moving from another column, don't count the card being moved
+    const currentCount = card.columnId === targetColumnId
+      ? targetColumnCards.length
+      : targetColumnCards.length + 1
+
+    if (limit && currentCount > limit) {
+      alert(`Cannot move card: Column "${targetColumnId}" has reached its WIP limit of ${limit}`)
+      return
+    }
 
     await moveCard(cardId, targetColumnId, boardId)
     // Card is automatically updated in store cache
+  }
+
+  const handleReorderColumns = async (columnId: string, targetIndex: number) => {
+    if (!boardId || !board) return
+
+    const currentIndex = board.columns.indexOf(columnId)
+    if (currentIndex === -1 || currentIndex === targetIndex) return
+
+    const newColumns = [...board.columns]
+    const [movedColumn] = newColumns.splice(currentIndex, 1)
+    newColumns.splice(targetIndex, 0, movedColumn)
+
+    await updateBoard(boardId, { columns: newColumns })
+    if (boardId) fetchBoard(boardId)
   }
 
   const handleUpdateBoardName = async () => {
@@ -211,7 +422,11 @@ export function BoardDetail() {
   }
 
   const handleRenameColumn = async (oldName: string, newName: string) => {
-    if (!boardId || !board || !newName.trim() || newName === oldName) return
+    if (!boardId || !board || !newName.trim() || newName === oldName) {
+      setEditingColumn(null)
+      setNewColumnName('')
+      return
+    }
     
     // Update cards in this column
     const columnCards = cards.filter(c => c.columnId === oldName)
@@ -277,203 +492,349 @@ export function BoardDetail() {
   }
 
   return (
-    <div className="space-y-2">
-      <div className="pb-2 border-b">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/workspace')} className="mb-1">
-              ← Back
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="border-b pb-4">
+        <div className="space-y-4">
+          {/* Top row: Back button and title */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/workspace')} className="h-8 sm:h-9 flex-shrink-0">
+              <span className="hidden sm:inline">← Back</span>
+              <span className="sm:hidden">←</span>
             </Button>
-            <div className="flex items-center gap-2">
-              {!editingBoardName ? (
-                <>
-                  <h1 className="text-xl font-semibold truncate">{board.name}</h1>
-                  <Button variant="ghost" size="sm" onClick={() => setEditingBoardName(true)} className="h-6 w-6 p-0">
-                    ✎
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Input
-                    value={boardNameValue}
-                    onChange={(e) => setBoardNameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleUpdateBoardName()
-                      if (e.key === 'Escape') {
-                        setEditingBoardName(false)
-                        setBoardNameValue(board.name)
-                      }
-                    }}
-                    autoFocus
-                    className="h-8 text-lg"
-                  />
-                  <Button size="sm" onClick={handleUpdateBoardName} className="h-8">
-                    Save
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
+            {!editingBoardName ? (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl font-semibold truncate">{board.name}</h1>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setEditingBoardName(true)} 
+                  className="h-7 w-7 p-0 flex-shrink-0"
+                >
+                  ✎
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Input
+                  value={boardNameValue}
+                  onChange={(e) => setBoardNameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleUpdateBoardName()
+                    if (e.key === 'Escape') {
                       setEditingBoardName(false)
                       setBoardNameValue(board.name)
-                    }}
-                    className="h-8"
-                  >
-                    Cancel
-                  </Button>
-                </>
+                    }
+                  }}
+                  autoFocus
+                  className="h-9 text-base sm:text-lg"
+                />
+                <Button size="sm" onClick={handleUpdateBoardName} className="h-9 flex-shrink-0">
+                  Save
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditingBoardName(false)
+                    setBoardNameValue(board.name)
+                  }}
+                  className="h-9 flex-shrink-0"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          {/* Board metadata */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
+            <span>
+              {board.type === 'kanban' ? 'Kanban' : 'Sprint'} · {cards.length} {cards.length === 1 ? 'card' : 'cards'}
+            </span>
+            {board.type === 'sprint' && board.sprintStartDate && board.sprintEndDate && (
+              <span className="hidden sm:inline">
+                {new Date(board.sprintStartDate).toLocaleDateString()} -{' '}
+                {new Date(board.sprintEndDate).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          
+          {/* Action buttons - Mobile optimized */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            {/* Primary actions row */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-9 flex-shrink-0">
+                + Create
+              </Button>
+              <Input
+                placeholder="Search cards..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 min-w-0 h-9"
+              />
+              {board.type === 'sprint' && (
+                <Button
+                  variant={viewMode === 'backlog' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === 'board' ? 'backlog' : 'board')}
+                  className="h-9 flex-shrink-0"
+                >
+                  {viewMode === 'board' ? 'Backlog' : 'Board'}
+                </Button>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-xs text-muted-foreground">
-                {board.type === 'kanban' ? 'Kanban' : 'Sprint'} · {cards.length} cards
-              </span>
-              {board.type === 'sprint' && board.sprintStartDate && board.sprintEndDate && (
-                <span className="text-xs text-muted-foreground">
-                  {new Date(board.sprintStartDate).toLocaleDateString()} -{' '}
-                  {new Date(board.sprintEndDate).toLocaleDateString()}
-                </span>
+            
+            {/* Secondary actions - wrap on mobile */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMembersModal(true)}
+                className="h-9 text-xs sm:text-sm"
+              >
+                <span className="hidden sm:inline">👥 Members</span>
+                <span className="sm:hidden">👥</span>
+              </Button>
+              {board.type === 'kanban' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMetrics(!showMetrics)}
+                  className="h-9 text-xs sm:text-sm"
+                >
+                  Metrics
+                </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColumnSettings(!showColumnSettings)}
+                className="h-9 text-xs sm:text-sm"
+              >
+                Columns
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleDeleteBoard} 
+                className="h-9 text-xs sm:text-sm"
+              >
+                Delete
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2 pt-[34px]">
-          <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-8">
-            + Create
-          </Button>
-          <Input
-            placeholder="Search cards..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-48 h-8"
-          />
-          {board.type === 'sprint' && (
-            <Button
-              variant={viewMode === 'backlog' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode(viewMode === 'board' ? 'backlog' : 'board')}
-              className="h-8"
-            >
-              {viewMode === 'board' ? 'Backlog' : 'Board'}
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowMembersModal(true)}
-            className="h-8"
-          >
-            👥 Members
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowColumnSettings(!showColumnSettings)}
-            className="h-8"
-          >
-            Columns
-          </Button>
-          <Button variant="destructive" size="sm" onClick={handleDeleteBoard} className="h-8">
-            Delete
-          </Button>
-        </div>
         </div>
       </div>
 
       {viewMode === 'backlog' ? (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between pb-2 border-b">
-            <h2 className="text-sm font-semibold">Backlog</h2>
-            <span className="text-xs text-muted-foreground">
-              {cards.filter((c) => c.columnId === 'Backlog' || board.columns[0] === c.columnId).length} items
-            </span>
-          </div>
-          <div className="space-y-2">
-            {cards
-              .filter((c) => c.columnId === 'Backlog' || board.columns[0] === c.columnId)
-              .map((card) => (
-                <Card
-                  key={card.id}
-                  className={cn(
-                    "p-3 hover:shadow-md transition-all duration-300 bg-background/50 backdrop-blur-sm border-border/50 cursor-pointer rounded-xl",
-                    card.completed && "opacity-60"
-                  )}
-                  onClick={() => setSelectedCard(card)}
-                >
-                  <CardContent className="p-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 space-y-1">
-                        <p className={cn(
-                          "text-sm font-medium",
-                          card.completed ? "text-muted-foreground line-through" : ""
-                        )}>
-                          {card.title}
-                        </p>
-                        {card.description && (
-                          <p className={cn(
-                            "text-xs text-muted-foreground line-clamp-2",
-                            card.completed && "opacity-70"
-                          )}>
-                            {stripHtml(card.description)}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-1 items-center">
-                          <Badge variant="outline" className={`text-[10px] ${ISSUE_TYPE_COLORS[card.issueType]}`}>
-                            {card.issueType}
-                          </Badge>
-                          <Badge variant="outline" className={`text-[10px] ${PRIORITY_COLORS[card.priority]}`}>
-                            {card.priority}
-                          </Badge>
-                          {card.storyPoints && (
-                            <Badge variant="outline" className="text-[10px]">
-                              {card.storyPoints} pts
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            {cards.filter((c) => c.columnId === 'Backlog' || board.columns[0] === c.columnId).length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-8">Backlog is empty</p>
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Epic Panel Sidebar */}
+            {epics.length > 0 && (
+              <div className="w-full lg:w-64 flex-shrink-0">
+                <EpicPanel
+                  epics={epics}
+                  cardsByEpic={cardsByEpic}
+                  selectedEpicId={backlogFilters.epicId}
+                  onEpicSelect={(epicId) => setBacklogFilters({ ...backlogFilters, epicId })}
+                  onEpicClick={(epic) => setSelectedCard(epic)}
+                />
+              </div>
             )}
+
+            {/* Main Backlog Content */}
+            <div className="flex-1 space-y-4 min-w-0">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2 border-b">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-sm font-semibold">Backlog</h2>
+                  <span className="text-xs text-muted-foreground">
+                    {filteredBacklogCards.length} {filteredBacklogCards.length === 1 ? 'item' : 'items'}
+                  </span>
+                  <StoryPointsSummary cards={filteredBacklogCards} />
+                </div>
+              </div>
+
+              {/* Filters */}
+              <BacklogFilters
+                cards={backlogCards}
+                epics={epics}
+                users={
+                  board
+                    ? (users || []).filter(
+                        (u) => u.id === board.ownerId || board.memberIds.includes(u.id)
+                      )
+                    : users || []
+                }
+                filters={backlogFilters}
+                onFiltersChange={setBacklogFilters}
+              />
+
+              {/* Bulk Actions */}
+              {selectedCardIds.size > 0 && (
+                <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">
+                  <span className="text-xs text-muted-foreground">
+                    {selectedCardIds.size} selected
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const selectedCards = filteredBacklogCards.filter((c) => selectedCardIds.has(c.id))
+                      for (const card of selectedCards) {
+                        await updateCard(card.id, { flagged: !card.flagged })
+                      }
+                      setSelectedCardIds(new Set())
+                      if (boardId) fetchCards(boardId)
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    {filteredBacklogCards.find((c) => selectedCardIds.has(c.id))?.flagged ? 'Unflag' : 'Flag'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const selectedCards = filteredBacklogCards.filter((c) => selectedCardIds.has(c.id))
+                      for (const card of selectedCards) {
+                        await updateCard(card.id, { completed: !card.completed })
+                      }
+                      setSelectedCardIds(new Set())
+                      if (boardId) fetchCards(boardId)
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    {filteredBacklogCards.find((c) => selectedCardIds.has(c.id))?.completed ? 'Uncomplete' : 'Complete'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedCardIds(new Set())}
+                    className="h-7 text-xs"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+
+              {/* Backlog List */}
+              <DroppableList
+                onDrop={(cardId, targetIndex) => {
+                  handleRankUpdate(cardId, targetIndex)
+                }}
+              >
+                {filteredBacklogCards.map((card) => {
+                  const epic = card.epicId ? epics.find((e) => e.id === card.epicId) : undefined
+                  return (
+                    <BacklogItem
+                      key={card.id}
+                      card={card}
+                      epic={epic}
+                      users={users || []}
+                      isSelected={selectedCardIds.has(card.id)}
+                      onSelect={handleCardSelect}
+                      onClick={() => setSelectedCard(card)}
+                      onFlagToggle={handleFlagToggle}
+                      columns={board?.columns || []}
+                      onMoveToColumn={handleMoveCard}
+                    />
+                  )
+                })}
+              </DroppableList>
+
+              {filteredBacklogCards.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {backlogCards.length === 0 ? 'Backlog is empty' : 'No items match the filters'}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
       ) : (
         <div className="space-y-2 w-full">
           {showColumnSettings && (
-            <Card className="p-3 bg-muted/30">
-              <CardContent className="p-0 space-y-3">
+            <Card className="p-4 bg-muted/30 border-border/50">
+              <CardContent className="p-0 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Manage Columns</h3>
                   <Button variant="ghost" size="sm" onClick={() => setShowColumnSettings(false)} className="h-6 w-6 p-0">
                     ×
                   </Button>
                 </div>
-                <div className="space-y-2">
+                <DroppableColumnContainer
+                  onColumnDrop={async (columnId, targetIndex) => {
+                    if (!boardId || !board) return
+                    const currentIndex = board.columns.indexOf(columnId)
+                    if (currentIndex === -1 || currentIndex === targetIndex) return
+                    const newColumns = [...board.columns]
+                    const [movedColumn] = newColumns.splice(currentIndex, 1)
+                    newColumns.splice(targetIndex, 0, movedColumn)
+                    await updateBoard(boardId, { columns: newColumns })
+                    if (boardId) fetchBoard(boardId)
+                  }}
+                  className="flex-col space-y-2"
+                >
                   {board.columns.map((column, idx) => (
-                    <div key={column} className="flex items-center gap-2 p-2 border rounded">
-                      <div className="flex-1 space-y-2">
-                        {editingColumn === column ? (
-                          <>
-                            <Input
-                              value={newColumnName}
-                              onChange={(e) => setNewColumnName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && newColumnName.trim()) {
-                                  handleRenameColumn(column, newColumnName.trim())
-                                }
-                                if (e.key === 'Escape') {
-                                  setEditingColumn(null)
-                                  setNewColumnName('')
-                                }
-                              }}
-                              className="h-8 text-xs mb-2"
-                              autoFocus
-                            />
+                    <DraggableColumn
+                      key={column}
+                      id={column}
+                      onDragEnd={() => {}}
+                    >
+                      <div className="group flex items-center gap-3 p-3 border rounded-lg bg-background/50 hover:bg-background/80 transition-colors">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-medium text-muted-foreground w-6">#{idx + 1}</span>
+                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
+                        </div>
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-[75%] flex-shrink-0">
+                            {editingColumn === column ? (
+                              <Input
+                                value={newColumnName}
+                                onChange={(e) => setNewColumnName(e.target.value)}
+                                onBlur={() => {
+                                  if (newColumnName.trim() && newColumnName.trim() !== column) {
+                                    handleRenameColumn(column, newColumnName.trim())
+                                  } else {
+                                    setEditingColumn(null)
+                                    setNewColumnName('')
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && newColumnName.trim()) {
+                                    if (newColumnName.trim() !== column) {
+                                      handleRenameColumn(column, newColumnName.trim())
+                                    } else {
+                                      setEditingColumn(null)
+                                      setNewColumnName('')
+                                    }
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setEditingColumn(null)
+                                    setNewColumnName('')
+                                  }
+                                }}
+                                className="h-8 text-sm w-full"
+                                autoFocus
+                              />
+                            ) : (
+                              <span 
+                                className="text-sm font-medium w-full block cursor-pointer hover:text-primary transition-colors truncate"
+                                onClick={() => {
+                                  setEditingColumn(column)
+                                  setNewColumnName(column)
+                                }}
+                                title={column}
+                              >
+                                {column}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Limit:</span>
                             <Input
                               type="number"
-                              placeholder="WIP Limit (optional)"
+                              placeholder="No limit"
                               value={board.columnLimits?.[column] || ''}
                               onChange={(e) => {
                                 const limit = e.target.value ? Number(e.target.value) : undefined
@@ -483,141 +844,46 @@ export function BoardDetail() {
                                 } else {
                                   delete newLimits[column]
                                 }
-                                  updateBoard(board.id, { columnLimits: Object.keys(newLimits).length > 0 ? newLimits : undefined }).then(() => {
-                                    if (boardId) fetchBoard(boardId)
-                                  })
+                                updateBoard(board.id, { columnLimits: Object.keys(newLimits).length > 0 ? newLimits : undefined }).then(() => {
+                                  if (boardId) fetchBoard(boardId)
+                                })
                               }}
-                              className="h-8 text-xs"
+                              className="h-7 w-16 text-xs"
                               min="1"
                             />
-                            <div className="flex gap-1 mt-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleRenameColumn(column, newColumnName.trim())}
-                                className="h-7 text-xs flex-1"
-                                disabled={!newColumnName.trim() || newColumnName === column}
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingColumn(null)
-                                  setNewColumnName('')
-                                }}
-                                className="h-7 text-xs"
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">#{idx + 1}</span>
-                              <span className="text-sm font-medium flex-1">{column}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs">
-                              <span className="text-muted-foreground">Limit:</span>
-                              <Input
-                                type="number"
-                                placeholder="No limit"
-                                value={board.columnLimits?.[column] || ''}
-                                onChange={(e) => {
-                                  const limit = e.target.value ? Number(e.target.value) : undefined
-                                  const newLimits = { ...board.columnLimits }
-                                  if (limit && limit > 0) {
-                                    newLimits[column] = limit
-                                  } else {
-                                    delete newLimits[column]
-                                  }
-                                  updateBoard(board.id, { columnLimits: Object.keys(newLimits).length > 0 ? newLimits : undefined }).then(() => {
-                                    if (boardId) fetchBoard(boardId)
-                                  })
-                                }}
-                                className="h-7 w-20 text-xs"
-                                min="1"
-                              />
-                            </div>
-                            <div className="flex gap-1 mt-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingColumn(column)
-                                  setNewColumnName(column)
-                                }}
-                                className="h-7 text-xs flex-1"
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteColumn(column)}
-                                className="h-7 text-xs text-destructive hover:text-destructive"
-                                disabled={board.columns.length <= 1}
-                              >
-                                Delete
-                              </Button>
-                              {idx > 0 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newColumns = [...board.columns]
-                                    ;[newColumns[idx], newColumns[idx - 1]] = [newColumns[idx - 1], newColumns[idx]]
-                                    updateBoard(board.id, { columns: newColumns })
-                                    if (boardId) fetchBoard(boardId)
-                                  }}
-                                  className="h-7 w-7 text-xs p-0"
-                                  title="Move left"
-                                >
-                                  ←
-                                </Button>
-                              )}
-                              {idx < board.columns.length - 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newColumns = [...board.columns]
-                                    ;[newColumns[idx], newColumns[idx + 1]] = [newColumns[idx + 1], newColumns[idx]]
-                                    updateBoard(board.id, { columns: newColumns })
-                                    if (boardId) fetchBoard(boardId)
-                                  }}
-                                  className="h-7 w-7 text-xs p-0"
-                                  title="Move right"
-                                >
-                                  →
-                                </Button>
-                              )}
-                            </div>
-                          </>
-                        )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteColumn(column)}
+                            className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                            disabled={board.columns.length <= 1}
+                            title="Delete column"
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    </DraggableColumn>
                   ))}
-                </div>
-                <div className="flex gap-2 pt-2 border-t">
+                </DroppableColumnContainer>
+                <div className="flex gap-2 pt-3 border-t">
                   <Input
                     placeholder="New column name"
-                    value={editingColumn ? '' : newColumnName}
+                    value={newColumnName}
                     onChange={(e) => setNewColumnName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newColumnName.trim() && !editingColumn) {
+                      if (e.key === 'Enter' && newColumnName.trim()) {
                         handleAddColumn()
                       }
                     }}
-                    className="flex-1 h-8 text-xs"
-                    disabled={!!editingColumn}
+                    className="flex-1 h-9 text-sm"
                   />
                   <Button
                     size="sm"
                     onClick={handleAddColumn}
-                    disabled={!newColumnName.trim() || !!editingColumn || creatingCardLoading}
-                    className="h-8 text-xs"
+                    disabled={!newColumnName.trim() || creatingCardLoading}
+                    className="h-9 text-sm"
                   >
                     Add Column
                   </Button>
@@ -625,49 +891,68 @@ export function BoardDetail() {
               </CardContent>
             </Card>
           )}
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.2) transparent' }}>
-            {board.columns.map((column) => {
-            const columnCards = getCardsForColumn(column)
-            const isActive = activeColumn === column
+          {showMetrics && board.type === 'kanban' && (
+            <KanbanMetricsPanel board={board} cards={cards} />
+          )}
+          <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.2) transparent' }}>
+            <DroppableColumnContainer
+              onColumnDrop={handleReorderColumns}
+            >
+              {board.columns.map((column) => {
+                const columnCards = getCardsForColumn(column)
+                const isActive = activeColumn === column
+                const wipStatus = getWipStatus(columnCards.length, board?.columnLimits?.[column])
 
-            return (
-              <DroppableColumn
-                key={column}
-                id={column}
-                onDrop={async (cardId, targetColumnId) => {
-                  await handleMoveCard(cardId, targetColumnId)
-                }}
-                className="flex-shrink-0 w-[320px]"
-              >
-                <div className="bg-muted/30 backdrop-blur-sm border border-border/30 rounded-xl p-2 space-y-1.5 min-h-[400px] shadow-sm h-full">
-                  <div className="flex items-center justify-between mb-1.5 pb-1.5 border-b border-border/50">
-                    <h2 className="font-semibold text-sm text-foreground">{column}</h2>
+                return (
+                  <div
+                    key={column}
+                    className="flex-shrink-0 w-[320px]"
+                  >
+                    <DroppableColumn
+                      id={column}
+                      onDrop={async (cardId, targetColumnId) => {
+                        await handleMoveCard(cardId, targetColumnId)
+                      }}
+                      disabled={!!(board?.columnLimits?.[column] &&
+                                getCardsForColumn(column).length >= board.columnLimits[column])}
+                      className="h-full"
+                    >
+                      <div className="bg-muted/30 backdrop-blur-sm border border-border/30 rounded-xl p-2 space-y-1.5 min-h-[400px] shadow-sm h-full">
+                  <DraggableColumn
+                    id={column}
+                    className="mb-1.5 pb-1.5 border-b border-border/50"
+                  >
+                    <div className="flex items-center justify-between group/column">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover/column:opacity-100 transition-opacity cursor-grab active:cursor-grabbing flex-shrink-0" />
+                        <h2 className="font-semibold text-sm text-foreground truncate" title={column}>{column}</h2>
+                      </div>
                     <span
                       className={cn(
                         'text-xs bg-background px-1.5 py-0.5 rounded',
-                        board.columnLimits?.[column] &&
-                          columnCards.length >= board.columnLimits[column]
-                          ? 'text-red-600 font-semibold'
-                          : 'text-muted-foreground'
+                        wipStatus === 'exceeded' && 'text-red-600 font-semibold',
+                        wipStatus === 'warning' && 'text-orange-600 font-semibold',
+                        wipStatus === 'ok' && 'text-muted-foreground'
                       )}
                     >
                       {columnCards.length}
                       {board.columnLimits?.[column] && ` / ${board.columnLimits[column]}`}
                     </span>
-                  </div>
+                    </div>
+                  </DraggableColumn>
 
                   <div className="space-y-1.5">
                     {columnCards.map((card) => (
                       <DraggableCard key={card.id} id={card.id} onDragEnd={() => boardId && fetchCards(boardId)}>
                         <Card
                           className={cn(
-                            "p-3 hover:shadow-lg transition-all duration-300 bg-background/90 border-border/60 cursor-pointer group rounded-lg h-[140px] flex flex-col",
+                            "p-3 hover:shadow-lg transition-all duration-300 bg-background/90 border-border/60 cursor-pointer group rounded-lg min-h-[100px] flex flex-col",
                             card.completed && "opacity-60"
                           )}
                           onClick={() => setSelectedCard(card)}
                         >
-                          <CardContent className="p-0 flex-1 flex flex-col">
-                            <div className="flex-1 flex flex-col space-y-2 min-h-0">
+                          <CardContent className="p-0 flex flex-col">
+                            <div className="flex flex-col space-y-2">
                               <div className="flex items-start gap-2">
                                 <input
                                   type="checkbox"
@@ -682,33 +967,76 @@ export function BoardDetail() {
                                   onClick={(e) => e.stopPropagation()}
                                 />
                                 <div className="flex-1 min-w-0">
-                                  <p className={cn(
-                                    "text-sm leading-tight font-semibold line-clamp-1 mb-1",
-                                    card.completed ? "text-muted-foreground line-through" : "text-foreground"
-                                  )}>
-                                    {card.title}
-                                  </p>
-                                  {card.description && (
+                                  <div className="flex items-start gap-1">
                                     <p className={cn(
-                                      "text-xs leading-relaxed line-clamp-2",
-                                      card.completed ? "text-muted-foreground/70" : "text-muted-foreground"
+                                      "text-sm leading-tight font-semibold line-clamp-1 mb-1 flex-1",
+                                      card.completed ? "text-muted-foreground line-through" : "text-foreground"
                                     )}>
-                                      {stripHtml(card.description)}
+                                      {card.title}
                                     </p>
-                                  )}
+                                    {board?.type === 'sprint' && (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="flex-shrink-0 p-1 rounded hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 -mt-0.5"
+                                          title="Move to Backlog"
+                                        >
+                                          <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleMoveCard(card.id, 'Backlog')
+                                            }}
+                                            className="cursor-pointer"
+                                          >
+                                            Move to Backlog
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex flex-wrap gap-1 items-center">
-                                {card.labels.slice(0, 3).map((label) => (
-                                  <Badge key={label} variant="outline" className="text-[10px] px-1.5 py-0.5 bg-muted/50 border-border/60">
-                                    {label}
-                                  </Badge>
-                                ))}
-                                {card.labels.length > 3 && (
-                                  <span className="text-[10px] text-muted-foreground">+{card.labels.length - 3}</span>
-                                )}
-                              </div>
+                              
+                              {card.attachments && card.attachments.length > 0 && card.attachments[0].mimetype?.startsWith('image/') && (
+                                <div className="rounded overflow-hidden -mx-1">
+                                  <img
+                                    src={card.attachments[0].url || `${axiosInstance.defaults.baseURL}${GET_CARD_FILE(card.attachments[0].filename)}`}
+                                    alt={card.attachments[0].originalName}
+                                    className="w-full h-20 object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement
+                                      target.style.display = 'none'
+                                    }}
+                                  />
+                                </div>
+                              )}
+                              
+                              {card.description && (
+                                <p className={cn(
+                                  "text-xs leading-relaxed line-clamp-2",
+                                  card.completed ? "text-muted-foreground/70" : "text-muted-foreground"
+                                )}>
+                                  {stripHtml(card.description)}
+                                </p>
+                              )}
+                              
+                              {card.labels.length > 0 && (
+                                <div className="flex flex-wrap gap-1 items-center">
+                                  {card.labels.slice(0, 3).map((label) => (
+                                    <Badge key={label} variant="outline" className="text-[10px] px-1.5 py-0.5 bg-muted/50 border-border/60">
+                                      {label}
+                                    </Badge>
+                                  ))}
+                                  {card.labels.length > 3 && (
+                                    <span className="text-[10px] text-muted-foreground">+{card.labels.length - 3}</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
+                            
                             <div className="pt-2 mt-2 border-t border-border/50">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
@@ -739,20 +1067,23 @@ export function BoardDetail() {
                     ))}
 
                     {!isActive ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-muted-foreground hover:text-foreground h-8 text-xs mt-1"
-                        onClick={() => setActiveColumn(column)}
-                      >
-                        + Add task
-                      </Button>
+                      !(board?.columnLimits?.[column] && columnCards.length >= board.columnLimits[column]) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-muted-foreground hover:text-foreground h-8 text-xs mt-1"
+                          onClick={() => setActiveColumn(column)}
+                        >
+                          + Add task
+                        </Button>
+                      )
                     ) : (
-                      <Card className="p-2 border-2 border-primary/20 bg-card mt-1">
-                        <CardContent className="p-0">
-                          <Input
-                            placeholder="Issue title"
-                            value={quickCreateTitle}
+                      !(board?.columnLimits?.[column] && columnCards.length >= board.columnLimits[column]) && (
+                        <Card className="p-2 border-2 border-primary/20 bg-card mt-1">
+                          <CardContent className="p-0">
+                            <Input
+                              placeholder="Issue title"
+                              value={quickCreateTitle}
                             onChange={(e) => setQuickCreateTitle(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && quickCreateTitle.trim()) {
@@ -789,12 +1120,15 @@ export function BoardDetail() {
                           </div>
                         </CardContent>
                       </Card>
+                      )
                     )}
-                  </div>
+                      </div>
+                    </div>
+                  </DroppableColumn>
                 </div>
-              </DroppableColumn>
-            )
-          })}
+              )
+            })}
+            </DroppableColumnContainer>
           </div>
         </div>
       )}
@@ -804,6 +1138,7 @@ export function BoardDetail() {
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateFromModal}
         boardColumns={board?.columns || []}
+        board={board}
       />
 
       <CardDetailDrawer

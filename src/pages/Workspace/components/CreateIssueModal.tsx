@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { UserSelector } from '@/components/ui/user-selector'
+import type { Board } from '@/types/board'
 type CreateIssueModalProps = {
   open: boolean
   onClose: () => void
@@ -19,6 +20,7 @@ type CreateIssueModalProps = {
   }) => Promise<void>
   boardColumns: string[]
   defaultColumn?: string
+  board?: Board | null
 }
 
 export function CreateIssueModal({
@@ -27,6 +29,7 @@ export function CreateIssueModal({
   onCreate,
   boardColumns,
   defaultColumn,
+  board,
 }: CreateIssueModalProps) {
   const [form, setForm] = useState({
     title: '',
@@ -204,6 +207,11 @@ export function CreateIssueModal({
               value={form.assigneeId}
               onChange={(userId) => setForm({ ...form, assigneeId: userId })}
               placeholder="Unassigned"
+              allowedUserIds={
+                board
+                  ? [board.ownerId, ...board.memberIds]
+                  : undefined
+              }
             />
           </div>
 

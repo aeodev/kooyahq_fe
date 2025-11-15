@@ -11,6 +11,7 @@ type UserSelectorProps = {
   placeholder?: string
   className?: string
   showClear?: boolean
+  allowedUserIds?: string[] // Optional: filter to only show these user IDs
 }
 
 function getUserInitials(name: string): string {
@@ -27,6 +28,7 @@ export function UserSelector({
   placeholder = 'Select user...',
   className,
   showClear = true,
+  allowedUserIds,
 }: UserSelectorProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -44,10 +46,15 @@ export function UserSelector({
     }
   }, [open, users.length, fetchUsers])
 
-  const selectedUser = users.find((u) => u.id === value)
-  const filteredUsers = search.trim()
-    ? users.filter((u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+  // Filter to only allowed users if provided
+  const availableUsers = allowedUserIds
+    ? users.filter((u) => allowedUserIds.includes(u.id))
     : users
+
+  const selectedUser = availableUsers.find((u) => u.id === value)
+  const filteredUsers = search.trim()
+    ? availableUsers.filter((u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+    : availableUsers
 
   return (
     <div className={cn('relative', className)}>
@@ -72,24 +79,25 @@ export function UserSelector({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
-            <div className="p-2 border-b">
+          <div className="absolute z-50 mt-2 w-full rounded-lg border bg-popover shadow-xl max-h-[400px] flex flex-col overflow-hidden">
+            <div className="p-3 border-b bg-muted/30">
               <Input
                 placeholder="Search users..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8"
+                className="h-9"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
               />
             </div>
-            <div className="max-h-60 overflow-auto p-1">
+            <div className="overflow-y-auto flex-1 min-h-0">
               {loading ? (
-                <div className="px-2 py-4 text-sm text-muted-foreground text-center">Loading...</div>
+                <div className="px-4 py-6 text-sm text-muted-foreground text-center">Loading...</div>
               ) : filteredUsers.length === 0 ? (
-                <div className="px-2 py-4 text-sm text-muted-foreground text-center">No users found</div>
+                <div className="px-4 py-6 text-sm text-muted-foreground text-center">No users found</div>
               ) : (
-                <>
+                <div className="p-2">
                   {showClear && (
                     <button
                       type="button"
@@ -98,9 +106,9 @@ export function UserSelector({
                         setOpen(false)
                         setSearch('')
                       }}
-                      className="w-full px-2 py-1.5 text-left text-sm rounded hover:bg-accent transition-colors"
+                      className="w-full px-3 py-2.5 text-left text-sm rounded-md hover:bg-accent transition-colors mb-1"
                     >
-                      <span className="text-muted-foreground">Unassigned</span>
+                      <span className="text-muted-foreground font-medium">Unassigned</span>
                     </button>
                   )}
                   {filteredUsers.map((user) => (
@@ -113,11 +121,11 @@ export function UserSelector({
                         setSearch('')
                       }}
                       className={cn(
-                        'w-full px-2 py-1.5 text-left text-sm rounded hover:bg-accent transition-colors flex items-center gap-2',
+                        'w-full px-3 py-2.5 text-left text-sm rounded-md hover:bg-accent transition-colors flex items-center gap-3 mb-1',
                         value === user.id && 'bg-accent'
                       )}
                     >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
                         {getUserInitials(user.name)}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -126,7 +134,7 @@ export function UserSelector({
                       </div>
                     </button>
                   ))}
-                </>
+                </div>
               )}
             </div>
           </div>

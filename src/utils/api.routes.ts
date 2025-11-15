@@ -43,9 +43,11 @@ export const GET_CARDS_BY_BOARD = (boardId: string) => `/boards/${boardId}/cards
 export const MOVE_CARD = (cardId: string) => `/cards/${cardId}/move`
 export const UPDATE_CARD = (cardId: string) => `/cards/${cardId}`
 export const DELETE_CARD = (cardId: string) => `/cards/${cardId}`
+export const BULK_UPDATE_RANKS = (boardId: string) => `/boards/${boardId}/cards/bulk-rank`
 export const UPLOAD_CARD_ATTACHMENT = (cardId: string) => `/cards/${cardId}/attachments`
 export const DELETE_CARD_ATTACHMENT = (cardId: string, attachmentId: string) => `/cards/${cardId}/attachments/${attachmentId}`
 export const GET_CARD_FILE = (filename: string) => `/cards/files/${filename}`
+export const GET_CARD_ACTIVITIES = (cardId: string) => `/cards/${cardId}/activities`
 
 // Comment routes
 export const CREATE_COMMENT = (cardId: string) => `/cards/${cardId}/comments`

@@ -6,12 +6,13 @@ import { Modal } from '@/components/ui/modal'
 import { UserSelector, UserAvatar } from '@/components/ui/user-selector'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { useAuthStore } from '@/stores/auth.store'
-import { useComments, useCreateComment } from '@/hooks/board.hooks'
+import { useComments, useCreateComment, useCardActivities } from '@/hooks/board.hooks'
 import { useUsers } from '@/hooks/user.hooks'
+import { useBoardStore } from '@/stores/board.store'
 import axiosInstance from '@/utils/axios.instance'
 import { UPLOAD_CARD_ATTACHMENT, DELETE_CARD_ATTACHMENT, GET_CARD_FILE } from '@/utils/api.routes'
 import { Loader2, Image as ImageIcon, X, Eye, Download, Paperclip } from 'lucide-react'
-import type { Card as CardType } from '@/types/board'
+import type { Card as CardType, CardActivity } from '@/types/board'
 
 const PRIORITY_COLORS: Record<string, string> = {
   highest: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
@@ -38,6 +39,7 @@ type CardDetailDrawerProps = {
 export function CardDetailDrawer({ card, onClose, onUpdate, onDelete }: CardDetailDrawerProps) {
   const user = useAuthStore((state) => state.user)
   const { users } = useUsers()
+  const board = useBoardStore((state) => state.currentBoard)
   const [editing, setEditing] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [title, setTitle] = useState('')
@@ -45,6 +47,7 @@ export function CardDetailDrawer({ card, onClose, onUpdate, onDelete }: CardDeta
   const [commentText, setCommentText] = useState('')
   const { data: comments, fetchComments } = useComments()
   const { createComment } = useCreateComment()
+  const { data: activities, fetchActivities } = useCardActivities()
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -54,19 +57,22 @@ export function CardDetailDrawer({ card, onClose, onUpdate, onDelete }: CardDeta
       setTitle(card.title)
       setDescription(card.description || '')
       fetchComments(card.id)
+      fetchActivities(card.id)
     }
-  }, [card, fetchComments])
+  }, [card, fetchComments, fetchActivities])
 
   const handleSave = async () => {
     if (!card) return
     await onUpdate({ description: description || null })
     setEditing(false)
+    fetchActivities(card.id)
   }
 
   const handleSaveTitle = async () => {
     if (!card) return
     await onUpdate({ title })
     setEditingTitle(false)
+    fetchActivities(card.id)
   }
 
   const handleAddComment = async () => {
@@ -99,6 +105,10 @@ export function CardDetailDrawer({ card, onClose, onUpdate, onDelete }: CardDeta
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+      // Refresh activities after update
+      if (card) {
+        fetchActivities(card.id)
+      }
     } catch (error) {
       console.error('Failed to upload image:', error)
     } finally {
@@ -120,6 +130,37 @@ export function CardDetailDrawer({ card, onClose, onUpdate, onDelete }: CardDeta
     if (bytes < 1024) return bytes + ' B'
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  const formatActivityAction = (activity: CardActivity): string => {
+    switch (activity.action) {
+      case 'created':
+        return 'created this card'
+      case 'moved':
+        return `moved from "${activity.oldValue}" to "${activity.newValue}"`
+      case 'assigned':
+        const newAssignee = users.find((u) => u.id === activity.newValue)
+        const oldAssignee = activity.oldValue ? users.find((u) => u.id === activity.oldValue) : null
+        if (newAssignee) {
+          return `assigned to ${newAssignee.name}`
+        }
+        if (oldAssignee) {
+          return `unassigned ${oldAssignee.name}`
+        }
+        return 'changed assignee'
+      case 'completed':
+        return activity.newValue === 'true' ? 'marked as completed' : 'marked as incomplete'
+      case 'updated':
+        if (activity.field === 'title') {
+          return `changed title from "${activity.oldValue}" to "${activity.newValue}"`
+        }
+        if (activity.field === 'priority') {
+          return `changed priority from "${activity.oldValue}" to "${activity.newValue}"`
+        }
+        return `changed ${activity.field} from "${activity.oldValue}" to "${activity.newValue}"`
+      default:
+        return 'updated this card'
+    }
   }
 
   if (!card) return null
@@ -448,6 +489,38 @@ export function CardDetailDrawer({ card, onClose, onUpdate, onDelete }: CardDeta
                   )}
                 </div>
               </div>
+
+              {/* Activity History */}
+              {activities.length > 0 && (
+                <div className="mt-6 pt-6 border-t">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4">
+                    History
+                  </h3>
+                  <div className="space-y-3">
+                    {activities.map((activity) => {
+                      const activityUser = users.find((u) => u.id === activity.userId)
+                      return (
+                        <div key={activity.id} className="flex gap-3 text-xs">
+                          <UserAvatar userId={activity.userId} users={users} size="sm" />
+                          <div className="flex-1">
+                            <div className="text-muted-foreground">
+                              <span className="font-semibold">{activityUser?.name || 'User'}</span>{' '}
+                              {formatActivityAction(activity)}
+                              <span className="ml-2 text-xs opacity-70">
+                                {new Date(activity.createdAt).toLocaleDateString()} at{' '}
+                                {new Date(activity.createdAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
             </div>
 
@@ -467,6 +540,11 @@ export function CardDetailDrawer({ card, onClose, onUpdate, onDelete }: CardDeta
                       placeholder="Unassigned"
                       className="h-10"
                       showClear={true}
+                      allowedUserIds={
+                        board
+                          ? [board.ownerId, ...board.memberIds]
+                          : undefined
+                      }
                     />
                   </div>
                   <div>

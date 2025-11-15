@@ -37,6 +37,9 @@ export type Card = {
   storyPoints?: number
   attachments?: CardAttachment[]
   completed: boolean
+  epicId?: string
+  rank?: number
+  flagged?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -48,6 +51,19 @@ export type Comment = {
   content: string
   createdAt: string
   updatedAt: string
+}
+
+export type CardActivity = {
+  id: string
+  cardId: string
+  boardId: string
+  userId: string
+  action: 'created' | 'updated' | 'moved' | 'assigned' | 'completed' | 'deleted' | 'commented'
+  field?: string
+  oldValue?: string
+  newValue?: string
+  metadata?: Record<string, any>
+  createdAt: string
 }
 
 export type CreateBoardInput = {
@@ -75,6 +91,9 @@ export type CreateCardInput = {
   labels?: string[]
   dueDate?: string
   storyPoints?: number
+  epicId?: string
+  rank?: number
+  flagged?: boolean
 }
 
 export type UpdateCardInput = {
@@ -88,5 +107,8 @@ export type UpdateCardInput = {
   dueDate?: string | null
   storyPoints?: number | null
   completed?: boolean
+  epicId?: string | null
+  rank?: number | null
+  flagged?: boolean
 }
 
