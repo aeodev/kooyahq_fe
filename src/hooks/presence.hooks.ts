@@ -62,7 +62,7 @@ export function useLiveLocationSharing() {
   const setGeolocationSupported = usePresenceStore((state) => state.setGeolocationSupported)
   const locationSharingEnabled = usePresenceStore((state) => state.locationSharingEnabled)
   const watchIdRef = useRef<number | null>(null)
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const supported = typeof window !== 'undefined' && 'geolocation' in navigator

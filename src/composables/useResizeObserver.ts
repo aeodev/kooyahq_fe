@@ -6,7 +6,7 @@ interface Size {
 }
 
 export function useResizeObserver<T extends HTMLElement = HTMLDivElement>(): [
-  React.RefObject<T>,
+  React.RefObject<T | null>,
   Size,
 ] {
   const ref = useRef<T>(null)

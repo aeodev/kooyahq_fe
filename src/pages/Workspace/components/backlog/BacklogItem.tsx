@@ -188,7 +188,7 @@ export function BacklogItem({
                   <span className="text-[10px] text-red-500">⚠</span>
                 )}
                 {assignee && (
-                  <UserAvatar userId={card.assigneeId!} users={users} size="sm" />
+                  <UserAvatar userId={card.assigneeId!} users={users as import('@/types/user').User[]} size="sm" />
                 )}
               </div>
             </div>

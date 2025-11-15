@@ -28,7 +28,6 @@ export function BoardMembersModal({ open, onClose, board, onUpdate }: BoardMembe
   const currentUser = useAuthStore((state) => state.user)
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddSection, setShowAddSection] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState<string | undefined>()
   const [saving, setSaving] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -37,7 +36,7 @@ export function BoardMembersModal({ open, onClose, board, onUpdate }: BoardMembe
     ? users.filter((u) => board.memberIds.includes(u.id) || board.ownerId === u.id)
     : []
   const boardOwner = board ? users.find((u) => u.id === board.ownerId) : null
-  const membersOnly = boardMembers.filter((m) => m.id !== board.ownerId)
+  const membersOnly = board ? boardMembers.filter((m) => m.id !== board.ownerId) : []
 
   // Available users (not already members)
   const availableUsers = users.filter(
@@ -59,7 +58,6 @@ export function BoardMembersModal({ open, onClose, board, onUpdate }: BoardMembe
     setSaving(true)
     try {
       await onUpdate([...board.memberIds, userId])
-      setSelectedUserId(undefined)
       setSearchQuery('')
       setShowAddSection(false)
     } catch (error) {

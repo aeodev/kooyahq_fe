@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { UserSelector } from '@/components/ui/user-selector'
 import { X, Filter } from 'lucide-react'
-import { cn } from '@/utils/cn'
 import type { Card as CardType } from '@/types/board'
 
 type FilterState = {

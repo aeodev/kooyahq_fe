@@ -26,7 +26,7 @@ function ViewerCapture() {
 const CesiumPresence = () => {
   const users = usePresenceStore((state) => state.users)
   const currentUser = useAuthStore((state) => state.user)
-  const { cameraHeight, onViewerReady } = useCesiumViewer()
+  const { cameraHeight } = useCesiumViewer()
   const { validatedAvatars, allUsers } = useUserAvatars(users)
   const { clusters, individualPins } = useClustering(allUsers, validatedAvatars, cameraHeight, currentUser?.id)
 
@@ -43,7 +43,6 @@ const CesiumPresence = () => {
         navigationHelpButton={false}
         infoBox={false}
         selectionIndicator={false}
-        onReady={onViewerReady}
       >
         <ViewerCapture />
         {clusters.map((cluster, idx) => {

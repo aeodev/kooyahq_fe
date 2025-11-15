@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuthStore } from '@/stores/auth.store'
 import { EmployeesSection } from './components/EmployeesSection'
 import { ProjectsSection } from './components/ProjectsSection'
