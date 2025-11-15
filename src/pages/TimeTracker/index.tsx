@@ -51,10 +51,8 @@ export function TimeTracker() {
     projectTasks,
     setProjectTask,
     resetProjectTask,
-    markProjectVisited,
     clearAll,
     getProjectTask,
-    isProjectVisited,
   } = useProjectTaskStore()
 
   const { data: allEntries, fetchEntries } = useTimeEntries()
@@ -97,19 +95,6 @@ export function TimeTracker() {
     }
   }, [user, isLoading, fetchMyEntries, fetchActiveTimer])
 
-  useEffect(() => {
-    if (!activeTimer || activeTimer.projects.length === 0) return
-    const timerProject = activeTimer.projects[0]
-    if (
-      timerProject !== activeProject &&
-      !isProjectVisited(timerProject) &&
-      !getProjectTask(timerProject) &&
-      activeTimer.task
-    ) {
-      setActiveProject(timerProject)
-      setProjectTask(timerProject, activeTimer.task)
-    }
-  }, [activeTimer, activeProject, isProjectVisited, getProjectTask, setProjectTask])
 
   // Fetch users for position and profile data
   useEffect(() => {
@@ -153,6 +138,10 @@ export function TimeTracker() {
     if (!projectToStart) return
     const taskForProject = getProjectTask(projectToStart) || taskDescription.trim()
     if (!taskForProject.trim()) return
+    
+    // Save task to store before starting
+    setProjectTask(projectToStart, taskForProject.trim())
+    
     const result = await startTimer({
       projects: [projectToStart],
       task: taskForProject.trim(),
@@ -165,33 +154,40 @@ export function TimeTracker() {
 
   const handleSwitchProject = async (newProject: string) => {
     if (!activeTimer || !selectedProjects.includes(newProject)) return
+    
     const currentProject = activeProject
-    const isVisited = isProjectVisited(newProject)
-    if (currentProject && !isProjectVisited(currentProject)) {
-      markProjectVisited(currentProject)
+    
+    // Auto-mark current project's task as complete (clear it)
+    if (currentProject) {
+      resetProjectTask(currentProject)
     }
+    
+    // Stop current timer (saves time entry for current project)
     await stopTimer()
+    
+    // Switch to new project
     setActiveProject(newProject)
-    if (isVisited) {
-      const clearedTask = getProjectTask(newProject)
-      resetProjectTask(newProject)
-      if (clearedTask && taskDescription === clearedTask) {
-        setTaskDescription('')
-      }
-      await startTimer({
+    
+    // Get saved task for new project (if any, otherwise empty string)
+    const taskForNewProject = getProjectTask(newProject) || ''
+    const taskToUse = taskForNewProject.trim() || ''
+    
+    // Always start timer for new project (even if task is empty)
+    // User can add task later via Quick Add
+    try {
+      const result = await startTimer({
         projects: [newProject],
-        task: '',
+        task: taskToUse,
         status: 'Billable',
       })
-    } else {
-      const taskForNewProject = getProjectTask(newProject) || activeTimer.task || ''
-      if (taskForNewProject.trim()) {
-        await startTimer({
-          projects: [newProject],
-          task: taskForNewProject.trim(),
-          status: 'Billable',
-        })
+      
+      // Only save non-empty tasks to store
+      if (result && taskToUse) {
+        setProjectTask(newProject, taskToUse)
       }
+    } catch (error) {
+      console.error('Failed to start timer after switching project:', error)
+      // Timer failed to start - user will need to manually start it
     }
   }
 
@@ -199,6 +195,7 @@ export function TimeTracker() {
     if (!activeTimer || !activeProject || !task.trim()) return
     const currentTask = activeTimer.task || ''
     const newTask = currentTask ? `${currentTask}, ${task.trim()}` : task.trim()
+    // Save updated task to store
     setProjectTask(activeProject, newTask)
     await updateEntry(activeTimer.id, { task: newTask })
   }
