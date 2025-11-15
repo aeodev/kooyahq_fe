@@ -2,14 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 
 interface UseActiveSpeakerOptions {
   remoteStreams: Map<string, MediaStream>
-  currentUserId: string | null
+  currentUserId?: string | null
 }
 
 const AUDIO_THRESHOLD = 30 // Minimum audio level to be considered "speaking"
-const UPDATE_INTERVAL = 150 // Update every 150ms for smooth transitions
 const SMOOTHING_TIME_CONSTANT = 0.8 // For smoothing audio level changes
 
-export function useActiveSpeaker({ remoteStreams, currentUserId }: UseActiveSpeakerOptions): string | null {
+export function useActiveSpeaker({ remoteStreams, currentUserId: _currentUserId }: UseActiveSpeakerOptions): string | null {
   const [activeSpeaker, setActiveSpeaker] = useState<string | null>(null)
   const [analyserCount, setAnalyserCount] = useState(0)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -36,7 +35,7 @@ export function useActiveSpeaker({ remoteStreams, currentUserId }: UseActiveSpea
 
     return () => {
       // Cleanup analysers
-      analysersRef.current.forEach(({ analyser, source, clonedTrack }) => {
+      analysersRef.current.forEach(({ source, clonedTrack }) => {
         try {
           source.disconnect()
           // Stop cloned track if it exists
@@ -62,7 +61,7 @@ export function useActiveSpeaker({ remoteStreams, currentUserId }: UseActiveSpea
     if (!audioContext) return
 
     // Clean up old analysers for streams that no longer exist
-    analysersRef.current.forEach(({ analyser, source, clonedTrack }, userId) => {
+    analysersRef.current.forEach(({ source, clonedTrack }, userId) => {
       if (!remoteStreams.has(userId)) {
         try {
           source.disconnect()

@@ -162,15 +162,6 @@ export function usePeerConnections({
 
         remoteStream.addEventListener('addtrack', handleAddTrack)
         remoteStream.addEventListener('removetrack', handleRemoveTrack)
-
-        // Store cleanup function for event listeners
-        const cleanup = () => {
-          remoteStream.removeEventListener('addtrack', handleAddTrack)
-          remoteStream.removeEventListener('removetrack', handleRemoveTrack)
-        }
-
-        // Store cleanup in peer connection for later use if needed
-        // Note: This is a simple approach; in production you might want a more robust cleanup mechanism
       }
 
       // Handle ICE candidates
