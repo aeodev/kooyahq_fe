@@ -11,7 +11,7 @@ export function useMediaDevices({
   peerConnectionsRef,
   setLocalStream,
 }: UseMediaDevicesOptions) {
-  const deviceChangeTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const deviceChangeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const replaceTrackInPeerConnections = useCallback(
     (track: MediaStreamTrack, kind: 'video' | 'audio') => {
