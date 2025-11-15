@@ -1,7 +1,6 @@
 import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, Square, LogOut, FlipHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DeviceSettings } from './DeviceSettings'
-import { cn } from '@/utils/cn'
 
 interface ControlsBarProps {
   isVideoEnabled: boolean
