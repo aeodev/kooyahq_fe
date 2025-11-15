@@ -1,4 +1,13 @@
-export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+// Ensure BASE_URL always ends with /api
+const getBaseUrl = () => {
+  const url = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+  // Remove trailing slash if present
+  const cleanUrl = url.replace(/\/$/, '')
+  // Add /api if not already present
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`
+}
+
+export const BASE_URL = getBaseUrl()
 
 // Socket server - derived from BASE_URL (remove /api suffix)
 export const SOCKET_SERVER = BASE_URL.replace(/\/api$/, '')
