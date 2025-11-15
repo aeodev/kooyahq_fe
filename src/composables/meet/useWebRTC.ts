@@ -384,6 +384,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
   const toggleScreenShare = useCallback(async () => {
     try {
       if (isScreenSharing) {
+        // Stop screen sharing
         screenStreamRef.current?.getTracks().forEach((track) => track.stop())
         screenStreamRef.current = null
 
@@ -408,13 +409,25 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
           }
         }
       } else {
+        // Start screen sharing
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
         })
+        
+        // Check if stream is still valid
+        if (!screenStream || screenStream.getVideoTracks().length === 0) {
+          return
+        }
+        
         screenStreamRef.current = screenStream
 
         const videoTrack = screenStream.getVideoTracks()[0]
+        if (!videoTrack) {
+          screenStream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
         peerConnectionsRef.current.forEach(({ peerConnection }) => {
           const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
           if (sender) {
@@ -434,16 +447,57 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
         }
 
         videoTrack.onended = () => {
-          toggleScreenShare()
+          // User stopped sharing via browser UI
+          if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach((track) => track.stop())
+            screenStreamRef.current = null
+          }
+          
+          if (localStreamRef.current) {
+            const localVideoTrack = localStreamRef.current.getVideoTracks()[0]
+            peerConnectionsRef.current.forEach(({ peerConnection }) => {
+              const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
+              if (sender && localVideoTrack) {
+                sender.replaceTrack(localVideoTrack)
+              }
+            })
+          }
+
+          setIsScreenSharing(false)
+          if (user) {
+            getStore().updateParticipant(user.id, { isScreenSharing: false })
+            if (socket?.connected && meetId) {
+              socket.emit('meet:participant-state', {
+                meetId,
+                isScreenSharing: false,
+              })
+            }
+          }
         }
       }
     } catch (error) {
+      // Handle permission denied silently - user just didn't grant permission
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        // User denied permission, don't log as error
+        return
+      }
+      
+      // Handle invalid state - might be race condition, just reset state
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Reset state if we were trying to start
+        if (!isScreenSharing) {
+          setIsScreenSharing(false)
+        }
+        return
+      }
+      
+      // Log other errors
       console.error('Error accessing screen share:', error)
       if (!isScreenSharing) {
         setIsScreenSharing(false)
       }
     }
-  }, [isScreenSharing, user, socket, meetId, getStore, peerConnectionsRef])
+  }, [isScreenSharing, user, socket, meetId, getStore, peerConnectionsRef, localStreamRef])
 
   // Use media devices hook
   const { changeVideoDevice, changeAudioInput, changeAudioOutput, flipCamera } = useMediaDevices({
@@ -451,6 +505,24 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
     peerConnectionsRef,
     setLocalStream,
   })
+
+  // Cleanup function to stop all tracks and close connections
+  const cleanup = useCallback(() => {
+    // Stop local stream tracks
+    localStreamRef.current?.getTracks().forEach((track) => track.stop())
+    localStreamRef.current = null
+    setLocalStream(null)
+
+    // Stop screen share tracks
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop())
+    screenStreamRef.current = null
+
+    // Close all peer connections
+    peerConnectionsRef.current.forEach(({ peerConnection }) => {
+      peerConnection.close()
+    })
+    peerConnectionsRef.current.clear()
+  }, [setLocalStream])
 
   return {
     localStream,
@@ -469,6 +541,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
     changeAudioInput,
     changeAudioOutput,
     flipCamera,
+    cleanup,
   }
 }
 

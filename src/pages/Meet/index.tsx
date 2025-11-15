@@ -59,6 +59,7 @@ export function Meet() {
     changeAudioInput,
     changeAudioOutput,
     flipCamera,
+    cleanup,
   } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled)
 
   // Initialize meet
@@ -81,6 +82,9 @@ export function Meet() {
   }, [socket?.connected])
 
   const handleLeave = () => {
+    // Stop all camera/microphone tracks before leaving
+    cleanup()
+    
     if (meetId && socket?.connected) {
       socket.emit('meet:leave', meetId)
     }
