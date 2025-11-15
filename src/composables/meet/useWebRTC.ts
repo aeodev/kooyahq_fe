@@ -446,7 +446,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
   }, [isScreenSharing, user, socket, meetId, getStore, peerConnectionsRef])
 
   // Use media devices hook
-  const { changeVideoDevice, changeAudioInput, changeAudioOutput } = useMediaDevices({
+  const { changeVideoDevice, changeAudioInput, changeAudioOutput, flipCamera } = useMediaDevices({
     localStreamRef,
     peerConnectionsRef,
     setLocalStream,
@@ -468,6 +468,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
     changeVideoDevice,
     changeAudioInput,
     changeAudioOutput,
+    flipCamera,
   }
 }
 

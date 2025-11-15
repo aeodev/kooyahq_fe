@@ -123,6 +123,55 @@ export function useMediaDevices({
     }
   }, [])
 
-  return { changeVideoDevice, changeAudioInput, changeAudioOutput }
+  const flipCamera = useCallback(async () => {
+    if (!localStreamRef.current) return
+
+    if (deviceChangeTimerRef.current) {
+      clearTimeout(deviceChangeTimerRef.current)
+    }
+
+    deviceChangeTimerRef.current = setTimeout(async () => {
+      try {
+        const currentVideoTrack = localStreamRef.current?.getVideoTracks()[0]
+        if (!currentVideoTrack) return
+
+        const currentSettings = currentVideoTrack.getSettings()
+        const currentFacingMode = currentSettings.facingMode
+
+        // Determine the opposite facing mode
+        const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user'
+
+        const audioTrack = localStreamRef.current?.getAudioTracks()[0]
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: { ideal: newFacingMode },
+            width: 1280, 
+            height: 720 
+          },
+          audio: audioTrack ? { deviceId: audioTrack.getSettings().deviceId } : true,
+        })
+
+        const newVideoTrack = stream.getVideoTracks()[0]
+        const oldVideoTrack = localStreamRef.current?.getVideoTracks()[0]
+
+        if (oldVideoTrack && localStreamRef.current) {
+          localStreamRef.current.removeTrack(oldVideoTrack)
+          oldVideoTrack.stop()
+        }
+
+        if (localStreamRef.current && newVideoTrack) {
+          localStreamRef.current.addTrack(newVideoTrack)
+          setLocalStream(localStreamRef.current)
+          replaceTrackInPeerConnections(newVideoTrack, 'video')
+        }
+
+        stream.getAudioTracks().forEach((track) => track.stop())
+      } catch (error) {
+        console.error('Error flipping camera:', error)
+      }
+    }, 300)
+  }, [localStreamRef, setLocalStream, replaceTrackInPeerConnections])
+
+  return { changeVideoDevice, changeAudioInput, changeAudioOutput, flipCamera }
 }
 

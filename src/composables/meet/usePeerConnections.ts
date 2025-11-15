@@ -10,7 +10,10 @@ interface PeerConnection {
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
   ],
+  iceCandidatePoolSize: 10, // Pre-gather candidates
 }
 
 interface UsePeerConnectionsOptions {
@@ -221,6 +224,17 @@ export function usePeerConnections({
   const createOffer = useCallback(
     async (userId: string) => {
       await queueSignaling(userId, async () => {
+        // Ensure local stream is ready before creating offer
+        if (!localStreamRef.current) {
+          console.warn(`Local stream not ready, waiting before creating offer for ${userId}`)
+          // Wait a bit for stream to be ready
+          await new Promise(resolve => setTimeout(resolve, 500))
+          if (!localStreamRef.current) {
+            console.error(`Local stream still not ready for ${userId}`)
+            return
+          }
+        }
+
         const existing = peerConnectionsRef.current.get(userId)
         if (existing) {
           const state = existing.peerConnection.connectionState
@@ -239,9 +253,15 @@ export function usePeerConnections({
 
         try {
           if (peerConnection.signalingState === 'stable') {
-            const offer = await peerConnection.createOffer()
+            // Create offer with options to gather ICE candidates faster
+            const offer = await peerConnection.createOffer({
+              offerToReceiveAudio: true,
+              offerToReceiveVideo: true,
+            })
             await peerConnection.setLocalDescription(offer)
 
+            // Send offer immediately - don't wait for ICE gathering
+            // ICE candidates will be sent separately as they arrive
             if (socket?.connected && meetId) {
               socket.emit('meet:offer', {
                 meetId,
@@ -252,6 +272,20 @@ export function usePeerConnections({
                 targetUserId: userId,
               })
             }
+
+            // Monitor ICE gathering and send candidates as they arrive (already handled in onicecandidate)
+            // Set a timeout to ensure connection doesn't hang
+            const iceTimeout = setTimeout(() => {
+              if (peerConnection.iceGatheringState !== 'complete') {
+                console.warn(`ICE gathering taking too long for ${userId}, proceeding anyway`)
+              }
+            }, 5000) // 5 second timeout
+
+            peerConnection.addEventListener('icegatheringstatechange', () => {
+              if (peerConnection.iceGatheringState === 'complete') {
+                clearTimeout(iceTimeout)
+              }
+            }, { once: true })
           } else {
             console.warn(`Cannot create offer: connection not in stable state (${peerConnection.signalingState})`)
           }
@@ -260,7 +294,7 @@ export function usePeerConnections({
         }
       })
     },
-    [createPeerConnection, socket, meetId, queueSignaling]
+    [createPeerConnection, socket, meetId, queueSignaling, localStreamRef]
   )
 
   createOfferRef.current = createOffer
@@ -325,9 +359,14 @@ export function usePeerConnections({
           }
 
           if (peerConnection.signalingState === 'have-remote-offer') {
-            const answer = await peerConnection.createAnswer()
+            // Create answer with options to gather ICE candidates faster
+            const answer = await peerConnection.createAnswer({
+              offerToReceiveAudio: true,
+              offerToReceiveVideo: true,
+            })
             await peerConnection.setLocalDescription(answer)
 
+            // Send answer immediately - don't wait for ICE gathering
             if (socket?.connected && meetId) {
               socket.emit('meet:answer', {
                 meetId,
@@ -338,6 +377,21 @@ export function usePeerConnections({
                 targetUserId: fromUserId,
               })
             }
+
+            // Monitor ICE gathering with timeout
+            // Store reference to ensure TypeScript knows it's defined
+            const currentPeerConnection = peerConnection
+            const iceTimeout = setTimeout(() => {
+              if (currentPeerConnection.iceGatheringState !== 'complete') {
+                console.warn(`ICE gathering taking too long for ${fromUserId}, proceeding anyway`)
+              }
+            }, 5000)
+
+            currentPeerConnection.addEventListener('icegatheringstatechange', () => {
+              if (currentPeerConnection.iceGatheringState === 'complete') {
+                clearTimeout(iceTimeout)
+              }
+            }, { once: true })
           }
         } catch (error) {
           console.error('Error handling offer:', error)

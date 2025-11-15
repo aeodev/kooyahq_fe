@@ -15,6 +15,7 @@ interface ControlsBarProps {
   onToggleScreenShare: () => void
   onToggleChat: () => void
   onToggleMirror: () => void
+  onFlipCamera?: () => void
   onStartRecording: () => void
   onStopRecording: () => void
   onLeave: () => void
@@ -36,6 +37,7 @@ export function ControlsBar({
   onToggleScreenShare,
   onToggleChat,
   onToggleMirror,
+  onFlipCamera,
   onStartRecording,
   onStopRecording,
   onLeave,
@@ -45,6 +47,15 @@ export function ControlsBar({
 }: ControlsBarProps) {
   // On mobile, hide call controls when chat is open to prevent overlap with chat input
   const hideCallControlsOnMobile = isMobile && isChatOpen
+  
+  // On mobile, use flipCamera; on desktop, use toggleMirror
+  const handleFlip = () => {
+    if (isMobile && onFlipCamera) {
+      onFlipCamera()
+    } else {
+      onToggleMirror()
+    }
+  }
 
   return (
     <div className="flex items-center justify-center gap-3 md:gap-1 sm:gap-2 p-4 md:p-2 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg z-50 flex-shrink-0 flex-wrap">
@@ -85,9 +96,9 @@ export function ControlsBar({
       <Button
         variant={isMirrored ? 'default' : 'outline'}
         size="icon"
-        onClick={onToggleMirror}
-        title={isMirrored ? 'Disable mirror' : 'Enable mirror (flip camera)'}
-        className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md hidden sm:flex"
+        onClick={handleFlip}
+        title={isMobile ? 'Flip camera' : (isMirrored ? 'Disable mirror' : 'Enable mirror (flip camera)')}
+        className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
       >
         <FlipHorizontal className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
       </Button>

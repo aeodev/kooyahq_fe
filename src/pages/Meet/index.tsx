@@ -58,6 +58,7 @@ export function Meet() {
     changeVideoDevice,
     changeAudioInput,
     changeAudioOutput,
+    flipCamera,
   } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled)
 
   // Initialize meet
@@ -290,6 +291,7 @@ export function Meet() {
           onToggleScreenShare={toggleScreenShare}
           onToggleChat={toggleChat}
           onToggleMirror={toggleMirror}
+          onFlipCamera={flipCamera}
           onStartRecording={startRecording}
           onStopRecording={stopRecording}
           onLeave={handleLeave}
