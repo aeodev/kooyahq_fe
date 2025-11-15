@@ -1,5 +1,3 @@
-export type TimeEntryStatus = 'Billable' | 'Internal'
-
 export type TimeEntry = {
   id: string
   userId: string
@@ -8,7 +6,6 @@ export type TimeEntry = {
   projects: string[]
   task: string
   duration: number // in minutes
-  status: TimeEntryStatus
   startTime: string | null
   endTime: string | null
   isActive: boolean
@@ -23,21 +20,18 @@ export type TimeEntry = {
 export type StartTimerInput = {
   projects: string[]
   task: string
-  status?: TimeEntryStatus
 }
 
 export type UpdateTimeEntryInput = {
   projects?: string[]
   task?: string
   duration?: number
-  status?: TimeEntryStatus
 }
 
 export type ManualEntryInput = {
   projects: string[]
   task: string
   duration: number // in minutes
-  status?: TimeEntryStatus
   startTime?: string
   endTime?: string
 }

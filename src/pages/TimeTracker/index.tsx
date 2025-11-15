@@ -145,7 +145,6 @@ export function TimeTracker() {
     const result = await startTimer({
       projects: [projectToStart],
       task: taskForProject.trim(),
-      status: 'Billable',
     })
     if (result) {
       setTaskDescription('')
@@ -178,7 +177,6 @@ export function TimeTracker() {
       const result = await startTimer({
         projects: [newProject],
         task: taskToUse,
-        status: 'Billable',
       })
       
       // Only save non-empty tasks to store
@@ -236,7 +234,6 @@ export function TimeTracker() {
       projects: data.projects,
       task: data.task,
       duration: totalMinutes,
-      status: 'Billable',
     })
     setLoggingManual(false)
 
@@ -272,7 +269,6 @@ export function TimeTracker() {
     project: entry.projects.join(', '),
     task: entry.task,
     duration: formatDuration(entry.duration),
-    status: entry.status as 'Billable' | 'Internal',
     time: formatTimeRange(entry.startTime, entry.endTime),
   }))
 

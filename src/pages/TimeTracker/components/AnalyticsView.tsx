@@ -149,7 +149,7 @@ export function AnalyticsView() {
       </Card>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Hours</p>
@@ -160,18 +160,6 @@ export function AnalyticsView() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Entries</p>
             <p className="text-2xl font-bold">{data.totalEntries}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Billable Hours</p>
-            <p className="text-2xl font-bold">{formatHours(data.billableHours)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Internal Hours</p>
-            <p className="text-2xl font-bold">{formatHours(data.internalHours)}</p>
           </CardContent>
         </Card>
       </div>

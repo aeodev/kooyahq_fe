@@ -6,7 +6,6 @@ type TimeEntry = {
   project: string
   task: string
   duration: string
-  status: 'Billable' | 'Internal'
   time: string
 }
 
@@ -40,10 +39,6 @@ export function EntryList({ entries }: EntryListProps) {
                   </div>
                   <div className="flex items-center gap-2 mt-2">
                     <p className="text-sm text-muted-foreground">{entry.project}</p>
-                    <span className="text-muted-foreground">·</span>
-                    <Badge variant="outline" className="text-xs">
-                      {entry.status}
-                    </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{entry.time}</p>
                 </div>

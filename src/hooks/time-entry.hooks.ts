@@ -478,8 +478,6 @@ export const useTimerDuration = (activeTimer: TimeEntry | null) => {
 export type AnalyticsData = {
   totalHours: number
   totalEntries: number
-  billableHours: number
-  internalHours: number
   byUser: Array<{
     userId: string
     userName: string

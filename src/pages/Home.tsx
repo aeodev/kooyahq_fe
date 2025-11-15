@@ -177,9 +177,9 @@ export function Home() {
           <>
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Billable Hours</CardDescription>
+                <CardDescription>Total Hours</CardDescription>
                 <CardTitle className="text-2xl">
-                  {Math.round(analytics.billableHours * 10) / 10}h
+                  {Math.round(analytics.totalHours * 10) / 10}h
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -321,9 +321,6 @@ export function Home() {
                         <p className="text-xs text-muted-foreground">
                           {entry.projects.join(', ')}
                         </p>
-                        <Badge variant={entry.status === 'Billable' ? 'default' : 'secondary'} className="text-xs">
-                          {entry.status}
-                        </Badge>
                       </div>
                     </div>
                     <p className="text-sm font-medium ml-4">
