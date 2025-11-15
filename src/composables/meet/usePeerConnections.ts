@@ -36,6 +36,7 @@ export function usePeerConnections({
   const signalingQueueRef = useRef<Map<string, Promise<void>>>(new Map())
   const createOfferRef = useRef<((userId: string) => Promise<void>) | null>(null)
   const reconnectPeerRef = useRef<((userId: string) => Promise<void>) | null>(null)
+  const iceCandidateQueueRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
 
   // Queue signaling operations to prevent race conditions
   const queueSignaling = useCallback(async (userId: string, operation: () => Promise<void>) => {
@@ -107,42 +108,69 @@ export function usePeerConnections({
         }
 
         const tracks = remoteStream.getTracks()
+        
+        // Validate stream has tracks before setting
+        if (tracks.length === 0) {
+          console.warn(`Received empty stream from ${userId}`)
+          return
+        }
+
         console.log(`Received remote stream from ${userId}`, {
           stream: remoteStream,
+          streamId: remoteStream.id,
           tracks: tracks.length,
           videoTracks: tracks.filter(t => t.kind === 'video').length,
           audioTracks: tracks.filter(t => t.kind === 'audio').length,
+          trackStates: tracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState })),
         })
 
         const peerConn = peerConnectionsRef.current.get(userId)
         if (peerConn) {
-          peerConn.stream = remoteStream
-          peerConnectionsRef.current.set(userId, peerConn)
+          // Only update if stream actually changed
+          if (peerConn.stream?.id !== remoteStream.id) {
+            peerConn.stream = remoteStream
+            peerConnectionsRef.current.set(userId, peerConn)
+            // Trigger re-render by updating counter
+            setStreamsUpdateCounter((prev) => prev + 1)
+          }
         } else {
           peerConnectionsRef.current.set(userId, {
             peerConnection,
             stream: remoteStream,
           })
+          // Trigger re-render by updating counter
+          setStreamsUpdateCounter((prev) => prev + 1)
         }
-
-        // Trigger re-render by updating counter
-        setStreamsUpdateCounter((prev) => prev + 1)
 
         // Listen for track changes on the remote stream
         tracks.forEach((track) => {
           track.onended = () => {
-            console.log(`Track ended for ${userId}:`, track.kind)
+            console.log(`Track ended for ${userId}:`, track.kind, track.id)
             setStreamsUpdateCounter((prev) => prev + 1)
           }
         })
 
-        remoteStream.addEventListener('addtrack', () => {
+        const handleAddTrack = () => {
+          console.log(`Track added to stream for ${userId}`)
           setStreamsUpdateCounter((prev) => prev + 1)
-        })
+        }
 
-        remoteStream.addEventListener('removetrack', () => {
+        const handleRemoveTrack = () => {
+          console.log(`Track removed from stream for ${userId}`)
           setStreamsUpdateCounter((prev) => prev + 1)
-        })
+        }
+
+        remoteStream.addEventListener('addtrack', handleAddTrack)
+        remoteStream.addEventListener('removetrack', handleRemoveTrack)
+
+        // Store cleanup function for event listeners
+        const cleanup = () => {
+          remoteStream.removeEventListener('addtrack', handleAddTrack)
+          remoteStream.removeEventListener('removetrack', handleRemoveTrack)
+        }
+
+        // Store cleanup in peer connection for later use if needed
+        // Note: This is a simple approach; in production you might want a more robust cleanup mechanism
       }
 
       // Handle ICE candidates
@@ -154,6 +182,17 @@ export function usePeerConnections({
             targetUserId: userId,
           })
         }
+      }
+
+      // Process queued ICE candidates if any
+      const queuedCandidates = iceCandidateQueueRef.current.get(userId)
+      if (queuedCandidates && queuedCandidates.length > 0) {
+        queuedCandidates.forEach((candidate) => {
+          peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch((error) => {
+            console.error(`Error adding queued ICE candidate for ${userId}:`, error)
+          })
+        })
+        iceCandidateQueueRef.current.delete(userId)
       }
 
       // Monitor ICE connection state
@@ -281,6 +320,19 @@ export function usePeerConnections({
 
           await peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
 
+          // Process queued ICE candidates after setting remote description
+          const queuedCandidates = iceCandidateQueueRef.current.get(fromUserId)
+          if (queuedCandidates && queuedCandidates.length > 0) {
+            for (const candidate of queuedCandidates) {
+              try {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+              } catch (error) {
+                console.error(`Error adding queued ICE candidate for ${fromUserId}:`, error)
+              }
+            }
+            iceCandidateQueueRef.current.delete(fromUserId)
+          }
+
           if (peerConnection.signalingState === 'have-remote-offer') {
             const answer = await peerConnection.createAnswer()
             await peerConnection.setLocalDescription(answer)
@@ -316,6 +368,22 @@ export function usePeerConnections({
 
             if (currentState === 'have-local-offer') {
               await peerConn.peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
+              
+              // Process queued ICE candidates after setting remote description
+              const queuedCandidates = iceCandidateQueueRef.current.get(fromUserId)
+              if (queuedCandidates && queuedCandidates.length > 0) {
+                for (const candidate of queuedCandidates) {
+                  try {
+                    await peerConn.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+                  } catch (error) {
+                    console.error(`Error adding queued ICE candidate for ${fromUserId}:`, error)
+                  }
+                }
+                iceCandidateQueueRef.current.delete(fromUserId)
+              }
+            } else if (currentState === 'stable') {
+              // Connection already established, ignore duplicate/out-of-order answer
+              console.log(`Received answer for ${fromUserId} but connection is already stable, ignoring`)
             } else if (currentState === 'have-remote-offer') {
               console.warn(`Received answer while in have-remote-offer state, resetting connection`)
               peerConn.peerConnection.close()
@@ -342,17 +410,36 @@ export function usePeerConnections({
     const peerConn = peerConnectionsRef.current.get(fromUserId)
     if (peerConn) {
       try {
+        const remoteDescription = peerConn.peerConnection.remoteDescription
+        if (!remoteDescription) {
+          // Queue ICE candidate until remote description is set
+          if (!iceCandidateQueueRef.current.has(fromUserId)) {
+            iceCandidateQueueRef.current.set(fromUserId, [])
+          }
+          iceCandidateQueueRef.current.get(fromUserId)!.push(candidate)
+          return
+        }
         await peerConn.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
       } catch (error) {
-        console.error('Error adding ICE candidate:', error)
+        // If error is due to invalid candidate (e.g., null candidate), ignore it
+        if (candidate.candidate && candidate.candidate !== '') {
+          console.error('Error adding ICE candidate:', error)
+        }
       }
+    } else {
+      // Queue ICE candidate if peer connection doesn't exist yet
+      if (!iceCandidateQueueRef.current.has(fromUserId)) {
+        iceCandidateQueueRef.current.set(fromUserId, [])
+      }
+      iceCandidateQueueRef.current.get(fromUserId)!.push(candidate)
     }
   }, [])
 
   const getRemoteStreams = useCallback(() => {
     const streams: Array<{ userId: string; stream: MediaStream }> = []
     peerConnectionsRef.current.forEach(({ stream }, userId) => {
-      if (stream) {
+      // Validate stream exists and has tracks before including it
+      if (stream && stream.getTracks().length > 0) {
         streams.push({ userId, stream })
       }
     })

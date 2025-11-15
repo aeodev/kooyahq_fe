@@ -12,13 +12,24 @@ interface VideoTileProps {
 
 export function VideoTile({ participant, stream, isLocal = false, isMirrored = false }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
   const user = useAuthStore((state) => state.user)
 
   const [hasVideoTrack, setHasVideoTrack] = useState(false)
 
+  // Handle video stream
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream
+    const video = videoRef.current
+    if (!video) return
+
+    if (stream) {
+      // Cleanup previous stream
+      if (video.srcObject && video.srcObject !== stream) {
+        video.srcObject = null
+      }
+
+      // Set new stream
+      video.srcObject = stream
       
       // Check if stream has video tracks
       const checkVideoTracks = () => {
@@ -51,6 +62,49 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
         track.addEventListener('enabled', updateVideoTrack)
         track.addEventListener('disabled', updateVideoTrack)
       })
+
+      // Handle video readiness
+      const handleLoadedData = () => {
+        // Retry play if not already playing
+        if (video.paused) {
+          const playPromise = video.play()
+          if (playPromise !== undefined) {
+            playPromise.catch((error) => {
+              console.error('Error playing video after loadeddata:', error)
+            })
+          }
+        }
+      }
+
+      const handleCanPlay = () => {
+        // Video is ready to play
+      }
+
+      const handlePlay = () => {
+        // Video started playing
+      }
+
+      const handleError = (error: Event) => {
+        console.error('Video element error:', error)
+      }
+
+      video.addEventListener('loadeddata', handleLoadedData)
+      video.addEventListener('canplay', handleCanPlay)
+      video.addEventListener('play', handlePlay)
+      video.addEventListener('error', handleError)
+
+      // Attempt to play video with retry logic
+      const attemptPlay = async (retries = 3) => {
+        try {
+          await video.play()
+        } catch (error) {
+          console.error(`Error playing video (${retries} retries left):`, error)
+          if (retries > 0) {
+            setTimeout(() => attemptPlay(retries - 1), 500)
+          }
+        }
+      }
+      attemptPlay()
       
       return () => {
         stream.removeEventListener('addtrack', handleTrackAdded)
@@ -59,14 +113,43 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
           track.removeEventListener('enabled', updateVideoTrack)
           track.removeEventListener('disabled', updateVideoTrack)
         })
+        video.removeEventListener('loadeddata', handleLoadedData)
+        video.removeEventListener('canplay', handleCanPlay)
+        video.removeEventListener('play', handlePlay)
+        video.removeEventListener('error', handleError)
       }
     } else {
       setHasVideoTrack(false)
-      if (videoRef.current) {
-        videoRef.current.srcObject = null
-      }
+      video.srcObject = null
     }
   }, [stream, participant.isVideoEnabled])
+
+  // Handle audio stream for remote participants
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || isLocal) return
+
+    if (stream) {
+      // Cleanup previous stream
+      if (audio.srcObject && audio.srcObject !== stream) {
+        audio.srcObject = null
+      }
+
+      // Set audio stream for remote participants
+      audio.srcObject = stream
+      audio.muted = false
+
+      // Attempt to play audio
+      const playPromise = audio.play()
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.error('Error playing audio:', error)
+        })
+      }
+    } else {
+      audio.srcObject = null
+    }
+  }, [stream, isLocal])
 
   const displayName = participant.userName || 'Unknown User'
   const isCurrentUser = isLocal || participant.userId === user?.id
@@ -91,6 +174,16 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
           isCurrentUser && isMirrored && '-scale-x-100'
         )}
       />
+      {/* Dedicated audio element for remote streams */}
+      {!isLocal && (
+        <audio
+          ref={audioRef}
+          autoPlay
+          playsInline
+          muted={false}
+          style={{ display: 'none' }}
+        />
+      )}
       
       {showProfile && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-800">

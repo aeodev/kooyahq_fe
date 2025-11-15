@@ -83,6 +83,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
     handleAnswer,
     handleIceCandidate,
     getRemoteStreams,
+    streamsUpdateCounter,
   } = usePeerConnections({
     socket,
     meetId,
@@ -462,6 +463,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
     startRecording,
     stopRecording,
     getRemoteStreams,
+    streamsUpdateCounter,
     changeVideoDevice,
     changeAudioInput,
     changeAudioOutput,

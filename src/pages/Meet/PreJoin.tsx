@@ -98,23 +98,23 @@ export function PreJoin() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-2xl">
-        <CardHeader>
+        <CardHeader className="p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Video className="h-6 w-6 text-primary" />
-              <CardTitle>Ready to join?</CardTitle>
+              <Video className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <CardTitle className="text-lg sm:text-xl">Ready to join?</CardTitle>
             </div>
             <Button variant="ghost" size="icon" onClick={handleCancel}>
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <CardDescription>
+          <CardDescription className="text-sm">
             Check your camera and microphone before joining
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
           <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
             {isVideoEnabled ? (
               <video
@@ -130,45 +130,45 @@ export function PreJoin() {
                   <img
                     src={user.profilePic}
                     alt={user.name}
-                    className="w-24 h-24 rounded-full object-cover"
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-3xl font-semibold text-primary">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-primary/20 flex items-center justify-center">
+                    <span className="text-2xl sm:text-3xl font-semibold text-primary">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                     </span>
                   </div>
                 )}
               </div>
             )}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+            <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
               <Button
                 variant={isVideoEnabled ? 'default' : 'destructive'}
                 size="icon"
                 onClick={toggleVideo}
-                className="rounded-full"
+                className="rounded-full h-10 w-10 sm:h-12 sm:w-12"
               >
                 {isVideoEnabled ? (
-                  <Video className="h-5 w-5" />
+                  <Video className="h-4 w-4 sm:h-5 sm:w-5" />
                 ) : (
-                  <VideoOff className="h-5 w-5" />
+                  <VideoOff className="h-4 w-4 sm:h-5 sm:w-5" />
                 )}
               </Button>
               <Button
                 variant={isAudioEnabled ? 'default' : 'destructive'}
                 size="icon"
                 onClick={toggleAudio}
-                className="rounded-full"
+                className="rounded-full h-10 w-10 sm:h-12 sm:w-12"
               >
                 {isAudioEnabled ? (
-                  <Mic className="h-5 w-5" />
+                  <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
                 ) : (
-                  <MicOff className="h-5 w-5" />
+                  <MicOff className="h-4 w-4 sm:h-5 sm:w-5" />
                 )}
               </Button>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button onClick={handleCancel} variant="outline" className="flex-1">
               Cancel
             </Button>

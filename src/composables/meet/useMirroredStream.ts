@@ -30,16 +30,33 @@ export function useMirroredStream({
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
+    // Set fallback dimensions (default to 1280x720)
+    // These will be updated when video metadata loads
+    canvas.width = 1280
+    canvas.height = 720
+
     const video = document.createElement('video')
     video.srcObject = sourceStream
     video.autoplay = true
     video.playsInline = true
     videoRef.current = video
 
-    video.addEventListener('loadedmetadata', () => {
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-    })
+    // Update canvas dimensions when video metadata loads
+    const handleLoadedMetadata = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+      }
+    }
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata)
+    
+    // Also try to get dimensions from track settings as fallback
+    const trackSettings = videoTrack.getSettings()
+    if (trackSettings.width && trackSettings.height) {
+      canvas.width = trackSettings.width
+      canvas.height = trackSettings.height
+    }
 
     let lastFrameTime = 0
     const targetFPS = 30
@@ -47,7 +64,8 @@ export function useMirroredStream({
 
     const drawFrame = (timestamp: number) => {
       if (timestamp - lastFrameTime >= frameDuration) {
-        if (video.readyState >= 2) {
+        // Validate canvas has valid dimensions before drawing
+        if (canvas.width > 0 && canvas.height > 0 && video.readyState >= 2) {
           ctx.save()
           ctx.scale(-1, 1) // Flip horizontally
           ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height)
@@ -59,6 +77,11 @@ export function useMirroredStream({
     }
 
     video.addEventListener('play', () => {
+      // Ensure canvas dimensions are set before starting to draw
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+      }
       drawFrame(0)
     })
 
