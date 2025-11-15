@@ -13,12 +13,21 @@ interface VideoTileProps {
 export function VideoTile({ participant, stream, isLocal = false, isMirrored = false }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const user = useAuthStore((state) => state.user)
   const playPromiseRef = useRef<Promise<void> | null>(null)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMountedRef = useRef(true)
 
   const [hasVideoTrack, setHasVideoTrack] = useState(false)
+  const [scale, setScale] = useState(1)
+  const [translateX, setTranslateX] = useState(0)
+  const [translateY, setTranslateY] = useState(0)
+  
+  // Pinch zoom state
+  const lastTouchDistanceRef = useRef<number | null>(null)
+  const lastTouchCenterRef = useRef<{ x: number; y: number } | null>(null)
+  const panStartRef = useRef<{ x: number; y: number } | null>(null)
 
   // Handle video stream
   useEffect(() => {
@@ -185,6 +194,131 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
     }
   }, [])
 
+  // Reset zoom when screen sharing stops
+  useEffect(() => {
+    if (!participant.isScreenSharing) {
+      setScale(1)
+      setTranslateX(0)
+      setTranslateY(0)
+    }
+  }, [participant.isScreenSharing])
+
+  // Pinch-to-zoom for screen shares on mobile
+  useEffect(() => {
+    if (!participant.isScreenSharing || !containerRef.current) return
+
+    const container = containerRef.current
+    let isPinching = false
+
+    const getTouchDistance = (touches: TouchList): number => {
+      if (touches.length < 2) return 0
+      const dx = touches[0].clientX - touches[1].clientX
+      const dy = touches[0].clientY - touches[1].clientY
+      return Math.sqrt(dx * dx + dy * dy)
+    }
+
+    const getTouchCenter = (touches: TouchList): { x: number; y: number } => {
+      if (touches.length < 2) return { x: 0, y: 0 }
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2,
+      }
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Pinch zoom
+        isPinching = true
+        lastTouchDistanceRef.current = getTouchDistance(e.touches)
+        const rect = container.getBoundingClientRect()
+        const center = getTouchCenter(e.touches)
+        lastTouchCenterRef.current = {
+          x: center.x - rect.left,
+          y: center.y - rect.top,
+        }
+        panStartRef.current = null
+      } else if (e.touches.length === 1 && scale > 1) {
+        // Single touch pan when zoomed
+        panStartRef.current = {
+          x: e.touches[0].clientX - translateX,
+          y: e.touches[0].clientY - translateY,
+        }
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isPinching && e.touches.length === 2) {
+        // Pinch zoom
+        e.preventDefault()
+        const currentDistance = getTouchDistance(e.touches)
+        const lastDistance = lastTouchDistanceRef.current
+
+        if (lastDistance && lastDistance > 0) {
+          const scaleChange = currentDistance / lastDistance
+          const newScale = Math.max(0.5, Math.min(3, scale * scaleChange))
+          setScale(newScale)
+
+          // Adjust translation to keep pinch center in place
+          if (lastTouchCenterRef.current) {
+            const rect = container.getBoundingClientRect()
+            const currentCenter = getTouchCenter(e.touches)
+            const centerX = currentCenter.x - rect.left
+            const centerY = currentCenter.y - rect.top
+
+            setTranslateX((prev) => {
+              const deltaX = centerX - lastTouchCenterRef.current!.x
+              return prev + deltaX * (1 - scaleChange)
+            })
+            setTranslateY((prev) => {
+              const deltaY = centerY - lastTouchCenterRef.current!.y
+              return prev + deltaY * (1 - scaleChange)
+            })
+          }
+
+          lastTouchDistanceRef.current = currentDistance
+        }
+      } else if (e.touches.length === 1 && panStartRef.current && scale > 1) {
+        // Pan when zoomed
+        e.preventDefault()
+        setTranslateX(e.touches[0].clientX - panStartRef.current.x)
+        setTranslateY(e.touches[0].clientY - panStartRef.current.y)
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        isPinching = false
+        lastTouchDistanceRef.current = null
+        lastTouchCenterRef.current = null
+        panStartRef.current = null
+      }
+    }
+
+    // Double tap to reset zoom
+    let lastTapTime = 0
+    const handleDoubleTap = () => {
+      const currentTime = Date.now()
+      if (currentTime - lastTapTime < 300) {
+        setScale(1)
+        setTranslateX(0)
+        setTranslateY(0)
+      }
+      lastTapTime = currentTime
+    }
+
+    container.addEventListener('touchstart', handleTouchStart)
+    container.addEventListener('touchmove', handleTouchMove, { passive: false })
+    container.addEventListener('touchend', handleTouchEnd)
+    container.addEventListener('touchend', handleDoubleTap)
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart)
+      container.removeEventListener('touchmove', handleTouchMove)
+      container.removeEventListener('touchend', handleTouchEnd)
+      container.removeEventListener('touchend', handleDoubleTap)
+    }
+  }, [participant.isScreenSharing, scale, translateX, translateY])
+
   // Handle audio stream for remote participants
   useEffect(() => {
     const audio = audioRef.current
@@ -222,17 +356,35 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
   // Get profile picture - prefer participant's profilePic, fallback to current user's
   const profilePic = participant.profilePic || (isCurrentUser ? user?.profilePic : undefined)
 
+  const isScreenShare = participant.isScreenSharing
+  const videoStyle = isScreenShare && scale !== 1
+    ? {
+        transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+        transformOrigin: 'center center',
+        transition: 'none',
+      }
+    : undefined
+
   return (
-    <div className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden min-h-0">
+    <div 
+      ref={containerRef}
+      className={cn(
+        "relative w-full h-full bg-gray-900 rounded-lg min-h-0",
+        isScreenShare ? "overflow-auto touch-pan-y touch-pan-x" : "overflow-hidden"
+      )}
+    >
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={isCurrentUser}
+        style={videoStyle}
         className={cn(
-          'w-full h-full object-cover',
+          'w-full h-full',
           !showVideo && 'hidden',
-          isCurrentUser && isMirrored && '-scale-x-100'
+          isCurrentUser && isMirrored && !isScreenShare && '-scale-x-100',
+          // For screen shares, use object-contain to show full content; for video use object-cover
+          isScreenShare ? 'object-contain' : 'object-cover'
         )}
       />
       {/* Dedicated audio element for remote streams */}
