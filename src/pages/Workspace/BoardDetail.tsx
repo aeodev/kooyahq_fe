@@ -29,6 +29,18 @@ const ISSUE_TYPE_COLORS: Record<string, string> = {
   bug: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
 }
 
+const ISSUE_TYPE_DOT_COLORS: Record<string, string> = {
+  epic: 'bg-purple-500',
+  story: 'bg-blue-500',
+  task: 'bg-green-500',
+  bug: 'bg-red-500',
+}
+
+function stripHtml(html: string): string {
+  const tmp = document.createElement('DIV')
+  tmp.innerHTML = html
+  return tmp.textContent || tmp.innerText || ''
+}
 
 export function BoardDetail() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -255,12 +267,18 @@ export function BoardDetail() {
     : cards
 
   const getCardsForColumn = (columnId: string): CardType[] => {
-    return filteredCards.filter((card) => card.columnId === columnId && !card.completed)
+    return filteredCards.filter((card) => {
+      // For sprint boards, exclude backlog items from board columns
+      if (board.type === 'sprint' && card.columnId === 'Backlog') {
+        return false
+      }
+      return card.columnId === columnId
+    })
   }
 
   return (
-    <div className="space-y-1">
-      <div className="pb-1 border-b">
+    <div className="space-y-2">
+      <div className="pb-2 border-b">
         <div className="flex items-center justify-between gap-2">
           <div className="flex-1 min-w-0">
             <Button variant="ghost" size="sm" onClick={() => navigate('/workspace')} className="mb-1">
@@ -375,25 +393,36 @@ export function BoardDetail() {
               .map((card) => (
                 <Card
                   key={card.id}
-                  className="p-3 hover:shadow-md transition-all duration-300 bg-background/50 backdrop-blur-sm border-border/50 cursor-pointer rounded-xl"
+                  className={cn(
+                    "p-3 hover:shadow-md transition-all duration-300 bg-background/50 backdrop-blur-sm border-border/50 cursor-pointer rounded-xl",
+                    card.completed && "opacity-60"
+                  )}
                   onClick={() => setSelectedCard(card)}
                 >
                   <CardContent className="p-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium">{card.title}</p>
+                        <p className={cn(
+                          "text-sm font-medium",
+                          card.completed ? "text-muted-foreground line-through" : ""
+                        )}>
+                          {card.title}
+                        </p>
                         {card.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">{card.description}</p>
+                          <p className={cn(
+                            "text-xs text-muted-foreground line-clamp-2",
+                            card.completed && "opacity-70"
+                          )}>
+                            {stripHtml(card.description)}
+                          </p>
                         )}
                         <div className="flex flex-wrap gap-1 items-center">
                           <Badge variant="outline" className={`text-[10px] ${ISSUE_TYPE_COLORS[card.issueType]}`}>
                             {card.issueType}
                           </Badge>
-                          {card.priority !== 'medium' && (
-                            <Badge variant="outline" className={`text-[10px] ${PRIORITY_COLORS[card.priority]}`}>
-                              {card.priority}
-                            </Badge>
-                          )}
+                          <Badge variant="outline" className={`text-[10px] ${PRIORITY_COLORS[card.priority]}`}>
+                            {card.priority}
+                          </Badge>
                           {card.storyPoints && (
                             <Badge variant="outline" className="text-[10px]">
                               {card.storyPoints} pts
@@ -411,7 +440,7 @@ export function BoardDetail() {
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 w-full">
           {showColumnSettings && (
             <Card className="p-3 bg-muted/30">
               <CardContent className="p-0 space-y-3">
@@ -596,7 +625,7 @@ export function BoardDetail() {
               </CardContent>
             </Card>
           )}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.2) transparent' }}>
             {board.columns.map((column) => {
             const columnCards = getCardsForColumn(column)
             const isActive = activeColumn === column
@@ -608,11 +637,11 @@ export function BoardDetail() {
                 onDrop={async (cardId, targetColumnId) => {
                   await handleMoveCard(cardId, targetColumnId)
                 }}
-                className="flex-shrink-0 min-w-[260px]"
+                className="flex-shrink-0 w-[320px]"
               >
-                <div className="bg-muted/30 backdrop-blur-sm border border-border/30 rounded-xl p-1.5 space-y-1 min-h-[300px] shadow-sm">
-                  <div className="flex items-center justify-between mb-2 pb-1 border-b">
-                    <h2 className="font-semibold text-xs text-foreground">{column}</h2>
+                <div className="bg-muted/30 backdrop-blur-sm border border-border/30 rounded-xl p-2 space-y-1.5 min-h-[400px] shadow-sm h-full">
+                  <div className="flex items-center justify-between mb-1.5 pb-1.5 border-b border-border/50">
+                    <h2 className="font-semibold text-sm text-foreground">{column}</h2>
                     <span
                       className={cn(
                         'text-xs bg-background px-1.5 py-0.5 rounded',
@@ -631,12 +660,15 @@ export function BoardDetail() {
                     {columnCards.map((card) => (
                       <DraggableCard key={card.id} id={card.id} onDragEnd={() => boardId && fetchCards(boardId)}>
                         <Card
-                          className="p-2 hover:shadow-md transition-all duration-300 bg-background/50 backdrop-blur-sm border-border/50 cursor-pointer group rounded-xl"
+                          className={cn(
+                            "p-3 hover:shadow-lg transition-all duration-300 bg-background/90 border-border/60 cursor-pointer group rounded-lg h-[140px] flex flex-col",
+                            card.completed && "opacity-60"
+                          )}
                           onClick={() => setSelectedCard(card)}
                         >
-                          <CardContent className="p-0">
-                            <div className="space-y-1.5">
-                              <div className="flex items-start gap-1">
+                          <CardContent className="p-0 flex-1 flex flex-col">
+                            <div className="flex-1 flex flex-col space-y-2 min-h-0">
+                              <div className="flex items-start gap-2">
                                 <input
                                   type="checkbox"
                                   checked={card.completed}
@@ -646,33 +678,49 @@ export function BoardDetail() {
                                       if (boardId) fetchCards(boardId)
                                     })
                                   }}
-                                  className="mt-0.5"
+                                  className="mt-0.5 flex-shrink-0"
                                   onClick={(e) => e.stopPropagation()}
                                 />
-                                <p className="text-xs text-foreground leading-tight flex-1 line-clamp-2">
-                                  {card.title}
-                                </p>
+                                <div className="flex-1 min-w-0">
+                                  <p className={cn(
+                                    "text-sm leading-tight font-semibold line-clamp-1 mb-1",
+                                    card.completed ? "text-muted-foreground line-through" : "text-foreground"
+                                  )}>
+                                    {card.title}
+                                  </p>
+                                  {card.description && (
+                                    <p className={cn(
+                                      "text-xs leading-relaxed line-clamp-2",
+                                      card.completed ? "text-muted-foreground/70" : "text-muted-foreground"
+                                    )}>
+                                      {stripHtml(card.description)}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex flex-wrap gap-0.5 items-center justify-between">
-                                <div className="flex flex-wrap gap-0.5 items-center">
-                                  <Badge variant="outline" className={`text-[10px] px-1 py-0 ${ISSUE_TYPE_COLORS[card.issueType]}`}>
-                                    {card.issueType.charAt(0).toUpperCase()}
+                              <div className="flex flex-wrap gap-1 items-center">
+                                {card.labels.slice(0, 3).map((label) => (
+                                  <Badge key={label} variant="outline" className="text-[10px] px-1.5 py-0.5 bg-muted/50 border-border/60">
+                                    {label}
                                   </Badge>
-                                  {card.priority !== 'medium' && (
-                                    <Badge variant="outline" className={`text-[10px] px-1 py-0 ${PRIORITY_COLORS[card.priority]}`}>
-                                      {card.priority.charAt(0).toUpperCase()}
-                                    </Badge>
-                                  )}
-                                  {card.labels.slice(0, 2).map((label) => (
-                                    <Badge key={label} variant="outline" className="text-[10px] px-1 py-0">
-                                      {label}
-                                    </Badge>
-                                  ))}
-                                  {card.labels.length > 2 && (
-                                    <span className="text-[10px] text-muted-foreground">+{card.labels.length - 2}</span>
-                                  )}
+                                ))}
+                                {card.labels.length > 3 && (
+                                  <span className="text-[10px] text-muted-foreground">+{card.labels.length - 3}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="pt-2 mt-2 border-t border-border/50">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <div className={`h-2 w-2 rounded-full ${ISSUE_TYPE_DOT_COLORS[card.issueType] || 'bg-gray-500'}`}></div>
+                                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 ${ISSUE_TYPE_COLORS[card.issueType]}`}>
+                                    {card.issueType}
+                                  </Badge>
+                                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 ${PRIORITY_COLORS[card.priority]}`}>
+                                    {card.priority}
+                                  </Badge>
                                   {card.storyPoints && (
-                                    <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
                                       {card.storyPoints}pts
                                     </Badge>
                                   )}
@@ -694,13 +742,13 @@ export function BoardDetail() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full justify-start text-muted-foreground hover:text-foreground h-7 text-xs"
+                        className="w-full justify-start text-muted-foreground hover:text-foreground h-8 text-xs mt-1"
                         onClick={() => setActiveColumn(column)}
                       >
-                        + Quick create
+                        + Add task
                       </Button>
                     ) : (
-                      <Card className="p-2 border-2 border-primary/20 bg-card">
+                      <Card className="p-2 border-2 border-primary/20 bg-card mt-1">
                         <CardContent className="p-0">
                           <Input
                             placeholder="Issue title"
@@ -716,14 +764,14 @@ export function BoardDetail() {
                               }
                             }}
                             autoFocus
-                            className="h-7 text-xs mb-2"
+                            className="h-8 text-xs mb-2"
                           />
                           <div className="flex gap-1">
                             <Button
                               size="sm"
                               onClick={() => handleQuickCreate(column)}
                               disabled={!quickCreateTitle.trim() || creatingCardLoading}
-                              className="h-6 text-xs flex-1"
+                              className="h-7 text-xs flex-1"
                             >
                               Create
                             </Button>
@@ -734,7 +782,7 @@ export function BoardDetail() {
                                 setActiveColumn(null)
                                 setQuickCreateTitle('')
                               }}
-                              className="h-6 text-xs"
+                              className="h-7 text-xs"
                             >
                               Cancel
                             </Button>
