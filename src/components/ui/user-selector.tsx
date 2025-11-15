@@ -53,7 +53,10 @@ export function UserSelector({
 
   const selectedUser = availableUsers.find((u) => u.id === value)
   const filteredUsers = search.trim()
-    ? availableUsers.filter((u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+    ? availableUsers.filter((u) => 
+        (u.name?.toLowerCase().includes(search.toLowerCase()) ?? false) || 
+        (u.email?.toLowerCase().includes(search.toLowerCase()) ?? false)
+      )
     : availableUsers
 
   return (

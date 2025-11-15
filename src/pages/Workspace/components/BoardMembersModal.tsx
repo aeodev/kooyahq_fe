@@ -46,8 +46,8 @@ export function BoardMembersModal({ open, onClose, board, onUpdate }: BoardMembe
   const filteredAvailableUsers = searchQuery.trim()
     ? availableUsers.filter(
         (u) =>
-          u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          u.email.toLowerCase().includes(searchQuery.toLowerCase())
+          (u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+          (u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
       )
     : availableUsers
 
