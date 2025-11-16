@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Clock4, Kanban, Play, Plus, Loader2, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { CreateAnnouncementForm } from '@/components/announcements/CreateAnnouncementForm'
 import { useAuthStore } from '@/stores/auth.store'
@@ -12,8 +13,12 @@ import { useTimeEntryStore } from '@/stores/time-entry.store'
 import {
   useTimerDuration,
   useAnalytics,
+  type AnalyticsData,
 } from '@/hooks/time-entry.hooks'
 import { useAnnouncements } from '@/hooks/announcement.hooks'
+import type { Board } from '@/types/board'
+import type { TimeEntry } from '@/types/time-entry'
+import type { Announcement } from '@/types/announcement'
 
 function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60)
@@ -32,6 +37,57 @@ function getGreeting(): string {
   return 'Good evening'
 }
 
+// Cache configuration
+const CACHE_DURATION = 1000 * 60 * 5 // 5 minutes
+const CACHE_KEYS = {
+  boards: 'home-boards',
+  entries: 'home-entries',
+  activeTimer: 'home-active-timer',
+  announcements: 'home-announcements',
+  analytics: 'home-analytics',
+}
+
+interface CachedData<T> {
+  data: T
+  timestamp: number
+  dateRange?: string // For analytics
+}
+
+// Cache utilities
+function getCachedData<T>(key: string): CachedData<T> | null {
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    
+    const parsed: CachedData<T> = JSON.parse(cached)
+    const age = Date.now() - parsed.timestamp
+    
+    if (age < CACHE_DURATION) {
+      return parsed
+    }
+    
+    // Clear stale cache
+    localStorage.removeItem(key)
+    return null
+  } catch (error) {
+    console.error(`Error reading cache for ${key}:`, error)
+    return null
+  }
+}
+
+function setCachedData<T>(key: string, data: T, dateRange?: string): void {
+  try {
+    const cache: CachedData<T> = {
+      data,
+      timestamp: Date.now(),
+      ...(dateRange && { dateRange }),
+    }
+    localStorage.setItem(key, JSON.stringify(cache))
+  } catch (error) {
+    console.error(`Error setting cache for ${key}:`, error)
+  }
+}
+
 
 export function Home() {
   const user = useAuthStore((state) => state.user)
@@ -48,19 +104,60 @@ export function Home() {
   const { announcements, loading: announcementsLoading, fetchAnnouncements } = useAnnouncements()
   const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false)
   const isLoading = useAuthStore((state) => state.isLoading)
+  const hasInitialized = useRef(false)
+  
+  // Initialize from cache
+  const cachedData = useMemo(() => {
+    const cachedBoards = getCachedData<Board[]>(CACHE_KEYS.boards)
+    const cachedEntries = getCachedData<TimeEntry[]>(CACHE_KEYS.entries)
+    const cachedTimer = getCachedData<TimeEntry | null>(CACHE_KEYS.activeTimer)
+    const cachedAnnouncements = getCachedData<Announcement[]>(CACHE_KEYS.announcements)
+    const today = new Date().toISOString().split('T')[0]
+    const cachedAnalytics = getCachedData<AnalyticsData>(CACHE_KEYS.analytics)
+    
+    // Only use analytics cache if date range matches today
+    const validAnalytics = cachedAnalytics?.dateRange === today ? cachedAnalytics : null
+    
+    return {
+      boards: cachedBoards?.data,
+      entries: cachedEntries?.data,
+      activeTimer: cachedTimer?.data,
+      announcements: cachedAnnouncements?.data,
+      analytics: validAnalytics?.data,
+      hasCache: Boolean(cachedBoards || cachedEntries || cachedTimer || cachedAnnouncements || validAnalytics),
+    }
+  }, [])
   
   useEffect(() => {
     // Only fetch when user is authenticated and auth is fully loaded
-    if (user && !isLoading) {
-      fetchBoards()
-      fetchActiveTimer()
-      fetchEntries()
-      fetchAnnouncements(true)
+    if (user && !isLoading && !hasInitialized.current) {
+      hasInitialized.current = true
+      
       const today = new Date()
       const startDate = today.toISOString().split('T')[0]
-      fetchAnalytics(startDate, startDate)
+      
+      // Fetch all data in parallel for maximum speed
+      Promise.all([
+        fetchBoards().then((boards) => {
+          if (boards) setCachedData(CACHE_KEYS.boards, boards)
+        }),
+        fetchActiveTimer().then((timer) => {
+          setCachedData(CACHE_KEYS.activeTimer, timer)
+        }),
+        fetchEntries().then((entries) => {
+          if (entries) setCachedData(CACHE_KEYS.entries, entries)
+        }),
+        fetchAnnouncements(true).then((announcements) => {
+          if (announcements) setCachedData(CACHE_KEYS.announcements, announcements)
+        }),
+        fetchAnalytics(startDate, startDate).then((analytics) => {
+          if (analytics) setCachedData(CACHE_KEYS.analytics, analytics, startDate)
+        }),
+      ]).catch((error) => {
+        console.error('Error fetching dashboard data:', error)
+      })
     }
-  }, [user, isLoading, fetchBoards, fetchActiveTimer, fetchEntries, fetchAnnouncements, fetchAnalytics])
+  }, [user, isLoading, fetchBoards, fetchActiveTimer, fetchEntries, fetchAnnouncements, fetchAnalytics, cachedData.hasCache])
 
   if (!user) {
     return null
@@ -173,31 +270,37 @@ export function Home() {
           </CardContent>
         </Card>
 
-        {analytics && (
-          <>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Hours</CardDescription>
-                <CardTitle className="text-2xl">
-                  {Math.round(analytics.totalHours * 10) / 10}h
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">Today</p>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Total Hours</CardDescription>
+            <CardTitle className="text-2xl">
+              {analytics ? (
+                `${Math.round(analytics.totalHours * 10) / 10}h`
+              ) : (
+                <Skeleton className="h-8 w-16" />
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">Today</p>
+          </CardContent>
+        </Card>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Entries</CardDescription>
-                <CardTitle className="text-2xl">{analytics.totalEntries}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">Today</p>
-              </CardContent>
-            </Card>
-          </>
-        )}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Total Entries</CardDescription>
+            <CardTitle className="text-2xl">
+              {analytics ? (
+                analytics.totalEntries
+              ) : (
+                <Skeleton className="h-8 w-12" />
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">Today</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Active Timer */}
