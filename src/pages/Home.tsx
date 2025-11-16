@@ -116,6 +116,7 @@ export function Home() {
   const fetchBoards = useBoardStore((state) => state.fetchBoards)
   const activeTimerFromStore = useTimeEntryStore((state) => state.activeTimer)
   const fetchActiveTimer = useTimeEntryStore((state) => state.fetchActiveTimer)
+  const timerLoading = useTimeEntryStore((state) => state.loading.activeTimer)
   const myEntriesFromStore = useTimeEntryStore((state) => state.entries)
   const fetchEntries = useTimeEntryStore((state) => state.fetchEntries)
   const { data: analyticsFromStore, fetchAnalytics } = useAnalytics()
@@ -347,7 +348,9 @@ export function Home() {
           <CardHeader className="pb-3">
             <CardDescription>Active Timer</CardDescription>
             <CardTitle className="text-2xl">
-              {activeTimer && activeTimer.isActive ? (
+              {timerLoading ? (
+                <Skeleton className="h-8 w-16" />
+              ) : activeTimer && activeTimer.isActive ? (
                 timerDuration
               ) : (
                 <span className="text-muted-foreground text-sm">Not running</span>
@@ -476,12 +479,14 @@ export function Home() {
               <CardTitle>Time Tracker</CardTitle>
             </div>
             <CardDescription>
-              {activeTimer && activeTimer.isActive ? (
+              {timerLoading ? (
+                <Skeleton className="h-4 w-24" />
+              ) : activeTimer && activeTimer.isActive ? (
                 `Running: ${timerDuration}`
               ) : todayTotalMinutes > 0 ? (
                 `${formatDuration(todayTotalMinutes)} today`
               ) : (
-                <Skeleton className="h-4 w-24" />
+                'No time tracked today'
               )}
             </CardDescription>
           </CardHeader>

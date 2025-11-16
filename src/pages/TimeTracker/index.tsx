@@ -15,7 +15,7 @@ import { AnalyticsView } from './components/AnalyticsView'
 import { ManualEntryModal } from './components/ManualEntryModal'
 import { EndDayModal } from './components/EndDayModal'
 import { OvertimeConfirmationModal } from './components/OvertimeConfirmationModal'
-import { STOP_TIMER, BASE_URL, GET_USERS } from '@/utils/api.routes'
+import { GET_USERS } from '@/utils/api.routes'
 import axiosInstance from '@/utils/axios.instance'
 import type { User } from '@/types/user'
 
@@ -93,7 +93,6 @@ export function TimeTracker() {
 
   const user = useAuthStore((state) => state.user)
   const isLoading = useAuthStore((state) => state.isLoading)
-  const token = useAuthStore((state) => state.token)
   
   // Initial fetch - only when user is authenticated and auth is ready
   useEffect(() => {
@@ -370,32 +369,10 @@ export function TimeTracker() {
     return () => clearInterval(interval)
   }, [])
 
-  // Stop timer on browser/tab close
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Only stop if there's an active timer that's not paused
-      if (activeTimer && activeTimer.isActive && !activeTimer.isPaused && token) {
-        // Use fetch with keepalive to ensure request completes during page unload
-        const stopTimerUrl = `${BASE_URL}${STOP_TIMER()}`
-        fetch(stopTimerUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          keepalive: true, // Critical: ensures request completes even after page unloads
-        }).catch(() => {
-          // Silently fail - browser is closing anyway
-        })
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
-  }, [activeTimer, token])
+  // Timer stop is now handled by backend with 15-second grace period
+  // This allows page refreshes to reconnect before the timer stops
+  // The backend socket disconnect handler will stop the timer after 15 seconds
+  // if the user doesn't reconnect (actual tab close), or cancel if they do (page refresh)
 
   // Helper function to calculate duration for an active timer entry
   const calculateActiveDuration = (entry: TimeEntry): string => {
