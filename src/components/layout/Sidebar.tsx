@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { cn } from '@/utils/cn'
+import { useState, useEffect } from 'react'
 
 type NavItem = {
   name: string
@@ -40,6 +41,13 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const brand = collapsed ? 'K' : 'KooyaHQ'
+  const [imageError, setImageError] = useState(false)
+  const isValidProfilePic = profilePic && profilePic !== 'undefined' && profilePic.trim() !== ''
+
+  // Reset error state when profilePic changes
+  useEffect(() => {
+    setImageError(false)
+  }, [profilePic])
 
   const Content = (
     <div className="flex h-full flex-col">
@@ -138,22 +146,13 @@ export function Sidebar({
             collapsed && 'justify-center px-2',
           )}
         >
-          {profilePic && profilePic !== 'undefined' && profilePic.trim() !== '' ? (
+          {isValidProfilePic && !imageError ? (
             <img
               key={profilePic}
               src={profilePic}
               alt={userName}
               className="h-9 w-9 shrink-0 rounded-full object-cover shadow-sm ring-2 ring-background"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none'
-                const parent = (e.target as HTMLImageElement).parentElement
-                if (parent && !parent.querySelector('.fallback-initials')) {
-                  const fallback = document.createElement('span')
-                  fallback.className = 'fallback-initials flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/80 text-xs font-bold text-primary-foreground shadow-sm ring-2 ring-background'
-                  fallback.textContent = initials || 'KH'
-                  parent.insertBefore(fallback, e.target as HTMLImageElement)
-                }
-              }}
+              onError={() => setImageError(true)}
             />
           ) : (
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/80 text-xs font-bold text-primary-foreground shadow-sm ring-2 ring-background">
