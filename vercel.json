@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/cesium/:path*",
+      "destination": "/cesium/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
