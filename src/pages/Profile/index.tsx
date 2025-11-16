@@ -300,7 +300,7 @@ export function Profile() {
                 const parent = (e.target as HTMLImageElement).parentElement
                 if (parent) {
                   const fallback = document.createElement('div')
-                  fallback.className = 'h-28 w-28 rounded-full border-4 border-background bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-2xl font-bold text-primary-foreground shadow-lg'
+                  fallback.className = 'h-32 w-32 rounded-3xl border-4 border-background bg-gradient-to-br from-primary via-primary/90 to-primary/70 flex items-center justify-center text-2xl font-bold text-primary-foreground shadow-2xl ring-4 ring-primary/20'
                   fallback.textContent = getUserInitials(isOwnProfile ? user.name : (viewedUser?.name || ''))
                   parent.replaceChild(fallback, e.target as HTMLImageElement)
                 }
