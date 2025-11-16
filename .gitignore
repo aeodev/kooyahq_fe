@@ -130,11 +130,9 @@ node_modules/cesium/Source/Widgets/
 node_modules/cesium/Specs/
 
 # Cesium viewer static assets
-public/Cesium/
 public/Build/Cesium/
 public/Build/CesiumUnminified/
 public/ThirdParty/
-public/Workers/
 public/Widgets/
 
 # Cesium cache and logs
