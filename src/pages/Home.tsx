@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { 
   ArrowRight, Clock4, Kanban, Bell, Calendar as CalendarIcon,
-  MessageSquare, Globe, Sparkles, Gamepad2, Play, Plus, Megaphone
+  MessageSquare, Globe, Sparkles, Gamepad2, Play, Plus, Megaphone, User
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -272,7 +272,7 @@ export function Home() {
               {formatDate()}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 ml-auto">
             {user.isAdmin && (
               <Button
                 onClick={() => setShowCreateAnnouncement(true)}
@@ -284,7 +284,7 @@ export function Home() {
                 New Announcement
               </Button>
             )}
-            <Button asChild variant="ghost" size="icon" className="relative">
+            <Button asChild variant="ghost" size="icon" className="relative hidden sm:flex">
               <Link to="/notifications">
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
@@ -294,7 +294,7 @@ export function Home() {
                 )}
               </Link>
             </Button>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="hidden sm:flex">
               <Link to="/profile">Profile</Link>
             </Button>
           </div>

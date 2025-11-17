@@ -119,7 +119,7 @@ export function AnalyticsView() {
           <CardTitle>Date Range</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 space-y-2">
               <Label htmlFor="startDate">Start Date</Label>
               <Input
@@ -127,6 +127,7 @@ export function AnalyticsView() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
+                className="w-full"
               />
             </div>
             <div className="flex-1 space-y-2">
@@ -136,10 +137,11 @@ export function AnalyticsView() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
+                className="w-full"
               />
             </div>
-            <div className="flex gap-2">
-              <Button onClick={handleApply} size="sm">
+            <div className="flex items-end">
+              <Button onClick={handleApply} size="sm" className="w-full sm:w-auto">
                 Apply
               </Button>
             </div>
@@ -165,7 +167,7 @@ export function AnalyticsView() {
       </Card>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Hours</p>

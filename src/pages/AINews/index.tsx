@@ -5,7 +5,7 @@ import axiosInstance from '@/utils/axios.instance'
 import { GET_AI_NEWS } from '@/utils/api.routes'
 import type { NewsItem, NewsFilter } from '@/types/ai-news'
 import { cn } from '@/utils/cn'
-import { Loader2, Sparkles, Twitter, Newspaper, Filter } from 'lucide-react'
+import { Loader2, Sparkles, Twitter, Newspaper, Filter, RefreshCw } from 'lucide-react'
 import { LazyNewsCard } from './LazyNewsCard'
 import { NewsCardSkeleton } from './NewsCardSkeleton'
 
@@ -202,9 +202,8 @@ export function AINews() {
               Latest AI news and insights from top sources
             </p>
           </div>
-          <Button variant="outline" disabled>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Loading...
+          <Button variant="outline" size="icon" disabled title="Loading">
+            <Loader2 className="h-4 w-4 animate-spin" />
           </Button>
         </div>
 
@@ -238,15 +237,14 @@ export function AINews() {
             fetchNews(true)
           }} 
           variant="outline" 
+          size="icon"
           disabled={loading}
+          title="Refresh"
         >
           {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Refreshing...
-            </>
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            'Refresh'
+            <RefreshCw className="h-4 w-4" />
           )}
         </Button>
       </div>
