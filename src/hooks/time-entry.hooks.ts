@@ -408,9 +408,39 @@ export const useTimerDuration = (activeTimer: TimeEntry | null) => {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<TimeEntry | null>(activeTimer)
 
+  // Client-side tracking to fix backend pause/resume issues
+  const originalStartTimeRef = useRef<string | null>(null)
+  const clientPausedDurationRef = useRef<number>(0) // in milliseconds
+  const pauseStartTimeRef = useRef<number | null>(null)
+
   // Update ref when activeTimer changes to ensure we always have latest value
   useEffect(() => {
+    const prevTimer = timerRef.current
     timerRef.current = activeTimer
+
+    // Track original start time when timer first starts
+    if (activeTimer?.isActive && activeTimer.startTime) {
+      if (!originalStartTimeRef.current) {
+        originalStartTimeRef.current = activeTimer.startTime
+        clientPausedDurationRef.current = (activeTimer.pausedDuration || 0) * 60000
+      }
+
+      // Handle pause state change
+      if (activeTimer.isPaused && !prevTimer?.isPaused) {
+        // Just paused
+        pauseStartTimeRef.current = Date.now()
+      } else if (!activeTimer.isPaused && prevTimer?.isPaused && pauseStartTimeRef.current) {
+        // Just resumed - accumulate the pause duration
+        const pauseDuration = Date.now() - pauseStartTimeRef.current
+        clientPausedDurationRef.current += pauseDuration
+        pauseStartTimeRef.current = null
+      }
+    } else {
+      // Timer stopped or inactive - reset tracking
+      originalStartTimeRef.current = null
+      clientPausedDurationRef.current = 0
+      pauseStartTimeRef.current = null
+    }
   }, [activeTimer])
 
   useEffect(() => {
@@ -430,22 +460,32 @@ export const useTimerDuration = (activeTimer: TimeEntry | null) => {
         return
       }
 
-      const start = new Date(timer.startTime)
+      // Use original start time to ensure accuracy even if backend changes it
+      const startTime = originalStartTimeRef.current || timer.startTime
+      const start = new Date(startTime)
       const now = new Date()
-      
+
       // Calculate total elapsed time
       let elapsedMs = now.getTime() - start.getTime()
-      
-      // Subtract paused duration (accumulated paused time)
-      const pausedMs = (timer.pausedDuration || 0) * 60000
-      elapsedMs -= pausedMs
-      
-      // If currently paused, subtract current pause time
-      if (timer.isPaused && timer.lastPausedAt) {
-        const currentPauseMs = now.getTime() - new Date(timer.lastPausedAt).getTime()
-        elapsedMs -= currentPauseMs
+
+      // Use client-side tracked paused duration for accuracy
+      let totalPausedMs = clientPausedDurationRef.current
+
+      // If currently paused, add current pause time
+      if (timer.isPaused) {
+        if (pauseStartTimeRef.current) {
+          const currentPauseMs = now.getTime() - pauseStartTimeRef.current
+          totalPausedMs += currentPauseMs
+        } else if (timer.lastPausedAt) {
+          // Fallback to server time if client tracking is missing
+          const currentPauseMs = now.getTime() - new Date(timer.lastPausedAt).getTime()
+          totalPausedMs += currentPauseMs
+        }
       }
-      
+
+      // Subtract all paused time
+      elapsedMs -= totalPausedMs
+
       // Calculate seconds
       const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000))
       const hours = Math.floor(totalSeconds / 3600)

@@ -381,20 +381,20 @@ export function TimeTracker() {
     }
 
     const start = new Date(entry.startTime)
-    
+
     // Calculate total elapsed time
     let elapsedMs = now.getTime() - start.getTime()
-    
+
     // Subtract paused duration (accumulated paused time)
     const pausedMs = (entry.pausedDuration || 0) * 60000
     elapsedMs -= pausedMs
-    
-    // If currently paused, subtract current pause time
+
+    // If currently paused, add current pause time
     if (entry.isPaused && entry.lastPausedAt) {
       const currentPauseMs = now.getTime() - new Date(entry.lastPausedAt).getTime()
       elapsedMs -= currentPauseMs
     }
-    
+
     // Calculate seconds
     const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000))
     const hours = Math.floor(totalSeconds / 3600)
