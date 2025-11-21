@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { 
+import {
   ArrowRight, Clock4, Kanban, Bell, Calendar as CalendarIcon,
-  MessageSquare, Globe, Sparkles, Gamepad2, Play, Plus, Megaphone, User
+  MessageSquare, Globe, Sparkles, Gamepad2, Play, Plus, Megaphone
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,14 +58,14 @@ function getCachedDashboard(): DashboardCache | null {
   try {
     const cached = localStorage.getItem(CACHE_KEY)
     if (!cached) return null
-    
+
     const parsed: DashboardCache = JSON.parse(cached)
     const age = Date.now() - parsed.timestamp
-    
+
     if (age < CACHE_DURATION) {
       return parsed
     }
-    
+
     localStorage.removeItem(CACHE_KEY)
     return null
   } catch (error) {
@@ -129,7 +129,7 @@ export function Home() {
   const [latestNews, setLatestNews] = useState<NewsItem | null>(null)
   const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false)
   const hasInitialized = useRef(false)
-  
+
   // Initialize from cache
   const cachedData = useMemo(() => {
     const cached = getCachedDashboard()
@@ -148,11 +148,11 @@ export function Home() {
         gameTypes: [],
       }
     }
-    
+
     const today = new Date().toISOString().split('T')[0]
     // Only use analytics cache if date range matches today
     const validAnalytics = cached.analytics && cached.dateRange === today ? cached.analytics : null
-    
+
     return {
       boards: cached.boards || [],
       entries: cached.entries || [],
@@ -167,7 +167,7 @@ export function Home() {
       gameTypes: cached.gameTypes || [],
     }
   }, [])
-  
+
   // Use store data when available, otherwise fall back to cached data
   const boards = boardsFromStore.length > 0 ? boardsFromStore : cachedData.boards
   const myEntries = myEntriesFromStore.length > 0 ? myEntriesFromStore : cachedData.entries
@@ -181,16 +181,16 @@ export function Home() {
   const latestNewsItem = latestNews || cachedData.latestNews
   const activeUsersList = presenceUsers.filter(u => u.isActive).slice(0, 4)
   const availableGames = gameTypes.length > 0 ? gameTypes : cachedData.gameTypes
-  
+
   const timerDuration = useTimerDuration(activeTimer)
-  
+
   useEffect(() => {
     if (user && !hasInitialized.current) {
       hasInitialized.current = true
-      
+
       const today = new Date()
       const startDate = today.toISOString().split('T')[0]
-      
+
       // Fetch all data in parallel
       Promise.all([
         fetchBoards().catch(() => []),
@@ -247,7 +247,7 @@ export function Home() {
   const recentBoards = boards.slice(0, 4)
   const activeAnnouncement = announcements[0]
   const latestPost = posts[0]
-  
+
   // Get dates with time entries for calendar marking
   const markedDates = useMemo(() => {
     const dates = new Set<string>()

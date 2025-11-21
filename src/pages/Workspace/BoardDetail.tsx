@@ -77,7 +77,6 @@ export function BoardDetail() {
   const updateCard = useBoardStore((state) => state.updateCard)
   const deleteCard = useBoardStore((state) => state.deleteCard)
   const setCurrentBoard = useBoardStore((state) => state.setCurrentBoard)
-  const bulkUpdateRanks = useBoardStore((state) => state.bulkUpdateRanks)
   const createSprint = useBoardStore((state) => state.createSprint)
   const updateSprint = useBoardStore((state) => state.updateSprint)
   const deleteSprint = useBoardStore((state) => state.deleteSprint)
@@ -190,46 +189,6 @@ export function BoardDetail() {
   }, [backlogCards, searchQuery, backlogFilters])
 
   // Backlog handler functions
-  const handleRankUpdate = async (cardId: string, newIndex: number) => {
-    if (!boardId) return
-
-    const currentIndex = filteredBacklogCards.findIndex((c) => c.id === cardId)
-    if (currentIndex === -1 || currentIndex === newIndex) return
-
-    // Calculate new ranks
-    const rankUpdates = filteredBacklogCards.map((card, index) => {
-      if (index === currentIndex) {
-        // Moving card - assign rank based on new position
-        const targetCard = filteredBacklogCards[newIndex]
-        if (newIndex < currentIndex) {
-          // Moving up - rank should be between previous card and target
-          const prevCard = filteredBacklogCards[newIndex - 1]
-          const rank = prevCard?.rank !== undefined
-            ? (prevCard.rank + (targetCard?.rank || prevCard.rank + 1000)) / 2
-            : (targetCard?.rank || 1000) - 1000
-          return { id: card.id, rank: Math.floor(rank) }
-        } else {
-          // Moving down - rank should be between target and next card
-          const nextCard = filteredBacklogCards[newIndex + 1]
-          const rank = nextCard?.rank !== undefined
-            ? ((targetCard?.rank || 0) + nextCard.rank) / 2
-            : (targetCard?.rank || 0) + 1000
-          return { id: card.id, rank: Math.floor(rank) }
-        }
-      } else if (
-        (currentIndex < newIndex && index > currentIndex && index <= newIndex) ||
-        (currentIndex > newIndex && index >= newIndex && index < currentIndex)
-      ) {
-        // Cards that need rank adjustment
-        const baseRank = card.rank || index * 1000
-        return { id: card.id, rank: baseRank }
-      }
-      return { id: card.id, rank: card.rank || index * 1000 }
-    })
-
-    await bulkUpdateRanks(boardId, rankUpdates)
-    if (boardId) fetchCards(boardId)
-  }
 
   const handleFlagToggle = async (cardId: string, flagged: boolean) => {
     await updateCard(cardId, { flagged })
@@ -323,12 +282,12 @@ export function BoardDetail() {
     // Handle ranking if targetIndex is provided
     if (targetIndex !== undefined) {
       // Fetch updated cards to get correct order
-      const updatedCards = await fetchCards(boardId)
+      await fetchCards(boardId)
 
       // Filter cards in the target list (sprint or backlog)
-      const targetList = updatedCards
-        .filter(c => c.sprintId === (targetSprintId || undefined) && (!targetSprintId ? c.columnId === 'Backlog' : true))
-        .sort((a, b) => (a.rank || 0) - (b.rank || 0))
+      // const targetList = updatedCards
+      //   .filter(c => c.sprintId === (targetSprintId || undefined) && (!targetSprintId ? c.columnId === 'Backlog' : true))
+      //   .sort((a, b) => (a.rank || 0) - (b.rank || 0))
 
       // Calculate new rank logic (similar to handleRankUpdate)
       // ... (simplified for now, just update rank)
