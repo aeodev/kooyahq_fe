@@ -16,6 +16,7 @@ import {
 import type {
   Board,
   Card,
+  Sprint,
   CreateBoardInput,
   UpdateBoardInput,
   CreateCardInput,
@@ -90,6 +91,9 @@ type BoardActions = {
   moveCard: (cardId: string, columnId: string, boardId: string) => Promise<Card | null>
   deleteCard: (cardId: string, boardId: string) => Promise<boolean>
   bulkUpdateRanks: (boardId: string, rankUpdates: Array<{ id: string; rank: number }>) => Promise<Card[]>
+  createSprint: (boardId: string, input: { name: string; goal?: string; startDate?: string; endDate?: string }) => Promise<Board | null>
+  updateSprint: (boardId: string, sprintId: string, updates: Partial<Sprint>) => Promise<Board | null>
+  deleteSprint: (boardId: string, sprintId: string) => Promise<Board | null>
   setCurrentBoard: (board: Board | null) => void
   clearBoardCache: (boardId: string) => void
 }
@@ -368,6 +372,47 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const cardsByBoardId = { ...get().cardsByBoardId }
     delete cardsByBoardId[boardId]
     set({ cardsByBoardId })
+  },
+
+  createSprint: async (boardId, input) => {
+    try {
+      const response = await axiosInstance.post<{ status: string; data: Board }>(
+        `/boards/${boardId}/sprints`,
+        input
+      )
+      const updatedBoard = response.data.data
+      set({ currentBoard: updatedBoard })
+      return updatedBoard
+    } catch (err) {
+      return null
+    }
+  },
+
+  updateSprint: async (boardId, sprintId, updates) => {
+    try {
+      const response = await axiosInstance.put<{ status: string; data: Board }>(
+        `/boards/${boardId}/sprints/${sprintId}`,
+        updates
+      )
+      const updatedBoard = response.data.data
+      set({ currentBoard: updatedBoard })
+      return updatedBoard
+    } catch (err) {
+      return null
+    }
+  },
+
+  deleteSprint: async (boardId, sprintId) => {
+    try {
+      const response = await axiosInstance.delete<{ status: string; data: Board }>(
+        `/boards/${boardId}/sprints/${sprintId}`
+      )
+      const updatedBoard = response.data.data
+      set({ currentBoard: updatedBoard })
+      return updatedBoard
+    } catch (err) {
+      return null
+    }
   },
 }))
 

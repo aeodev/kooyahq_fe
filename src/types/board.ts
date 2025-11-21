@@ -1,3 +1,14 @@
+export type Sprint = {
+  id: string
+  name: string
+  goal?: string
+  startDate?: string
+  endDate?: string
+  state: 'future' | 'active' | 'closed'
+  createdAt: string
+  updatedAt: string
+}
+
 export type Board = {
   id: string
   name: string
@@ -6,9 +17,10 @@ export type Board = {
   memberIds: string[]
   columns: string[]
   columnLimits?: Record<string, number>
-  sprintStartDate?: string
-  sprintEndDate?: string
-  sprintGoal?: string
+  sprints?: Sprint[]
+  sprintStartDate?: string // Deprecated
+  sprintEndDate?: string // Deprecated
+  sprintGoal?: string // Deprecated
   createdAt: string
   updatedAt: string
 }
@@ -29,6 +41,7 @@ export type Card = {
   description?: string
   boardId: string
   columnId: string
+  sprintId?: string
   issueType: 'task' | 'bug' | 'story' | 'epic'
   assigneeId?: string
   priority: 'lowest' | 'low' | 'medium' | 'high' | 'highest'
@@ -85,6 +98,7 @@ export type CreateCardInput = {
   title: string
   description?: string
   columnId?: string
+  sprintId?: string
   issueType?: 'task' | 'bug' | 'story' | 'epic'
   assigneeId?: string
   priority?: 'lowest' | 'low' | 'medium' | 'high' | 'highest'
@@ -100,6 +114,7 @@ export type UpdateCardInput = {
   title?: string
   description?: string
   columnId?: string
+  sprintId?: string | null
   issueType?: 'task' | 'bug' | 'story' | 'epic'
   assigneeId?: string | null
   priority?: 'lowest' | 'low' | 'medium' | 'high' | 'highest'

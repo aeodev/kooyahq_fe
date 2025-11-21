@@ -53,7 +53,22 @@ export function DroppableList({
   return (
     <div
       id={id}
-      className={cn('space-y-2', className)}
+      className={cn('space-y-2 min-h-[50px]', className)}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'move'
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const cardId = e.dataTransfer.getData('text/plain')
+        // If dropped on the container but not on a child (handled by child's stopPropagation),
+        // consider it dropped at the end.
+        if (cardId && onDrop) {
+          onDrop(cardId, childrenArray.length)
+        }
+      }}
     >
       {childrenArray.map((child, index) => {
         if (!isValidElement(child)) {
