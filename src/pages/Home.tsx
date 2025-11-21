@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { 
+import {
   ArrowRight, Clock4, Kanban, Bell, Calendar as CalendarIcon,
-  MessageSquare, Globe, Sparkles, Gamepad2, Play, Plus, Megaphone, User
+  MessageSquare, Globe, Sparkles, Gamepad2, Play, Plus, Megaphone
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'

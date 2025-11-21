@@ -134,6 +134,7 @@ public/Build/Cesium/
 public/Build/CesiumUnminified/
 public/ThirdParty/
 public/Widgets/
+public/cesium/
 
 # Cesium cache and logs
 .cesium-cache/
