@@ -437,7 +437,7 @@ export const useTimerDuration = (activeTimer: TimeEntry | null) => {
       let elapsedMs = now.getTime() - start.getTime()
       
       // Subtract paused duration (accumulated paused time)
-      const pausedMs = (timer.pausedDuration || 0) * 60000
+      const pausedMs = timer.pausedDuration || 0
       elapsedMs -= pausedMs
       
       // If currently paused, subtract current pause time

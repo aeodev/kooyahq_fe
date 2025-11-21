@@ -386,7 +386,7 @@ export function TimeTracker() {
     let elapsedMs = now.getTime() - start.getTime()
     
     // Subtract paused duration (accumulated paused time)
-    const pausedMs = (entry.pausedDuration || 0) * 60000
+    const pausedMs = entry.pausedDuration || 0
     elapsedMs -= pausedMs
     
     // If currently paused, subtract current pause time
@@ -425,7 +425,7 @@ export function TimeTracker() {
         if (e.isActive && e.startTime) {
           const start = new Date(e.startTime)
           let elapsedMs = now.getTime() - start.getTime()
-          const pausedMs = (e.pausedDuration || 0) * 60000
+          const pausedMs = e.pausedDuration || 0
           elapsedMs -= pausedMs
           if (e.isPaused && e.lastPausedAt) {
             const currentPauseMs = now.getTime() - new Date(e.lastPausedAt).getTime()
