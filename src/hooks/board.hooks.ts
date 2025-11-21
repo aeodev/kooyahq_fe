@@ -68,7 +68,7 @@ function normalizeError(error: unknown): Errors {
   return { message: 'Something went wrong' }
 }
 
-export const useBoards = () => {
+export const useBoards = (type?: 'kanban' | 'sprint') => {
   const [data, setData] = useState<Board[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
@@ -78,7 +78,7 @@ export const useBoards = () => {
     setLoading(true)
 
     try {
-      const response = await axiosInstance.get<{ status: string; data: Board[] }>(GET_BOARDS())
+      const response = await axiosInstance.get<{ status: string; data: Board[] }>(GET_BOARDS(type))
       setData(response.data.data)
       return response.data.data
     } catch (err) {
@@ -88,7 +88,7 @@ export const useBoards = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [type])
 
   return {
     data,

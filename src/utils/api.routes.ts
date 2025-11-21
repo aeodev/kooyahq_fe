@@ -41,7 +41,7 @@ export const UPDATE_EMPLOYEE = (userId: string) => `/users/${userId}`
 
 // Board routes
 export const CREATE_BOARD = () => `/boards`
-export const GET_BOARDS = () => `/boards`
+export const GET_BOARDS = (type?: 'kanban' | 'sprint') => type ? `/boards?type=${type}` : `/boards`
 export const GET_BOARD_BY_ID = (boardId: string) => `/boards/${boardId}`
 export const UPDATE_BOARD = (boardId: string) => `/boards/${boardId}`
 export const DELETE_BOARD = (boardId: string) => `/boards/${boardId}`

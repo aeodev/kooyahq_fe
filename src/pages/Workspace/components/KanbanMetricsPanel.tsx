@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useKanbanMetrics } from '@/composables/game/useKanbanMetrics'
+import { useBoardMetrics } from '@/composables/useBoardMetrics'
 import type { Board, Card as CardType } from '@/types/board'
 
 type KanbanMetricsPanelProps = {
@@ -9,7 +9,7 @@ type KanbanMetricsPanelProps = {
 }
 
 export function KanbanMetricsPanel({ board, cards }: KanbanMetricsPanelProps) {
-  const metrics = useKanbanMetrics(board, cards)
+  const metrics = useBoardMetrics(board, cards)
 
   if (board.type !== 'kanban') return null
 

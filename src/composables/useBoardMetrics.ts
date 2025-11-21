@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react'
 import type { Card as CardType, Board } from '@/types/board'
 
-export type KanbanMetrics = {
+export type BoardMetrics = {
   cycleTime: Record<string, number> // columnId -> avg days
   leadTime: number // avg days from creation to done
   throughput: number // cards completed per week
   bottlenecks: string[] // column IDs with longest cycle time
 }
 
-export function useKanbanMetrics(board: Board | null, cards: CardType[]) {
-  const [metrics, setMetrics] = useState<KanbanMetrics>({
+export function useBoardMetrics(board: Board | null, cards: CardType[]) {
+  const [metrics, setMetrics] = useState<BoardMetrics>({
     cycleTime: {},
     leadTime: 0,
     throughput: 0,
@@ -83,5 +83,4 @@ export function useKanbanMetrics(board: Board | null, cards: CardType[]) {
 
   return metrics
 }
-
 
