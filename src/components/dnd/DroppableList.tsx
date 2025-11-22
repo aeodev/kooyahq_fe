@@ -42,8 +42,12 @@ export function DroppableList({
     e.stopPropagation()
     setDragOverIndex(null)
     const cardId = e.dataTransfer.getData('text/plain')
+    console.log('[DroppableList] Child drop', { cardId, index, id, hasOnDrop: !!onDrop })
     if (cardId && onDrop) {
+      console.log('[DroppableList] Calling onDrop with', { cardId, targetIndex: index })
       onDrop(cardId, index)
+    } else {
+      console.log('[DroppableList] Child drop ignored', { cardId, hasOnDrop: !!onDrop })
     }
   }
 
@@ -58,15 +62,23 @@ export function DroppableList({
         e.preventDefault()
         e.stopPropagation()
         e.dataTransfer.dropEffect = 'move'
+        // Only log occasionally to avoid spam
+        if (Math.random() < 0.01) {
+          console.log('[DroppableList] Drag over container', { id })
+        }
       }}
       onDrop={(e) => {
         e.preventDefault()
         e.stopPropagation()
         const cardId = e.dataTransfer.getData('text/plain')
+        console.log('[DroppableList] Container drop', { cardId, id, childrenCount: childrenArray.length, hasOnDrop: !!onDrop })
         // If dropped on the container but not on a child (handled by child's stopPropagation),
         // consider it dropped at the end.
         if (cardId && onDrop) {
+          console.log('[DroppableList] Calling onDrop with', { cardId, targetIndex: childrenArray.length })
           onDrop(cardId, childrenArray.length)
+        } else {
+          console.log('[DroppableList] Drop ignored', { cardId, hasOnDrop: !!onDrop })
         }
       }}
     >

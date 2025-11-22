@@ -42,6 +42,7 @@ export function SprintList({
     const [isExpanded, setIsExpanded] = useState(true)
 
     const handleDrop = (cardId: string, targetIndex: number) => {
+        console.log('[SprintList] handleDrop called', { cardId, sprintId: sprint.id, sprintName: sprint.name, targetIndex })
         onMoveCard(cardId, sprint.id, targetIndex)
     }
 
