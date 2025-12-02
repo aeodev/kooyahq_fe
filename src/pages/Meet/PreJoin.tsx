@@ -23,7 +23,6 @@ export function PreJoin() {
     }
   }, [meetId, navigate])
 
-  // Initialize stream on mount
   useEffect(() => {
     const initializePreview = async () => {
       try {
@@ -33,6 +32,9 @@ export function PreJoin() {
         })
         streamRef.current = stream
         setLocalStream(stream)
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+        }
       } catch (error) {
         console.error('Error accessing media devices:', error)
       }
@@ -42,30 +44,23 @@ export function PreJoin() {
 
     return () => {
       // Don't stop tracks here - let Meet component handle cleanup
+      // The stream will be transferred to Meet component via cache
+      // Stopping tracks here would cause them to end before Meet can use them
     }
   }, [])
 
-  // Attach stream to video element whenever stream or video ref changes
   useEffect(() => {
-    const video = videoRef.current
-    if (!video || !localStream) return
-
-    video.srcObject = localStream
-    video.play().catch((err) => {
-      if (err.name !== 'AbortError') console.error('Video play error:', err)
-    })
-  }, [localStream])
-
-  // Handle track enable/disable
-  useEffect(() => {
-    if (!localStream) return
-
-    localStream.getVideoTracks().forEach((track) => {
-      track.enabled = isVideoEnabled
-    })
-    localStream.getAudioTracks().forEach((track) => {
-      track.enabled = isAudioEnabled
-    })
+    if (localStream && videoRef.current) {
+      const videoTracks = localStream.getVideoTracks()
+      const audioTracks = localStream.getAudioTracks()
+      
+      videoTracks.forEach((track) => {
+        track.enabled = isVideoEnabled
+      })
+      audioTracks.forEach((track) => {
+        track.enabled = isAudioEnabled
+      })
+    }
   }, [isVideoEnabled, isAudioEnabled, localStream])
 
   const toggleVideo = () => {

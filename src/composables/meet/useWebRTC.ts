@@ -20,8 +20,7 @@ export function useWebRTC(
   const [isVideoEnabled, setIsVideoEnabled] = useState(initialVideoEnabled)
   const [isAudioEnabled, setIsAudioEnabled] = useState(initialAudioEnabled)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-  const [remoteStreamsVersion, setRemoteStreamsVersion] = useState(0)
+  const [streamVersion, setStreamVersion] = useState(0)
 
   // Refs
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -32,14 +31,7 @@ export function useWebRTC(
   const mirrorVideoRef = useRef<HTMLVideoElement | null>(null)
   const mirrorAnimationRef = useRef<number | null>(null)
 
-  // Update both ref and state when stream changes
-  const updateLocalStream = useCallback((stream: MediaStream | null) => {
-    localStreamRef.current = stream
-    setLocalStream(stream)
-  }, [])
-  
-  // Trigger re-render when remote streams change
-  const updateRemoteStreams = useCallback(() => setRemoteStreamsVersion((v) => v + 1), [])
+  const forceUpdate = useCallback(() => setStreamVersion((v) => v + 1), [])
 
   // ==================== LOCAL MEDIA ====================
 
@@ -48,10 +40,57 @@ export function useWebRTC(
       let stream: MediaStream
 
       if (initialStream) {
-        stream = initialStream
-        stream.getVideoTracks().forEach((t) => (t.enabled = initialVideoEnabled))
-        stream.getAudioTracks().forEach((t) => (t.enabled = initialAudioEnabled))
+        console.log('[useWebRTC] Using initial stream from cache', {
+          streamId: initialStream.id,
+          videoTracks: initialStream.getVideoTracks().length,
+          audioTracks: initialStream.getAudioTracks().length,
+          videoTrackEnabled: initialStream.getVideoTracks()[0]?.enabled,
+          videoTrackReadyState: initialStream.getVideoTracks()[0]?.readyState,
+        })
+        
+        // Check if any tracks have ended - if so, recreate the stream
+        const videoTrack = initialStream.getVideoTracks()[0]
+        const audioTrack = initialStream.getAudioTracks()[0]
+        const hasEndedTracks = (videoTrack && videoTrack.readyState === 'ended') || (audioTrack && audioTrack.readyState === 'ended')
+        
+        if (hasEndedTracks) {
+          console.warn('[useWebRTC] Cached stream tracks have ended, recreating stream', {
+            videoTrackState: videoTrack?.readyState,
+            audioTrackState: audioTrack?.readyState,
+          })
+          // Stop the ended tracks to release resources
+          initialStream.getTracks().forEach((t) => t.stop())
+          // Create a new stream instead
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: initialVideoEnabled ? { width: 1280, height: 720 } : false,
+            audio: initialAudioEnabled || !initialVideoEnabled,
+          })
+          if (!initialVideoEnabled) stream.getVideoTracks().forEach((t) => (t.enabled = false))
+          if (!initialAudioEnabled) stream.getAudioTracks().forEach((t) => (t.enabled = false))
+        } else {
+          stream = initialStream
+          
+          // Ensure tracks are active and enabled
+          stream.getVideoTracks().forEach((t) => {
+            console.log('[useWebRTC] Setting video track enabled:', initialVideoEnabled, { 
+              trackId: t.id, 
+              wasEnabled: t.enabled,
+              readyState: t.readyState,
+              muted: t.muted,
+            })
+            t.enabled = initialVideoEnabled
+          })
+          stream.getAudioTracks().forEach((t) => {
+            console.log('[useWebRTC] Setting audio track enabled:', initialAudioEnabled, { 
+              trackId: t.id, 
+              wasEnabled: t.enabled,
+              readyState: t.readyState,
+            })
+            t.enabled = initialAudioEnabled
+          })
+        }
       } else {
+        console.log('[useWebRTC] Creating new stream')
         stream = await navigator.mediaDevices.getUserMedia({
           video: initialVideoEnabled ? { width: 1280, height: 720 } : false,
           audio: initialAudioEnabled || !initialVideoEnabled,
@@ -60,7 +99,15 @@ export function useWebRTC(
         if (!initialAudioEnabled) stream.getAudioTracks().forEach((t) => (t.enabled = false))
       }
 
-      updateLocalStream(stream)
+      console.log('[useWebRTC] Stream initialized', {
+        streamId: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+        videoTrackReadyState: stream.getVideoTracks()[0]?.readyState,
+      })
+
+      localStreamRef.current = stream
+      forceUpdate()
 
       if (user) {
         getStore().addParticipant({
@@ -76,7 +123,7 @@ export function useWebRTC(
       console.error('Error accessing media devices:', error)
       throw error
     }
-  }, [user, initialVideoEnabled, initialAudioEnabled, initialStream, getStore, updateLocalStream])
+  }, [user, initialVideoEnabled, initialAudioEnabled, initialStream, getStore, forceUpdate])
 
   // ==================== TOGGLES ====================
 
@@ -114,8 +161,7 @@ export function useWebRTC(
         }
       })
 
-      // Trigger re-render with updated stream state
-      setLocalStream(localStreamRef.current)
+      forceUpdate()
 
       // Emit state to peers
       if (socket?.connected && meetId && user) {
@@ -126,7 +172,7 @@ export function useWebRTC(
       console.error('Failed to toggle video:', error)
       setIsVideoEnabled(!newEnabled) // Revert on error
     }
-  }, [isVideoEnabled, socket, meetId, user, getStore])
+  }, [isVideoEnabled, socket, meetId, user, getStore, forceUpdate])
 
   const toggleAudio = useCallback(() => {
     const newEnabled = !isAudioEnabled
@@ -317,11 +363,11 @@ export function useWebRTC(
       })
 
       stream.getAudioTracks().forEach((t) => t.stop())
-      setLocalStream(localStreamRef.current)
+      forceUpdate()
     } catch (error) {
       console.error('Error changing video device:', error)
     }
-  }, [])
+  }, [forceUpdate])
 
   const changeAudioInput = useCallback(async (deviceId: string) => {
     if (!localStreamRef.current) return
@@ -386,11 +432,11 @@ export function useWebRTC(
       })
 
       stream.getAudioTracks().forEach((t) => t.stop())
-      setLocalStream(localStreamRef.current)
+      forceUpdate()
     } catch (error) {
       console.error('Error flipping camera:', error)
     }
-  }, [])
+  }, [forceUpdate])
 
   // ==================== PEER CONNECTIONS ====================
 
@@ -410,7 +456,7 @@ export function useWebRTC(
         const existing = peerConnectionsRef.current.get(userId)
         if (existing?.stream?.id !== remoteStream.id) {
           peerConnectionsRef.current.set(userId, { peerConnection: pc, stream: remoteStream })
-          updateRemoteStreams()
+          forceUpdate()
         }
       }
 
@@ -430,13 +476,13 @@ export function useWebRTC(
         if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
           getStore().removeParticipant(userId)
           peerConnectionsRef.current.delete(userId)
-          updateRemoteStreams()
+          forceUpdate()
         }
       }
 
       return pc
     },
-    [socket, meetId, isMirrored, getStore, updateRemoteStreams]
+    [socket, meetId, isMirrored, getStore, forceUpdate]
   )
 
   const createOffer = useCallback(
@@ -659,7 +705,6 @@ export function useWebRTC(
   const cleanup = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
     localStreamRef.current = null
-    setLocalStream(null)
     screenStreamRef.current?.getTracks().forEach((t) => t.stop())
     screenStreamRef.current = null
     mirroredStreamRef.current?.getTracks().forEach((t) => t.stop())
@@ -675,10 +720,10 @@ export function useWebRTC(
       if (stream?.getTracks().length) streams.push({ userId, stream })
     })
     return streams
-  }, [remoteStreamsVersion])
+  }, [streamVersion])
 
   return {
-    localStream,
+    localStream: localStreamRef.current,
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
@@ -686,7 +731,7 @@ export function useWebRTC(
     toggleAudio,
     toggleScreenShare,
     getRemoteStreams,
-    streamsUpdateCounter: remoteStreamsVersion,
+    streamsUpdateCounter: streamVersion,
     changeVideoDevice,
     changeAudioInput,
     changeAudioOutput,

@@ -25,25 +25,81 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
   const lastTouchCenterRef = useRef<{ x: number; y: number } | null>(null)
   const panStartRef = useRef<{ x: number; y: number } | null>(null)
 
-  // Video stream handling - also react to video enabled changes
+  // Simple video stream handling
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video) {
+      console.log('[VideoTile] Video element not ready yet', { participantId: participant.userId, isLocal })
+      return
+    }
 
     if (stream) {
+      console.log('[VideoTile] Setting stream', {
+        participantId: participant.userId,
+        isLocal,
+        streamId: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+        videoTrackReadyState: stream.getVideoTracks()[0]?.readyState,
+        videoElementReady: video.readyState,
+      })
+      
+      // Ensure video tracks are enabled before setting stream
+      stream.getVideoTracks().forEach((track) => {
+        if (!track.enabled) {
+          console.log('[VideoTile] Enabling video track', { participantId: participant.userId, trackId: track.id })
+          track.enabled = true
+        }
+      })
+      
       if (video.srcObject !== stream) {
         video.srcObject = stream
       }
-      // Always try to play when video should be visible
-      if (participant.isVideoEnabled) {
-        video.play().catch((err) => {
-          if (err.name !== 'AbortError') console.error('Video play error:', err)
-        })
+      
+      // Ensure video plays after stream is set
+      const playVideo = async () => {
+        try {
+          await video.play()
+          console.log('[VideoTile] Video playing successfully', { participantId: participant.userId, isLocal })
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            console.error('[VideoTile] Video play error:', err, {
+              participantId: participant.userId,
+              isLocal,
+              streamId: stream.id,
+              videoReadyState: video.readyState,
+            })
+          }
+        }
+      }
+      
+      // Play immediately if video is ready, otherwise wait for loadedmetadata
+      if (video.readyState >= 2) {
+        playVideo()
+      } else {
+        const handleLoadedMetadata = () => {
+          console.log('[VideoTile] Video metadata loaded', { participantId: participant.userId, isLocal })
+          playVideo()
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+        }
+        video.addEventListener('loadedmetadata', handleLoadedMetadata)
+        
+        // Also try playing after a short delay as fallback
+        const timeoutId = setTimeout(() => {
+          playVideo()
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+        }, 100)
+        
+        return () => {
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+          clearTimeout(timeoutId)
+        }
       }
     } else {
+      console.log('[VideoTile] No stream provided', { participantId: participant.userId, isLocal })
       video.srcObject = null
     }
-  }, [stream, participant.isVideoEnabled])
+  }, [stream, participant.userId, isLocal])
 
   // Simple audio handling for remote streams
   useEffect(() => {

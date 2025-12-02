@@ -41,9 +41,18 @@ export function Meet() {
     if (streamCacheKey) {
       const stream = getCachedStream(streamCacheKey)
       if (stream) {
+        console.log('[Meet] Retrieved stream from cache', {
+          streamCacheKey,
+          streamId: stream.id,
+          videoTracks: stream.getVideoTracks().length,
+          videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+          videoTrackReadyState: stream.getVideoTracks()[0]?.readyState,
+        })
         // Remove from cache after retrieval to prevent memory leaks
         removeCachedStream(streamCacheKey)
         return stream
+      } else {
+        console.warn('[Meet] Stream not found in cache', { streamCacheKey })
       }
     }
     return undefined
