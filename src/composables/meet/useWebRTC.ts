@@ -472,13 +472,30 @@ export function useWebRTC(
       const existing = peerConnectionsRef.current.get(userId)
       if (existing) {
         const state = existing.peerConnection.connectionState
-        if (state !== 'closed' && state !== 'failed' && existing.peerConnection.signalingState !== 'stable') {
-          console.log(`[WebRTC] Skipping offer to ${userId} - connection not stable`, { state, signalingState: existing.peerConnection.signalingState })
+        const signalingState = existing.peerConnection.signalingState
+        
+        // If already connected or connecting, don't create new offer
+        if (state === 'connected' || state === 'connecting') {
+          console.log(`[WebRTC] Connection to ${userId} already ${state}, skipping offer creation`)
           return
         }
-        console.log(`[WebRTC] Closing existing connection to ${userId}`)
-        existing.peerConnection.close()
-        peerConnectionsRef.current.delete(userId)
+        
+        // If signaling is in progress (not stable), wait - don't interrupt
+        if (signalingState !== 'stable' && state !== 'closed' && state !== 'failed') {
+          console.log(`[WebRTC] Signaling in progress for ${userId}, skipping duplicate offer`, { signalingState, state })
+          return
+        }
+        
+        // Only close if truly broken
+        if (state === 'closed' || state === 'failed') {
+          console.log(`[WebRTC] Closing broken connection to ${userId}`)
+          existing.peerConnection.close()
+          peerConnectionsRef.current.delete(userId)
+        } else {
+          // Connection exists and is valid, don't recreate
+          console.log(`[WebRTC] Valid connection exists to ${userId}, skipping offer creation`)
+          return
+        }
       }
 
       console.log(`[WebRTC] Creating peer connection and offer for ${userId}`)
@@ -547,22 +564,53 @@ export function useWebRTC(
       }
 
       let pc = peerConnectionsRef.current.get(fromUserId)?.peerConnection
-      if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
+      
+      // If peer connection exists, check if we should use it or recreate
+      if (pc) {
+        const state = pc.connectionState
+        const signalingState = pc.signalingState
+        
+        // If connection is already established, ignore duplicate offer
+        if (state === 'connected' || state === 'connecting') {
+          console.log(`[WebRTC] Ignoring offer from ${fromUserId} - connection already ${state}`)
+          return
+        }
+        
+        // If signaling state is stable and connection is valid, ignore
+        if (signalingState === 'stable' && state !== 'closed' && state !== 'failed') {
+          console.log(`[WebRTC] Ignoring offer from ${fromUserId} - already stable`)
+          return
+        }
+        
+        // Only close if truly broken
+        if (state === 'closed' || state === 'failed') {
+          console.log(`[WebRTC] Closing broken connection to ${fromUserId}`)
+          pc.close()
+          peerConnectionsRef.current.delete(fromUserId)
+          pc = undefined
+        } else if (signalingState !== 'stable' && signalingState !== 'have-local-offer') {
+          // If signaling is in progress but not in right state, wait
+          console.log(`[WebRTC] Connection to ${fromUserId} not in right state, waiting...`, { signalingState, state })
+          return
+        }
+      }
+
+      // Create new connection only if needed
+      if (!pc) {
         console.log(`[WebRTC] Creating new peer connection for offer from ${fromUserId}`)
         pc = createPeerConnection(fromUserId)
         peerConnectionsRef.current.set(fromUserId, { peerConnection: pc, stream: null })
       }
 
       try {
-        if (pc.signalingState !== 'stable') {
-          console.log(`[WebRTC] Signaling state not stable for ${fromUserId}, recreating connection`, { signalingState: pc.signalingState })
-          pc.close()
-          pc = createPeerConnection(fromUserId)
-          peerConnectionsRef.current.set(fromUserId, { peerConnection: pc, stream: null })
+        // Only set remote description if signaling state allows it
+        if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
+          console.log(`[WebRTC] Setting remote description for offer from ${fromUserId}`)
+          await pc.setRemoteDescription(new RTCSessionDescription(offer))
+        } else {
+          console.warn(`[WebRTC] Cannot set remote description - wrong signaling state`, { signalingState: pc.signalingState })
+          return
         }
-
-        console.log(`[WebRTC] Setting remote description for offer from ${fromUserId}`)
-        await pc.setRemoteDescription(new RTCSessionDescription(offer))
         
         // Flush any pending ICE candidates
         await flushPendingIceCandidates(fromUserId)
@@ -583,6 +631,12 @@ export function useWebRTC(
         }
       } catch (error) {
         console.error(`[WebRTC] Error handling offer from ${fromUserId}:`, error)
+        // If error is about m-line order, close and recreate
+        if (error instanceof Error && error.message.includes('m-lines')) {
+          console.log(`[WebRTC] M-line order error, closing and will recreate on next offer`)
+          pc.close()
+          peerConnectionsRef.current.delete(fromUserId)
+        }
       }
     },
     [createPeerConnection, socket, meetId, flushPendingIceCandidates]
@@ -603,7 +657,15 @@ export function useWebRTC(
       return
     }
     
-    if (peerConn.peerConnection.signalingState === 'have-local-offer') {
+    const signalingState = peerConn.peerConnection.signalingState
+    
+    // If already stable, answer was already processed (this is fine - ignore)
+    if (signalingState === 'stable') {
+      console.log(`[WebRTC] Answer from ${fromUserId} already processed (state is stable), ignoring`)
+      return
+    }
+    
+    if (signalingState === 'have-local-offer') {
       try {
         console.log(`[WebRTC] Setting remote description for answer from ${fromUserId}`)
         await peerConn.peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
@@ -614,7 +676,7 @@ export function useWebRTC(
         console.error(`[WebRTC] Error handling answer from ${fromUserId}:`, error)
       }
     } else {
-      console.warn(`[WebRTC] Wrong signaling state for answer from ${fromUserId}`, { signalingState: peerConn.peerConnection.signalingState })
+      console.warn(`[WebRTC] Wrong signaling state for answer from ${fromUserId}`, { signalingState })
     }
   }, [flushPendingIceCandidates])
 
