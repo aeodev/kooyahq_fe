@@ -133,13 +133,21 @@ export function useMirroredStream({
         })
       }
     } else {
-      // Use original stream
+      // Use original stream (only if video is enabled)
       const originalVideoTrack = localStreamRef.current.getVideoTracks()[0]
-      if (originalVideoTrack) {
+      if (originalVideoTrack && originalVideoTrack.enabled) {
         peerConnectionsRef.current?.forEach(({ peerConnection }) => {
           const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
           if (sender && originalVideoTrack) {
             sender.replaceTrack(originalVideoTrack)
+          }
+        })
+      } else if (!originalVideoTrack || !originalVideoTrack.enabled) {
+        // Video is disabled - send null to peer connections
+        peerConnectionsRef.current?.forEach(({ peerConnection }) => {
+          const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
+          if (sender) {
+            sender.replaceTrack(null)
           }
         })
       }

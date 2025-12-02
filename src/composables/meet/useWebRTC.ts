@@ -242,34 +242,62 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
   // Toggle video with peer connection sync
   const toggleVideo = useCallback(async () => {
     try {
+      // Get current state before toggle
+      const wasVideoEnabled = isVideoEnabled
+      const willBeVideoEnabled = !wasVideoEnabled
+      
       await baseToggleVideo()
       
-      // Sync with peer connections
+      // Wait a tick to ensure state and track enabled state are updated
+      await new Promise(resolve => setTimeout(resolve, 0))
+      
+      // Sync with peer connections - use the NEW state
       if (localStreamRef.current) {
         const videoTrack = localStreamRef.current.getVideoTracks()[0]
-        if (videoTrack) {
+        
+        if (willBeVideoEnabled && videoTrack && videoTrack.enabled) {
+          // Video is being turned ON - use mirrored track if mirroring is enabled, otherwise use original
+          const trackToUse = isMirrored && mirroredStreamRef.current
+            ? mirroredStreamRef.current.getVideoTracks()[0]
+            : videoTrack
+          
+          if (trackToUse) {
+            peerConnectionsRef.current.forEach(({ peerConnection }) => {
+              const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
+              if (sender) {
+                sender.replaceTrack(trackToUse)
+              } else if (localStreamRef.current) {
+                // Use the stream that contains the track
+                const streamToUse = isMirrored && mirroredStreamRef.current
+                  ? mirroredStreamRef.current
+                  : localStreamRef.current
+                peerConnection.addTrack(trackToUse, streamToUse)
+              }
+            })
+          }
+        } else if (!willBeVideoEnabled) {
+          // Video is being turned OFF - send null track to peers
           peerConnectionsRef.current.forEach(({ peerConnection }) => {
             const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
             if (sender) {
-              sender.replaceTrack(videoTrack)
-            } else if (localStreamRef.current) {
-              peerConnection.addTrack(videoTrack, localStreamRef.current)
+              // Replace with null to stop sending video
+              sender.replaceTrack(null)
             }
           })
         }
       }
 
-      // Emit state update
+      // Emit state update with CORRECT new value
       if (socket?.connected && meetId && user) {
         socket.emit('meet:participant-state', {
           meetId,
-          isVideoEnabled: !isVideoEnabled,
+          isVideoEnabled: willBeVideoEnabled,
         })
       }
     } catch (error) {
       console.error('Failed to toggle video:', error)
     }
-  }, [baseToggleVideo, isVideoEnabled, socket, meetId, user])
+  }, [baseToggleVideo, isVideoEnabled, isMirrored, socket, meetId, user, mirroredStreamRef])
 
   // Toggle audio with peer connection sync
   const toggleAudio = useCallback(() => {
