@@ -1,8 +1,6 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { useBoardStore } from '@/stores/board.store'
-import type { Card, CardCoverImage } from '@/types/board'
+import type { Card } from '@/types/board'
 import { X, Image as ImageIcon, Upload } from 'lucide-react'
 
 type CardCoverPickerProps = {
@@ -10,6 +8,8 @@ type CardCoverPickerProps = {
   onUpdate: () => void
   onCardUpdate?: (updatedCard: Card) => void
 }
+
+export function CardCoverPicker({ card: _card, onUpdate: _onUpdate, onCardUpdate: _onCardUpdate }: CardCoverPickerProps) {
 
 const PRESET_COLORS = [
   { name: 'Blue', value: '#0079bf', brightness: 'dark' as const },
@@ -23,19 +23,20 @@ const PRESET_COLORS = [
   { name: 'Gray', value: '#838c91', brightness: 'dark' as const },
 ]
 
-export function CardCoverPicker({ card, onUpdate, onCardUpdate }: CardCoverPickerProps) {
-  const { setCardCover, removeCardCover } = useBoardStore()
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleColorSelect = async (color: string, brightness: 'dark' | 'light') => {
-    const updated = await setCardCover(card.id, { color, brightness })
-    if (updated) {
-      if (onCardUpdate) {
-        onCardUpdate(updated)
-      }
-      onUpdate()
-    }
+  // TODO: Implement card cover functionality in board store
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleColorSelect = async (_color: string, _brightness: 'dark' | 'light') => {
+    console.warn('Card cover feature not yet implemented')
+    // const updated = await setCardCover(card.id, { color, brightness })
+    // if (updated) {
+    //   if (onCardUpdate) {
+    //     onCardUpdate(updated)
+    //   }
+    //   onUpdate()
+    // }
   }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,15 +45,16 @@ export function CardCoverPicker({ card, onUpdate, onCardUpdate }: CardCoverPicke
 
     setUploading(true)
     try {
-      const formData = new FormData()
-      formData.append('image', file)
-      const updated = await setCardCover(card.id, formData)
-      if (updated) {
-        if (onCardUpdate) {
-          onCardUpdate(updated)
-        }
-        onUpdate()
-      }
+      console.warn('Card cover image upload feature not yet implemented')
+      // const formData = new FormData()
+      // formData.append('image', file)
+      // const updated = await setCardCover(card.id, formData)
+      // if (updated) {
+      //   if (onCardUpdate) {
+      //     onCardUpdate(updated)
+      //   }
+      //   onUpdate()
+      // }
     } catch (error) {
       console.error('Failed to upload cover image:', error)
     } finally {
@@ -65,21 +67,22 @@ export function CardCoverPicker({ card, onUpdate, onCardUpdate }: CardCoverPicke
 
   const handleRemoveCover = async () => {
     if (!confirm('Remove cover from this card?')) return
-    
-    const updated = await removeCardCover(card.id)
-    if (updated) {
-      if (onCardUpdate) {
-        onCardUpdate(updated)
-      }
-      onUpdate()
-    }
+    console.warn('Card cover removal feature not yet implemented')
+    // const updated = await removeCardCover(card.id)
+    // if (updated) {
+    //   if (onCardUpdate) {
+    //     onCardUpdate(updated)
+    //   }
+    //   onUpdate()
+    // }
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Cover</h3>
-        {card.coverImage && (
+        {/* TODO: Implement coverImage property on Card type */}
+        {false && (
           <Button
             size="sm"
             variant="ghost"
@@ -93,20 +96,10 @@ export function CardCoverPicker({ card, onUpdate, onCardUpdate }: CardCoverPicke
       </div>
 
       {/* Current Cover Preview */}
-      {card.coverImage && (
+      {/* TODO: Implement coverImage property on Card type */}
+      {false && (
         <div className="relative h-32 rounded-lg overflow-hidden border">
-          {card.coverImage.url ? (
-            <img
-              src={card.coverImage.url}
-              alt="Card cover"
-              className="w-full h-full object-cover"
-            />
-          ) : card.coverImage.color ? (
-            <div
-              className="w-full h-full"
-              style={{ backgroundColor: card.coverImage.color }}
-            />
-          ) : null}
+          {/* Cover preview will be shown here when implemented */}
         </div>
       )}
 

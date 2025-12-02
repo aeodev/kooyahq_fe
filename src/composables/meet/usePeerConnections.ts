@@ -37,18 +37,39 @@ export function usePeerConnections({
   const createOfferRef = useRef<((userId: string) => Promise<void>) | null>(null)
   const reconnectPeerRef = useRef<((userId: string) => Promise<void>) | null>(null)
   const iceCandidateQueueRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
+  const MAX_ICE_CANDIDATE_QUEUE_SIZE = 50
 
   // Queue signaling operations to prevent race conditions
   const queueSignaling = useCallback(async (userId: string, operation: () => Promise<void>) => {
+    const SIGNALING_TIMEOUT = 5000 // 5 seconds
+    const MAX_QUEUE_SIZE = 10
+
+    // Check queue size limit
+    if (signalingQueueRef.current.size >= MAX_QUEUE_SIZE) {
+      console.warn(`Signaling queue full for ${userId}, skipping operation`)
+      return
+    }
+
     const existing = signalingQueueRef.current.get(userId)
-    const task = existing
-      ? existing.then(() => operation()).catch(() => operation())
-      : operation()
+    const task = Promise.race([
+      existing
+        ? existing.then(() => operation()).catch(() => operation())
+        : operation(),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Signaling timeout')), SIGNALING_TIMEOUT)
+      ),
+    ])
 
     signalingQueueRef.current.set(userId, task)
 
     try {
       await task
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Signaling timeout') {
+        console.error(`Signaling timeout for ${userId}`)
+      } else {
+        console.error(`Signaling error for ${userId}:`, error)
+      }
     } finally {
       if (signalingQueueRef.current.get(userId) === task) {
         signalingQueueRef.current.delete(userId)
@@ -208,6 +229,8 @@ export function usePeerConnections({
         } else if (state === 'disconnected' || state === 'closed') {
           getStore().removeParticipant(userId)
           peerConnectionsRef.current.delete(userId)
+          // Cleanup ICE candidate queue for this user
+          iceCandidateQueueRef.current.delete(userId)
           setStreamsUpdateCounter((prev) => prev + 1)
         }
       }
@@ -424,7 +447,11 @@ export function usePeerConnections({
           if (!iceCandidateQueueRef.current.has(fromUserId)) {
             iceCandidateQueueRef.current.set(fromUserId, [])
           }
-          iceCandidateQueueRef.current.get(fromUserId)!.push(candidate)
+          const queue = iceCandidateQueueRef.current.get(fromUserId)!
+          // Limit queue size to prevent memory leaks
+          if (queue.length < MAX_ICE_CANDIDATE_QUEUE_SIZE) {
+            queue.push(candidate)
+          }
           return
         }
         await peerConn.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
@@ -439,7 +466,11 @@ export function usePeerConnections({
       if (!iceCandidateQueueRef.current.has(fromUserId)) {
         iceCandidateQueueRef.current.set(fromUserId, [])
       }
-      iceCandidateQueueRef.current.get(fromUserId)!.push(candidate)
+      const queue = iceCandidateQueueRef.current.get(fromUserId)!
+      // Limit queue size to prevent memory leaks
+      if (queue.length < MAX_ICE_CANDIDATE_QUEUE_SIZE) {
+        queue.push(candidate)
+      }
     }
   }, [])
 

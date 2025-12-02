@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useSocketStore } from '@/stores/socket.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore, type Participant } from '@/stores/meet.store'
@@ -7,8 +7,10 @@ import { useMediaDevices } from './useMediaDevices'
 import { useMirroredStream } from './useMirroredStream'
 import { useRecording } from './useRecording'
 import { usePeerConnections } from './usePeerConnections'
+import { useLocalMedia } from './useLocalMedia'
+import { useScreenShare } from './useScreenShare'
 
-export function useWebRTC(meetId: string | null, initialVideoEnabled = true, initialAudioEnabled = true) {
+export function useWebRTC(meetId: string | null, initialVideoEnabled = true, initialAudioEnabled = true, initialStream?: MediaStream) {
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
   const user = useAuthStore((state) => state.user)
@@ -16,56 +18,34 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
 
   const getStore = useCallback(() => useMeetStore.getState(), [])
 
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-  const [isVideoEnabled, setIsVideoEnabled] = useState(initialVideoEnabled)
-  const [isAudioEnabled, setIsAudioEnabled] = useState(initialAudioEnabled)
-  const [isScreenSharing, setIsScreenSharing] = useState(false)
+  // Use local media hook
+  const {
+    localStream,
+    localStreamRef,
+    isVideoEnabled,
+    isAudioEnabled,
+    toggleVideo: baseToggleVideo,
+    toggleAudio: baseToggleAudio,
+    initializeLocalStream,
+    setLocalStream,
+  } = useLocalMedia({
+    initialVideoEnabled,
+    initialAudioEnabled,
+    initialStream,
+  })
 
-  const localStreamRef = useRef<MediaStream | null>(null)
-  const screenStreamRef = useRef<MediaStream | null>(null)
-
-  // Initialize local media stream
-  const initializeLocalStream = useCallback(async () => {
-    try {
-      const videoEnabled = initialVideoEnabled
-      const audioEnabled = initialAudioEnabled || !initialVideoEnabled
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoEnabled ? { width: 1280, height: 720 } : false,
-        audio: audioEnabled,
-      })
-      localStreamRef.current = stream
-      setLocalStream(stream)
-
-      if (!initialVideoEnabled && stream.getVideoTracks().length > 0) {
-        stream.getVideoTracks().forEach((track) => {
-          track.enabled = false
-        })
-      }
-      if (!initialAudioEnabled && stream.getAudioTracks().length > 0) {
-        stream.getAudioTracks().forEach((track) => {
-          track.enabled = false
-        })
-      }
-
-      if (user) {
-        getStore().addParticipant({
-          userId: user.id,
-          userName: user.name,
-          profilePic: user.profilePic,
-          isVideoEnabled: initialVideoEnabled,
-          isAudioEnabled: initialAudioEnabled,
-          isScreenSharing: false,
-        })
-      }
-    } catch (error) {
-      console.error('Error accessing media devices:', error)
-    }
-  }, [user, initialVideoEnabled, initialAudioEnabled, getStore])
-
-  // Create shared refs
+  // Create shared refs for peer connections
   const peerConnectionsRef = useRef<Map<string, { peerConnection: RTCPeerConnection; stream: MediaStream | null }>>(new Map())
   const mirroredStreamRef = useRef<MediaStream | null>(null)
+
+  // Use screen share hook
+  const { isScreenSharing, screenStreamRef, toggleScreenShare: baseToggleScreenShare } = useScreenShare({
+    localStreamRef,
+    peerConnectionsRef,
+    socket,
+    meetId,
+  })
+
 
   // Use mirrored stream hook
   useMirroredStream({
@@ -152,16 +132,14 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
   const handleUserLeft = useCallback(
     (data: { userId: string; meetId: string }) => {
       if (data.meetId !== meetId) return
-      queueMicrotask(() => {
-        getStore().removeParticipant(data.userId)
-      })
+      getStore().removeParticipant(data.userId)
       const peerConn = peerConnectionsRef.current.get(data.userId)
       if (peerConn) {
         peerConn.peerConnection.close()
         peerConnectionsRef.current.delete(data.userId)
       }
     },
-    [meetId, getStore, peerConnectionsRef]
+    [meetId, getStore]
   )
 
   // Handle participant state updates from other users
@@ -232,9 +210,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
       peerConnectionsRef.current.forEach(({ peerConnection }, userId) => {
         if (userId !== user?.id) {
           peerConnection.close()
-          queueMicrotask(() => {
-            getStore().removeParticipant(userId)
-          })
+          getStore().removeParticipant(userId)
         }
       })
       peerConnectionsRef.current.clear()
@@ -245,7 +221,7 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
     return () => {
       socket.off('disconnect', handleDisconnect)
     }
-  }, [socket, user, getStore, peerConnectionsRef])
+  }, [socket, user, getStore])
 
   // Initialize local stream on mount
   useEffect(() => {
@@ -261,243 +237,89 @@ export function useWebRTC(meetId: string | null, initialVideoEnabled = true, ini
       })
       peerConnectionsRef.current.clear()
     }
-  }, [meetId, user, initializeLocalStream, peerConnectionsRef])
+  }, [meetId, user, initializeLocalStream])
 
-  // Toggle video
+  // Toggle video with peer connection sync
   const toggleVideo = useCallback(async () => {
-    const currentValue = isVideoEnabled
-    const newValue = !currentValue
-
     try {
-      if (newValue) {
-        if (!localStreamRef.current) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: { width: 1280, height: 720 },
-              audio: isAudioEnabled,
-            })
-            localStreamRef.current = stream
-            setLocalStream(stream)
-
-            const videoTrack = stream.getVideoTracks()[0]
-            if (videoTrack) {
-              peerConnectionsRef.current.forEach(({ peerConnection }) => {
-                const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
-                if (sender) {
-                  sender.replaceTrack(videoTrack)
-                } else {
-                  peerConnection.addTrack(videoTrack, stream)
-                }
-              })
-            }
-          } catch (error) {
-            console.error('Error re-acquiring video:', error)
-            throw error
-          }
-        } else {
-          const videoTracks = localStreamRef.current.getVideoTracks()
-          if (videoTracks.length === 0) {
-            try {
-              const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 1280, height: 720 },
-                audio: false,
-              })
-              const newVideoTrack = stream.getVideoTracks()[0]
-              localStreamRef.current.addTrack(newVideoTrack)
-              // Keep the same stream reference to avoid interrupting video playback
-              setLocalStream(localStreamRef.current)
-
-              peerConnectionsRef.current.forEach(({ peerConnection }) => {
-                const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
-                if (sender) {
-                  sender.replaceTrack(newVideoTrack)
-                } else {
-                  peerConnection.addTrack(newVideoTrack, localStreamRef.current!)
-                }
-              })
-
-              stream.getAudioTracks().forEach((track) => track.stop())
-            } catch (error) {
-              console.error('Error re-acquiring video track:', error)
-              throw error
-            }
-          } else {
-            videoTracks.forEach((track) => {
-              track.enabled = true
+      // Get current state before toggle
+      const wasVideoEnabled = isVideoEnabled
+      const willBeVideoEnabled = !wasVideoEnabled
+      
+      await baseToggleVideo()
+      
+      // Wait a tick to ensure state and track enabled state are updated
+      await new Promise(resolve => setTimeout(resolve, 0))
+      
+      // Sync with peer connections - use the NEW state
+      if (localStreamRef.current) {
+        const videoTrack = localStreamRef.current.getVideoTracks()[0]
+        
+        if (willBeVideoEnabled && videoTrack && videoTrack.enabled) {
+          // Video is being turned ON - use mirrored track if mirroring is enabled, otherwise use original
+          const trackToUse = isMirrored && mirroredStreamRef.current
+            ? mirroredStreamRef.current.getVideoTracks()[0]
+            : videoTrack
+          
+          if (trackToUse) {
+            peerConnectionsRef.current.forEach(({ peerConnection }) => {
+              const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
+              if (sender) {
+                sender.replaceTrack(trackToUse)
+              } else if (localStreamRef.current) {
+                // Use the stream that contains the track
+                const streamToUse = isMirrored && mirroredStreamRef.current
+                  ? mirroredStreamRef.current
+                  : localStreamRef.current
+                peerConnection.addTrack(trackToUse, streamToUse)
+              }
             })
           }
-        }
-      } else {
-        if (localStreamRef.current) {
-          const videoTracks = localStreamRef.current.getVideoTracks()
-          videoTracks.forEach((track) => {
-            track.enabled = false
+        } else if (!willBeVideoEnabled) {
+          // Video is being turned OFF - send null track to peers
+          peerConnectionsRef.current.forEach(({ peerConnection }) => {
+            const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
+            if (sender) {
+              // Replace with null to stop sending video
+              sender.replaceTrack(null)
+            }
           })
         }
       }
 
-      setIsVideoEnabled(newValue)
-      if (user) {
-        getStore().updateParticipant(user.id, { isVideoEnabled: newValue })
-        if (socket?.connected && meetId) {
-          socket.emit('meet:participant-state', {
-            meetId,
-            isVideoEnabled: newValue,
-          })
-        }
+      // Emit state update with CORRECT new value
+      if (socket?.connected && meetId && user) {
+        socket.emit('meet:participant-state', {
+          meetId,
+          isVideoEnabled: willBeVideoEnabled,
+        })
       }
     } catch (error) {
       console.error('Failed to toggle video:', error)
-      setIsVideoEnabled(currentValue)
     }
-  }, [isVideoEnabled, isAudioEnabled, user, socket, meetId, getStore, peerConnectionsRef])
+  }, [baseToggleVideo, isVideoEnabled, isMirrored, socket, meetId, user, mirroredStreamRef])
 
-  // Toggle audio
+  // Toggle audio with peer connection sync
   const toggleAudio = useCallback(() => {
     try {
-      if (localStreamRef.current) {
-        const audioTracks = localStreamRef.current.getAudioTracks()
-        const currentValue = isAudioEnabled
-        const newValue = !currentValue
+      baseToggleAudio()
 
-        audioTracks.forEach((track) => {
-          track.enabled = newValue
+      // Emit state update
+      if (socket?.connected && meetId && user) {
+        socket.emit('meet:participant-state', {
+          meetId,
+          isAudioEnabled: !isAudioEnabled,
         })
-
-        setIsAudioEnabled(newValue)
-        if (user) {
-          getStore().updateParticipant(user.id, { isAudioEnabled: newValue })
-          if (socket?.connected && meetId) {
-            socket.emit('meet:participant-state', {
-              meetId,
-              isAudioEnabled: newValue,
-            })
-          }
-        }
       }
     } catch (error) {
       console.error('Failed to toggle audio:', error)
     }
-  }, [isAudioEnabled, user, socket, meetId, getStore])
+  }, [baseToggleAudio, isAudioEnabled, socket, meetId, user])
 
   // Toggle screen share
   const toggleScreenShare = useCallback(async () => {
-    try {
-      if (isScreenSharing) {
-        // Stop screen sharing
-        screenStreamRef.current?.getTracks().forEach((track) => track.stop())
-        screenStreamRef.current = null
-
-        if (localStreamRef.current) {
-          const videoTrack = localStreamRef.current.getVideoTracks()[0]
-          peerConnectionsRef.current.forEach(({ peerConnection }) => {
-            const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
-            if (sender && videoTrack) {
-              sender.replaceTrack(videoTrack)
-            }
-          })
-        }
-
-        setIsScreenSharing(false)
-        if (user) {
-          getStore().updateParticipant(user.id, { isScreenSharing: false })
-          if (socket?.connected && meetId) {
-            socket.emit('meet:participant-state', {
-              meetId,
-              isScreenSharing: false,
-            })
-          }
-        }
-      } else {
-        // Start screen sharing
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true,
-        })
-        
-        // Check if stream is still valid
-        if (!screenStream || screenStream.getVideoTracks().length === 0) {
-          return
-        }
-        
-        screenStreamRef.current = screenStream
-
-        const videoTrack = screenStream.getVideoTracks()[0]
-        if (!videoTrack) {
-          screenStream.getTracks().forEach((track) => track.stop())
-          return
-        }
-
-        peerConnectionsRef.current.forEach(({ peerConnection }) => {
-          const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
-          if (sender) {
-            sender.replaceTrack(videoTrack)
-          }
-        })
-
-        setIsScreenSharing(true)
-        if (user) {
-          getStore().updateParticipant(user.id, { isScreenSharing: true })
-          if (socket?.connected && meetId) {
-            socket.emit('meet:participant-state', {
-              meetId,
-              isScreenSharing: true,
-            })
-          }
-        }
-
-        videoTrack.onended = () => {
-          // User stopped sharing via browser UI
-          if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach((track) => track.stop())
-            screenStreamRef.current = null
-          }
-          
-          if (localStreamRef.current) {
-            const localVideoTrack = localStreamRef.current.getVideoTracks()[0]
-            peerConnectionsRef.current.forEach(({ peerConnection }) => {
-              const sender = peerConnection.getSenders().find((s) => s.track?.kind === 'video')
-              if (sender && localVideoTrack) {
-                sender.replaceTrack(localVideoTrack)
-              }
-            })
-          }
-
-          setIsScreenSharing(false)
-          if (user) {
-            getStore().updateParticipant(user.id, { isScreenSharing: false })
-            if (socket?.connected && meetId) {
-              socket.emit('meet:participant-state', {
-                meetId,
-                isScreenSharing: false,
-              })
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Handle permission denied silently - user just didn't grant permission
-      if (error instanceof Error && error.name === 'NotAllowedError') {
-        // User denied permission, don't log as error
-        return
-      }
-      
-      // Handle invalid state - might be race condition, just reset state
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Reset state if we were trying to start
-        if (!isScreenSharing) {
-          setIsScreenSharing(false)
-        }
-        return
-      }
-      
-      // Log other errors
-      console.error('Error accessing screen share:', error)
-      if (!isScreenSharing) {
-        setIsScreenSharing(false)
-      }
-    }
-  }, [isScreenSharing, user, socket, meetId, getStore, peerConnectionsRef, localStreamRef])
+    await baseToggleScreenShare()
+  }, [baseToggleScreenShare])
 
   // Use media devices hook
   const { changeVideoDevice, changeAudioInput, changeAudioOutput, flipCamera } = useMediaDevices({
