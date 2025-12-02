@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, isPast, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isPast, addMonths, subMonths } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { Card } from '@/types/board'
@@ -112,7 +112,7 @@ export function CalendarView({ cards, onCardClick }: CalendarViewProps) {
                     {format(day, 'd')}
                   </span>
                   {overdueCards.length > 0 && (
-                    <Badge variant="destructive" className="h-5 px-1.5 text-xs">
+                    <Badge variant="default" className="h-5 px-1.5 text-xs bg-destructive text-destructive-foreground border-destructive">
                       {overdueCards.length}
                     </Badge>
                   )}
