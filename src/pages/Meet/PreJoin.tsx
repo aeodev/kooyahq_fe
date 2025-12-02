@@ -121,15 +121,15 @@ export function PreJoin() {
         </CardHeader>
         <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
           <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
-            {isVideoEnabled ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-            ) : (
+            {/* Always render video element, hide with CSS when disabled */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+            />
+            {!isVideoEnabled && (
               <div className="w-full h-full flex items-center justify-center bg-gray-800">
                 {user?.profilePic ? (
                   <img

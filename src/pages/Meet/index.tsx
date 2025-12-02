@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore } from '@/stores/meet.store'
 import { useWebRTC } from '@/composables/meet/useWebRTC'
 import { useActiveSpeaker } from '@/composables/meet/useActiveSpeaker'
+import { useRecording } from '@/composables/meet/useRecording'
 import { VideoTile } from '@/components/meet/VideoTile'
 import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
@@ -63,12 +64,9 @@ export function Meet() {
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
-    isRecording,
     toggleVideo,
     toggleAudio,
     toggleScreenShare,
-    startRecording,
-    stopRecording,
     getRemoteStreams,
     streamsUpdateCounter,
     changeVideoDevice,
@@ -77,6 +75,8 @@ export function Meet() {
     flipCamera,
     cleanup,
   } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled, initialStream)
+
+  const { isRecording, startRecording, stopRecording } = useRecording(localStream)
 
   // Initialize meet
   useEffect(() => {
