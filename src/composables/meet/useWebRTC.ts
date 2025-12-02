@@ -38,10 +38,17 @@ export function useWebRTC(
 
   const initializeLocalStream = useCallback(async () => {
     try {
+      console.log(`[WebRTC] Requesting media devices`, { video: initialVideoEnabled, audio: initialAudioEnabled })
       const stream = await navigator.mediaDevices.getUserMedia({
         video: initialVideoEnabled ? { width: 1280, height: 720 } : false,
         audio: initialAudioEnabled || !initialVideoEnabled,
       })
+      console.log(`[WebRTC] Got media stream`, {
+        streamId: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+      })
+      
       if (!initialVideoEnabled) stream.getVideoTracks().forEach((t) => (t.enabled = false))
       if (!initialAudioEnabled) stream.getAudioTracks().forEach((t) => (t.enabled = false))
 
@@ -57,9 +64,10 @@ export function useWebRTC(
           isAudioEnabled: initialAudioEnabled,
           isScreenSharing: false,
         })
+        console.log(`[WebRTC] Added self as participant`)
       }
     } catch (error) {
-      console.error('Error accessing media devices:', error)
+      console.error(`[WebRTC] Error accessing media devices:`, error)
       throw error
     }
   }, [user, initialVideoEnabled, initialAudioEnabled, getStore, forceUpdate])
@@ -389,8 +397,21 @@ export function useWebRTC(
 
       // Handle remote stream
       pc.ontrack = (event) => {
+        console.log(`[WebRTC] ontrack event for ${userId}`, {
+          streams: event.streams.length,
+          tracks: event.track ? { kind: event.track.kind, enabled: event.track.enabled, readyState: event.track.readyState } : null,
+        })
         const [remoteStream] = event.streams
-        if (!remoteStream?.getTracks().length) return
+        if (!remoteStream?.getTracks().length) {
+          console.warn(`[WebRTC] Remote stream has no tracks for ${userId}`)
+          return
+        }
+
+        console.log(`[WebRTC] Setting remote stream for ${userId}`, {
+          streamId: remoteStream.id,
+          videoTracks: remoteStream.getVideoTracks().length,
+          audioTracks: remoteStream.getAudioTracks().length,
+        })
 
         const existing = peerConnectionsRef.current.get(userId)
         if (existing?.stream?.id !== remoteStream.id) {
@@ -402,21 +423,30 @@ export function useWebRTC(
       // ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && socket?.connected && meetId) {
+          console.log(`[WebRTC] Sending ICE candidate to ${userId}`, event.candidate.candidate?.substring(0, 50))
           socket.emit('meet:ice-candidate', {
             meetId,
             candidate: event.candidate.toJSON(),
             targetUserId: userId,
           })
+        } else if (!event.candidate) {
+          console.log(`[WebRTC] ICE gathering complete for ${userId}`)
         }
       }
 
       // Connection state
       pc.onconnectionstatechange = () => {
+        console.log(`[WebRTC] Connection state changed for ${userId}:`, pc.connectionState, pc.iceConnectionState)
         if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
           getStore().removeParticipant(userId)
           peerConnectionsRef.current.delete(userId)
           forceUpdate()
         }
+      }
+      
+      // Log ICE connection state
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[WebRTC] ICE connection state for ${userId}:`, pc.iceConnectionState)
       }
 
       return pc
@@ -426,13 +456,15 @@ export function useWebRTC(
 
   const createOffer = useCallback(
     async (userId: string, retryCount = 0) => {
+      console.log(`[WebRTC] createOffer called for ${userId}`, { retryCount, hasLocalStream: !!localStreamRef.current })
+      
       // Wait for local stream to be ready (max 5 retries)
       if (!localStreamRef.current) {
         if (retryCount < 5) {
-          console.warn(`Local stream not ready for offer to ${userId}, retrying... (${retryCount + 1}/5)`)
+          console.warn(`[WebRTC] Local stream not ready for offer to ${userId}, retrying... (${retryCount + 1}/5)`)
           setTimeout(() => createOffer(userId, retryCount + 1), 500)
         } else {
-          console.error(`Failed to create offer to ${userId}: local stream never became ready`)
+          console.error(`[WebRTC] Failed to create offer to ${userId}: local stream never became ready`)
         }
         return
       }
@@ -440,27 +472,36 @@ export function useWebRTC(
       const existing = peerConnectionsRef.current.get(userId)
       if (existing) {
         const state = existing.peerConnection.connectionState
-        if (state !== 'closed' && state !== 'failed' && existing.peerConnection.signalingState !== 'stable') return
+        if (state !== 'closed' && state !== 'failed' && existing.peerConnection.signalingState !== 'stable') {
+          console.log(`[WebRTC] Skipping offer to ${userId} - connection not stable`, { state, signalingState: existing.peerConnection.signalingState })
+          return
+        }
+        console.log(`[WebRTC] Closing existing connection to ${userId}`)
         existing.peerConnection.close()
         peerConnectionsRef.current.delete(userId)
       }
 
+      console.log(`[WebRTC] Creating peer connection and offer for ${userId}`)
       const pc = createPeerConnection(userId)
       peerConnectionsRef.current.set(userId, { peerConnection: pc, stream: null })
 
       try {
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+        console.log(`[WebRTC] Created offer for ${userId}`, { type: offer.type, sdpLength: offer.sdp?.length })
         await pc.setLocalDescription(offer)
 
         if (socket?.connected && meetId) {
+          console.log(`[WebRTC] Sending offer to ${userId}`)
           socket.emit('meet:offer', {
             meetId,
             offer: { type: offer.type, sdp: offer.sdp || '' },
             targetUserId: userId,
           })
+        } else {
+          console.error(`[WebRTC] Cannot send offer - socket not connected or no meetId`, { socketConnected: socket?.connected, meetId })
         }
       } catch (error) {
-        console.error('Error creating offer:', error)
+        console.error(`[WebRTC] Error creating offer for ${userId}:`, error)
       }
     },
     [createPeerConnection, socket, meetId]
@@ -485,48 +526,63 @@ export function useWebRTC(
   }, [])
 
   const handleOffer = useCallback(
-    async (data: SignalingData) => {
+    async (data: SignalingData, retryCount = 0) => {
       const { fromUserId, offer } = data
-      if (!offer) return
+      console.log(`[WebRTC] Received offer from ${fromUserId}`, { retryCount, hasOffer: !!offer, hasLocalStream: !!localStreamRef.current })
       
-      // Wait for local stream to be ready
+      if (!offer) {
+        console.warn(`[WebRTC] No offer in data from ${fromUserId}`)
+        return
+      }
+      
+      // Wait for local stream to be ready (max 5 retries)
       if (!localStreamRef.current) {
-        console.warn('Received offer but local stream not ready, waiting...')
-        // Retry after a short delay
-        setTimeout(() => handleOffer(data), 500)
+        if (retryCount < 5) {
+          console.warn(`[WebRTC] Received offer but local stream not ready, retrying... (${retryCount + 1}/5)`)
+          setTimeout(() => handleOffer(data, retryCount + 1), 500)
+        } else {
+          console.error(`[WebRTC] Failed to handle offer from ${fromUserId}: local stream never became ready`)
+        }
         return
       }
 
       let pc = peerConnectionsRef.current.get(fromUserId)?.peerConnection
       if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
+        console.log(`[WebRTC] Creating new peer connection for offer from ${fromUserId}`)
         pc = createPeerConnection(fromUserId)
         peerConnectionsRef.current.set(fromUserId, { peerConnection: pc, stream: null })
       }
 
       try {
         if (pc.signalingState !== 'stable') {
+          console.log(`[WebRTC] Signaling state not stable for ${fromUserId}, recreating connection`, { signalingState: pc.signalingState })
           pc.close()
           pc = createPeerConnection(fromUserId)
           peerConnectionsRef.current.set(fromUserId, { peerConnection: pc, stream: null })
         }
 
+        console.log(`[WebRTC] Setting remote description for offer from ${fromUserId}`)
         await pc.setRemoteDescription(new RTCSessionDescription(offer))
         
         // Flush any pending ICE candidates
         await flushPendingIceCandidates(fromUserId)
         
+        console.log(`[WebRTC] Creating answer for ${fromUserId}`)
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
 
         if (socket?.connected && meetId) {
+          console.log(`[WebRTC] Sending answer to ${fromUserId}`)
           socket.emit('meet:answer', {
             meetId,
             answer: { type: answer.type, sdp: answer.sdp || '' },
             targetUserId: fromUserId,
           })
+        } else {
+          console.error(`[WebRTC] Cannot send answer - socket not connected or no meetId`, { socketConnected: socket?.connected, meetId })
         }
       } catch (error) {
-        console.error('Error handling offer:', error)
+        console.error(`[WebRTC] Error handling offer from ${fromUserId}:`, error)
       }
     },
     [createPeerConnection, socket, meetId, flushPendingIceCandidates]
@@ -534,23 +590,40 @@ export function useWebRTC(
 
   const handleAnswer = useCallback(async (data: SignalingData) => {
     const { fromUserId, answer } = data
-    if (!answer) return
+    console.log(`[WebRTC] Received answer from ${fromUserId}`, { hasAnswer: !!answer })
+    
+    if (!answer) {
+      console.warn(`[WebRTC] No answer in data from ${fromUserId}`)
+      return
+    }
 
     const peerConn = peerConnectionsRef.current.get(fromUserId)
-    if (peerConn?.peerConnection.signalingState === 'have-local-offer') {
+    if (!peerConn) {
+      console.error(`[WebRTC] No peer connection found for answer from ${fromUserId}`)
+      return
+    }
+    
+    if (peerConn.peerConnection.signalingState === 'have-local-offer') {
       try {
+        console.log(`[WebRTC] Setting remote description for answer from ${fromUserId}`)
         await peerConn.peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
         // Flush any pending ICE candidates
         await flushPendingIceCandidates(fromUserId)
+        console.log(`[WebRTC] Successfully processed answer from ${fromUserId}`)
       } catch (error) {
-        console.error('Error handling answer:', error)
+        console.error(`[WebRTC] Error handling answer from ${fromUserId}:`, error)
       }
+    } else {
+      console.warn(`[WebRTC] Wrong signaling state for answer from ${fromUserId}`, { signalingState: peerConn.peerConnection.signalingState })
     }
   }, [flushPendingIceCandidates])
 
   const handleIceCandidate = useCallback(async (data: SignalingData) => {
     const { fromUserId, candidate } = data
-    if (!candidate) return
+    if (!candidate) {
+      console.log(`[WebRTC] Received null ICE candidate from ${fromUserId} (gathering complete)`)
+      return
+    }
 
     const peerConn = peerConnectionsRef.current.get(fromUserId)
     
@@ -559,13 +632,15 @@ export function useWebRTC(
       const pending = pendingIceCandidatesRef.current.get(fromUserId) || []
       pending.push(candidate)
       pendingIceCandidatesRef.current.set(fromUserId, pending)
+      console.log(`[WebRTC] Buffering ICE candidate from ${fromUserId} (${pending.length} pending)`)
       return
     }
     
     try {
+      console.log(`[WebRTC] Adding ICE candidate from ${fromUserId}`, candidate.candidate?.substring(0, 50))
       await peerConn.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
     } catch (error) {
-      if (candidate.candidate) console.error('Error adding ICE candidate:', error)
+      if (candidate.candidate) console.error(`[WebRTC] Error adding ICE candidate from ${fromUserId}:`, error)
     }
   }, [])
 
@@ -573,9 +648,15 @@ export function useWebRTC(
 
   const handleUserJoined = useCallback(
     (data: ParticipantJoinData) => {
-      if (data.userId === user?.id || data.meetId !== meetId) return
+      console.log(`[WebRTC] User joined event`, { userId: data.userId, meetId: data.meetId, myId: user?.id, myMeetId: meetId })
+      
+      if (data.userId === user?.id || data.meetId !== meetId) {
+        console.log(`[WebRTC] Ignoring user joined - self or wrong meet`)
+        return
+      }
 
       if (!getStore().participants.has(data.userId)) {
+        console.log(`[WebRTC] Adding participant ${data.userId} and creating offer`)
         getStore().addParticipant({
           userId: data.userId,
           userName: data.userName,
@@ -585,6 +666,8 @@ export function useWebRTC(
           isScreenSharing: false,
         })
         createOffer(data.userId)
+      } else {
+        console.log(`[WebRTC] Participant ${data.userId} already exists`)
       }
     },
     [user, meetId, createOffer, getStore]
@@ -592,10 +675,16 @@ export function useWebRTC(
 
   const handleExistingParticipants = useCallback(
     (data: ExistingParticipantsData) => {
-      if (data.meetId !== meetId) return
+      console.log(`[WebRTC] Existing participants event`, { meetId: data.meetId, myMeetId: meetId, count: data.participants.length })
+      
+      if (data.meetId !== meetId) {
+        console.log(`[WebRTC] Ignoring existing participants - wrong meet`)
+        return
+      }
 
       data.participants.forEach((p) => {
         if (p.userId !== user?.id && !getStore().participants.has(p.userId)) {
+          console.log(`[WebRTC] Adding existing participant ${p.userId} and creating offer`)
           getStore().addParticipant({
             userId: p.userId,
             userName: p.userName,
@@ -636,10 +725,14 @@ export function useWebRTC(
     [meetId, user, getStore]
   )
 
-  // Socket event listeners
+  // Socket event listeners - MUST be set up BEFORE joining room
   useEffect(() => {
-    if (!socket?.connected || !connected || !meetId) return
+    if (!socket?.connected || !connected || !meetId) {
+      console.log(`[WebRTC] Not setting up socket listeners`, { socketConnected: socket?.connected, connected, meetId })
+      return
+    }
 
+    console.log(`[WebRTC] Setting up socket event listeners for meet ${meetId}`)
     socket.on('meet:offer', handleOffer)
     socket.on('meet:answer', handleAnswer)
     socket.on('meet:ice-candidate', handleIceCandidate)
@@ -649,6 +742,7 @@ export function useWebRTC(
     socket.on('meet:participant-state-updated', handleParticipantState)
 
     return () => {
+      console.log(`[WebRTC] Removing socket event listeners`)
       socket.off('meet:offer', handleOffer)
       socket.off('meet:answer', handleAnswer)
       socket.off('meet:ice-candidate', handleIceCandidate)
@@ -661,30 +755,43 @@ export function useWebRTC(
 
   // Initialize stream FIRST, then join room (critical: stream must be ready before signaling)
   useEffect(() => {
-    if (!meetId || !user || !socket?.connected) return
+    if (!meetId || !user || !socket?.connected) {
+      console.log(`[WebRTC] Not initializing - missing requirements`, { meetId, hasUser: !!user, socketConnected: socket?.connected })
+      return
+    }
     
     // Prevent double initialization
-    if (isInitializedRef.current) return
+    if (isInitializedRef.current) {
+      console.log(`[WebRTC] Already initialized, skipping`)
+      return
+    }
 
     let mounted = true
 
     const init = async () => {
       try {
+        console.log(`[WebRTC] Starting initialization for meet ${meetId}`)
         isInitializedRef.current = true
         await initializeLocalStream()
+        console.log(`[WebRTC] Stream initialized, joining room ${meetId}`)
         if (mounted && socket.connected) {
           socket.emit('meet:join', meetId)
+          console.log(`[WebRTC] Joined room ${meetId}`)
         }
       } catch (error) {
-        console.error('Failed to initialize stream:', error)
+        console.error(`[WebRTC] Failed to initialize stream:`, error)
         isInitializedRef.current = false
       }
     }
 
-    init()
+    // Small delay to ensure socket listeners are set up first
+    setTimeout(() => {
+      init()
+    }, 100)
 
     // Re-join on reconnect
     const handleReconnect = () => {
+      console.log(`[WebRTC] Socket reconnected, rejoining room`)
       if (mounted && localStreamRef.current) {
         socket.emit('meet:join', meetId)
       }
@@ -692,6 +799,7 @@ export function useWebRTC(
     socket.on('connect', handleReconnect)
 
     return () => {
+      console.log(`[WebRTC] Cleaning up initialization`)
       mounted = false
       isInitializedRef.current = false
       socket.off('connect', handleReconnect)
