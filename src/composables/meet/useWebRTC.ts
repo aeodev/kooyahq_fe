@@ -20,7 +20,8 @@ export function useWebRTC(
   const [isVideoEnabled, setIsVideoEnabled] = useState(initialVideoEnabled)
   const [isAudioEnabled, setIsAudioEnabled] = useState(initialAudioEnabled)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
-  const [streamVersion, setStreamVersion] = useState(0)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [remoteStreamsVersion, setRemoteStreamsVersion] = useState(0)
 
   // Refs
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -31,7 +32,14 @@ export function useWebRTC(
   const mirrorVideoRef = useRef<HTMLVideoElement | null>(null)
   const mirrorAnimationRef = useRef<number | null>(null)
 
-  const forceUpdate = useCallback(() => setStreamVersion((v) => v + 1), [])
+  // Update both ref and state when stream changes
+  const updateLocalStream = useCallback((stream: MediaStream | null) => {
+    localStreamRef.current = stream
+    setLocalStream(stream)
+  }, [])
+  
+  // Trigger re-render when remote streams change
+  const updateRemoteStreams = useCallback(() => setRemoteStreamsVersion((v) => v + 1), [])
 
   // ==================== LOCAL MEDIA ====================
 
@@ -52,8 +60,7 @@ export function useWebRTC(
         if (!initialAudioEnabled) stream.getAudioTracks().forEach((t) => (t.enabled = false))
       }
 
-      localStreamRef.current = stream
-      forceUpdate()
+      updateLocalStream(stream)
 
       if (user) {
         getStore().addParticipant({
@@ -69,7 +76,7 @@ export function useWebRTC(
       console.error('Error accessing media devices:', error)
       throw error
     }
-  }, [user, initialVideoEnabled, initialAudioEnabled, initialStream, getStore, forceUpdate])
+  }, [user, initialVideoEnabled, initialAudioEnabled, initialStream, getStore, updateLocalStream])
 
   // ==================== TOGGLES ====================
 
@@ -107,7 +114,8 @@ export function useWebRTC(
         }
       })
 
-      forceUpdate()
+      // Trigger re-render with updated stream state
+      setLocalStream(localStreamRef.current)
 
       // Emit state to peers
       if (socket?.connected && meetId && user) {
@@ -118,7 +126,7 @@ export function useWebRTC(
       console.error('Failed to toggle video:', error)
       setIsVideoEnabled(!newEnabled) // Revert on error
     }
-  }, [isVideoEnabled, socket, meetId, user, getStore, forceUpdate])
+  }, [isVideoEnabled, socket, meetId, user, getStore])
 
   const toggleAudio = useCallback(() => {
     const newEnabled = !isAudioEnabled
@@ -309,11 +317,11 @@ export function useWebRTC(
       })
 
       stream.getAudioTracks().forEach((t) => t.stop())
-      forceUpdate()
+      setLocalStream(localStreamRef.current)
     } catch (error) {
       console.error('Error changing video device:', error)
     }
-  }, [forceUpdate])
+  }, [])
 
   const changeAudioInput = useCallback(async (deviceId: string) => {
     if (!localStreamRef.current) return
@@ -378,11 +386,11 @@ export function useWebRTC(
       })
 
       stream.getAudioTracks().forEach((t) => t.stop())
-      forceUpdate()
+      setLocalStream(localStreamRef.current)
     } catch (error) {
       console.error('Error flipping camera:', error)
     }
-  }, [forceUpdate])
+  }, [])
 
   // ==================== PEER CONNECTIONS ====================
 
@@ -402,7 +410,7 @@ export function useWebRTC(
         const existing = peerConnectionsRef.current.get(userId)
         if (existing?.stream?.id !== remoteStream.id) {
           peerConnectionsRef.current.set(userId, { peerConnection: pc, stream: remoteStream })
-          forceUpdate()
+          updateRemoteStreams()
         }
       }
 
@@ -422,13 +430,13 @@ export function useWebRTC(
         if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
           getStore().removeParticipant(userId)
           peerConnectionsRef.current.delete(userId)
-          forceUpdate()
+          updateRemoteStreams()
         }
       }
 
       return pc
     },
-    [socket, meetId, isMirrored, getStore, forceUpdate]
+    [socket, meetId, isMirrored, getStore, updateRemoteStreams]
   )
 
   const createOffer = useCallback(
@@ -651,6 +659,7 @@ export function useWebRTC(
   const cleanup = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
     localStreamRef.current = null
+    setLocalStream(null)
     screenStreamRef.current?.getTracks().forEach((t) => t.stop())
     screenStreamRef.current = null
     mirroredStreamRef.current?.getTracks().forEach((t) => t.stop())
@@ -666,10 +675,10 @@ export function useWebRTC(
       if (stream?.getTracks().length) streams.push({ userId, stream })
     })
     return streams
-  }, [streamVersion])
+  }, [remoteStreamsVersion])
 
   return {
-    localStream: localStreamRef.current,
+    localStream,
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
@@ -677,7 +686,7 @@ export function useWebRTC(
     toggleAudio,
     toggleScreenShare,
     getRemoteStreams,
-    streamsUpdateCounter: streamVersion,
+    streamsUpdateCounter: remoteStreamsVersion,
     changeVideoDevice,
     changeAudioInput,
     changeAudioOutput,

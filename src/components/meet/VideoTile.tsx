@@ -25,7 +25,7 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
   const lastTouchCenterRef = useRef<{ x: number; y: number } | null>(null)
   const panStartRef = useRef<{ x: number; y: number } | null>(null)
 
-  // Simple video stream handling
+  // Video stream handling - also react to video enabled changes
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -34,13 +34,16 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
       if (video.srcObject !== stream) {
         video.srcObject = stream
       }
-      video.play().catch((err) => {
-        if (err.name !== 'AbortError') console.error('Video play error:', err)
-      })
+      // Always try to play when video should be visible
+      if (participant.isVideoEnabled) {
+        video.play().catch((err) => {
+          if (err.name !== 'AbortError') console.error('Video play error:', err)
+        })
+      }
     } else {
       video.srcObject = null
     }
-  }, [stream])
+  }, [stream, participant.isVideoEnabled])
 
   // Simple audio handling for remote streams
   useEffect(() => {
