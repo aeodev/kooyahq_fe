@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Video, VideoOff, Mic, MicOff, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
-import { cacheStream } from '@/utils/stream-cache'
 
 export function PreJoin() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -43,9 +42,8 @@ export function PreJoin() {
     initializePreview()
 
     return () => {
-      // Don't stop tracks here - let Meet component handle cleanup
-      // The stream will be transferred to Meet component via cache
-      // Stopping tracks here would cause them to end before Meet can use them
+      // Stop tracks on unmount (e.g., if user navigates away without joining)
+      streamRef.current?.getTracks().forEach((track) => track.stop())
     }
   }, [])
 
@@ -72,14 +70,12 @@ export function PreJoin() {
   }
 
   const handleJoin = () => {
-    if (meetId && streamRef.current) {
-      // Cache the stream and pass the cache key instead of the stream object
-      const streamCacheKey = cacheStream(streamRef.current)
+    if (meetId) {
+      streamRef.current?.getTracks().forEach((track) => track.stop())
       navigate(`/meet/${meetId}/join`, {
         state: {
           initialVideoEnabled: isVideoEnabled,
           initialAudioEnabled: isAudioEnabled,
-          streamCacheKey,
         },
       })
     }

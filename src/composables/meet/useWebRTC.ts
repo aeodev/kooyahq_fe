@@ -7,8 +7,7 @@ import { RTC_CONFIG, type PeerConnection, type SignalingData, type ParticipantJo
 export function useWebRTC(
   meetId: string | null,
   initialVideoEnabled = true,
-  initialAudioEnabled = true,
-  initialStream?: MediaStream
+  initialAudioEnabled = true
 ) {
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
@@ -37,74 +36,12 @@ export function useWebRTC(
 
   const initializeLocalStream = useCallback(async () => {
     try {
-      let stream: MediaStream
-
-      if (initialStream) {
-        console.log('[useWebRTC] Using initial stream from cache', {
-          streamId: initialStream.id,
-          videoTracks: initialStream.getVideoTracks().length,
-          audioTracks: initialStream.getAudioTracks().length,
-          videoTrackEnabled: initialStream.getVideoTracks()[0]?.enabled,
-          videoTrackReadyState: initialStream.getVideoTracks()[0]?.readyState,
-        })
-        
-        // Check if any tracks have ended - if so, recreate the stream
-        const videoTrack = initialStream.getVideoTracks()[0]
-        const audioTrack = initialStream.getAudioTracks()[0]
-        const hasEndedTracks = (videoTrack && videoTrack.readyState === 'ended') || (audioTrack && audioTrack.readyState === 'ended')
-        
-        if (hasEndedTracks) {
-          console.warn('[useWebRTC] Cached stream tracks have ended, recreating stream', {
-            videoTrackState: videoTrack?.readyState,
-            audioTrackState: audioTrack?.readyState,
-          })
-          // Stop the ended tracks to release resources
-          initialStream.getTracks().forEach((t) => t.stop())
-          // Create a new stream instead
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: initialVideoEnabled ? { width: 1280, height: 720 } : false,
-            audio: initialAudioEnabled || !initialVideoEnabled,
-          })
-          if (!initialVideoEnabled) stream.getVideoTracks().forEach((t) => (t.enabled = false))
-          if (!initialAudioEnabled) stream.getAudioTracks().forEach((t) => (t.enabled = false))
-        } else {
-          stream = initialStream
-          
-          // Ensure tracks are active and enabled
-          stream.getVideoTracks().forEach((t) => {
-            console.log('[useWebRTC] Setting video track enabled:', initialVideoEnabled, { 
-              trackId: t.id, 
-              wasEnabled: t.enabled,
-              readyState: t.readyState,
-              muted: t.muted,
-            })
-            t.enabled = initialVideoEnabled
-          })
-          stream.getAudioTracks().forEach((t) => {
-            console.log('[useWebRTC] Setting audio track enabled:', initialAudioEnabled, { 
-              trackId: t.id, 
-              wasEnabled: t.enabled,
-              readyState: t.readyState,
-            })
-            t.enabled = initialAudioEnabled
-          })
-        }
-      } else {
-        console.log('[useWebRTC] Creating new stream')
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: initialVideoEnabled ? { width: 1280, height: 720 } : false,
-          audio: initialAudioEnabled || !initialVideoEnabled,
-        })
-        if (!initialVideoEnabled) stream.getVideoTracks().forEach((t) => (t.enabled = false))
-        if (!initialAudioEnabled) stream.getAudioTracks().forEach((t) => (t.enabled = false))
-      }
-
-      console.log('[useWebRTC] Stream initialized', {
-        streamId: stream.id,
-        videoTracks: stream.getVideoTracks().length,
-        videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
-        videoTrackReadyState: stream.getVideoTracks()[0]?.readyState,
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: initialVideoEnabled ? { width: 1280, height: 720 } : false,
+        audio: initialAudioEnabled || !initialVideoEnabled,
       })
+      if (!initialVideoEnabled) stream.getVideoTracks().forEach((t) => (t.enabled = false))
+      if (!initialAudioEnabled) stream.getAudioTracks().forEach((t) => (t.enabled = false))
 
       localStreamRef.current = stream
       forceUpdate()
@@ -123,7 +60,7 @@ export function useWebRTC(
       console.error('Error accessing media devices:', error)
       throw error
     }
-  }, [user, initialVideoEnabled, initialAudioEnabled, initialStream, getStore, forceUpdate])
+  }, [user, initialVideoEnabled, initialAudioEnabled, getStore, forceUpdate])
 
   // ==================== TOGGLES ====================
 
@@ -672,26 +609,37 @@ export function useWebRTC(
     }
   }, [socket, connected, meetId, handleOffer, handleAnswer, handleIceCandidate, handleUserJoined, handleExistingParticipants, handleUserLeft, handleParticipantState])
 
-  // Join room
+  // Initialize stream FIRST, then join room (critical: stream must be ready before signaling)
   useEffect(() => {
-    if (!meetId || !connected || !socket || !user) return
+    if (!meetId || !user || !socket?.connected) return
 
-    socket.emit('meet:join', meetId)
-    socket.on('connect', () => socket.emit('meet:join', meetId))
+    let mounted = true
+
+    const init = async () => {
+      try {
+        await initializeLocalStream()
+        if (mounted && socket.connected) {
+          socket.emit('meet:join', meetId)
+        }
+      } catch (error) {
+        console.error('Failed to initialize stream:', error)
+      }
+    }
+
+    init()
+
+    // Re-join on reconnect
+    const handleReconnect = () => {
+      if (mounted && localStreamRef.current) {
+        socket.emit('meet:join', meetId)
+      }
+    }
+    socket.on('connect', handleReconnect)
 
     return () => {
-      socket.off('connect')
+      mounted = false
+      socket.off('connect', handleReconnect)
       if (socket.connected) socket.emit('meet:leave', meetId)
-    }
-  }, [meetId, connected, socket, user])
-
-  // Initialize stream
-  useEffect(() => {
-    if (meetId && user) {
-      initializeLocalStream()
-    }
-
-    return () => {
       localStreamRef.current?.getTracks().forEach((t) => t.stop())
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
       mirroredStreamRef.current?.getTracks().forEach((t) => t.stop())
@@ -699,7 +647,7 @@ export function useWebRTC(
       peerConnectionsRef.current.clear()
       if (mirrorAnimationRef.current) cancelAnimationFrame(mirrorAnimationRef.current)
     }
-  }, [meetId, user, initializeLocalStream])
+  }, [meetId, user, socket?.connected, initializeLocalStream])
 
   // Cleanup function
   const cleanup = useCallback(() => {

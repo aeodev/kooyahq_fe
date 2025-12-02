@@ -10,7 +10,6 @@ import { VideoTile } from '@/components/meet/VideoTile'
 import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
 import { cn } from '@/utils/cn'
-import { getCachedStream, removeCachedStream } from '@/utils/stream-cache'
 
 export function Meet() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -34,29 +33,6 @@ export function Meet() {
   
   const initialVideoEnabled = location.state?.initialVideoEnabled ?? true
   const initialAudioEnabled = location.state?.initialAudioEnabled ?? true
-  const streamCacheKey = location.state?.streamCacheKey as string | undefined
-  
-  // Retrieve stream from cache if available
-  const initialStream = useMemo(() => {
-    if (streamCacheKey) {
-      const stream = getCachedStream(streamCacheKey)
-      if (stream) {
-        console.log('[Meet] Retrieved stream from cache', {
-          streamCacheKey,
-          streamId: stream.id,
-          videoTracks: stream.getVideoTracks().length,
-          videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
-          videoTrackReadyState: stream.getVideoTracks()[0]?.readyState,
-        })
-        // Remove from cache after retrieval to prevent memory leaks
-        removeCachedStream(streamCacheKey)
-        return stream
-      } else {
-        console.warn('[Meet] Stream not found in cache', { streamCacheKey })
-      }
-    }
-    return undefined
-  }, [streamCacheKey])
   
   const {
     participants,
@@ -83,7 +59,7 @@ export function Meet() {
     changeAudioOutput,
     flipCamera,
     cleanup,
-  } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled, initialStream)
+  } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled)
 
   const { isRecording, startRecording, stopRecording } = useRecording(localStream)
 
