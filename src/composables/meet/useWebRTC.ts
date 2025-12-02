@@ -25,10 +25,12 @@ export function useWebRTC(
   const localStreamRef = useRef<MediaStream | null>(null)
   const screenStreamRef = useRef<MediaStream | null>(null)
   const peerConnectionsRef = useRef<Map<string, PeerConnection>>(new Map())
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
   const mirroredStreamRef = useRef<MediaStream | null>(null)
   const mirrorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const mirrorVideoRef = useRef<HTMLVideoElement | null>(null)
   const mirrorAnimationRef = useRef<number | null>(null)
+  const isInitializedRef = useRef(false)
 
   const forceUpdate = useCallback(() => setStreamVersion((v) => v + 1), [])
 
@@ -423,8 +425,17 @@ export function useWebRTC(
   )
 
   const createOffer = useCallback(
-    async (userId: string) => {
-      if (!localStreamRef.current) return
+    async (userId: string, retryCount = 0) => {
+      // Wait for local stream to be ready (max 5 retries)
+      if (!localStreamRef.current) {
+        if (retryCount < 5) {
+          console.warn(`Local stream not ready for offer to ${userId}, retrying... (${retryCount + 1}/5)`)
+          setTimeout(() => createOffer(userId, retryCount + 1), 500)
+        } else {
+          console.error(`Failed to create offer to ${userId}: local stream never became ready`)
+        }
+        return
+      }
 
       const existing = peerConnectionsRef.current.get(userId)
       if (existing) {
@@ -455,10 +466,36 @@ export function useWebRTC(
     [createPeerConnection, socket, meetId]
   )
 
+  // Helper to flush pending ICE candidates after remote description is set
+  const flushPendingIceCandidates = useCallback(async (userId: string) => {
+    const pending = pendingIceCandidatesRef.current.get(userId)
+    if (!pending || pending.length === 0) return
+    
+    const peerConn = peerConnectionsRef.current.get(userId)
+    if (!peerConn?.peerConnection.remoteDescription) return
+    
+    for (const candidate of pending) {
+      try {
+        await peerConn.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+      } catch (error) {
+        if (candidate.candidate) console.error('Error adding buffered ICE candidate:', error)
+      }
+    }
+    pendingIceCandidatesRef.current.delete(userId)
+  }, [])
+
   const handleOffer = useCallback(
     async (data: SignalingData) => {
       const { fromUserId, offer } = data
       if (!offer) return
+      
+      // Wait for local stream to be ready
+      if (!localStreamRef.current) {
+        console.warn('Received offer but local stream not ready, waiting...')
+        // Retry after a short delay
+        setTimeout(() => handleOffer(data), 500)
+        return
+      }
 
       let pc = peerConnectionsRef.current.get(fromUserId)?.peerConnection
       if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
@@ -474,6 +511,10 @@ export function useWebRTC(
         }
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer))
+        
+        // Flush any pending ICE candidates
+        await flushPendingIceCandidates(fromUserId)
+        
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
 
@@ -488,7 +529,7 @@ export function useWebRTC(
         console.error('Error handling offer:', error)
       }
     },
-    [createPeerConnection, socket, meetId]
+    [createPeerConnection, socket, meetId, flushPendingIceCandidates]
   )
 
   const handleAnswer = useCallback(async (data: SignalingData) => {
@@ -499,23 +540,32 @@ export function useWebRTC(
     if (peerConn?.peerConnection.signalingState === 'have-local-offer') {
       try {
         await peerConn.peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
+        // Flush any pending ICE candidates
+        await flushPendingIceCandidates(fromUserId)
       } catch (error) {
         console.error('Error handling answer:', error)
       }
     }
-  }, [])
+  }, [flushPendingIceCandidates])
 
   const handleIceCandidate = useCallback(async (data: SignalingData) => {
     const { fromUserId, candidate } = data
     if (!candidate) return
 
     const peerConn = peerConnectionsRef.current.get(fromUserId)
-    if (peerConn?.peerConnection.remoteDescription) {
-      try {
-        await peerConn.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-      } catch (error) {
-        if (candidate.candidate) console.error('Error adding ICE candidate:', error)
-      }
+    
+    // If no peer connection or no remote description yet, buffer the candidate
+    if (!peerConn || !peerConn.peerConnection.remoteDescription) {
+      const pending = pendingIceCandidatesRef.current.get(fromUserId) || []
+      pending.push(candidate)
+      pendingIceCandidatesRef.current.set(fromUserId, pending)
+      return
+    }
+    
+    try {
+      await peerConn.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+    } catch (error) {
+      if (candidate.candidate) console.error('Error adding ICE candidate:', error)
     }
   }, [])
 
@@ -612,17 +662,22 @@ export function useWebRTC(
   // Initialize stream FIRST, then join room (critical: stream must be ready before signaling)
   useEffect(() => {
     if (!meetId || !user || !socket?.connected) return
+    
+    // Prevent double initialization
+    if (isInitializedRef.current) return
 
     let mounted = true
 
     const init = async () => {
       try {
+        isInitializedRef.current = true
         await initializeLocalStream()
         if (mounted && socket.connected) {
           socket.emit('meet:join', meetId)
         }
       } catch (error) {
         console.error('Failed to initialize stream:', error)
+        isInitializedRef.current = false
       }
     }
 
@@ -638,13 +693,18 @@ export function useWebRTC(
 
     return () => {
       mounted = false
+      isInitializedRef.current = false
       socket.off('connect', handleReconnect)
       if (socket.connected) socket.emit('meet:leave', meetId)
       localStreamRef.current?.getTracks().forEach((t) => t.stop())
+      localStreamRef.current = null
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+      screenStreamRef.current = null
       mirroredStreamRef.current?.getTracks().forEach((t) => t.stop())
+      mirroredStreamRef.current = null
       peerConnectionsRef.current.forEach(({ peerConnection }) => peerConnection.close())
       peerConnectionsRef.current.clear()
+      pendingIceCandidatesRef.current.clear()
       if (mirrorAnimationRef.current) cancelAnimationFrame(mirrorAnimationRef.current)
     }
   }, [meetId, user, socket?.connected, initializeLocalStream])
@@ -656,9 +716,12 @@ export function useWebRTC(
     screenStreamRef.current?.getTracks().forEach((t) => t.stop())
     screenStreamRef.current = null
     mirroredStreamRef.current?.getTracks().forEach((t) => t.stop())
+    mirroredStreamRef.current = null
     peerConnectionsRef.current.forEach(({ peerConnection }) => peerConnection.close())
     peerConnectionsRef.current.clear()
+    pendingIceCandidatesRef.current.clear()
     if (mirrorAnimationRef.current) cancelAnimationFrame(mirrorAnimationRef.current)
+    isInitializedRef.current = false
   }, [])
 
   // Get remote streams
