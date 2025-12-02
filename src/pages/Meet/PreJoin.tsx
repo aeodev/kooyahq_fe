@@ -13,6 +13,7 @@ export function PreJoin() {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   // Prevent navigation if user tries to access /join directly
   useEffect(() => {
@@ -28,6 +29,7 @@ export function PreJoin() {
           video: true,
           audio: true,
         })
+        streamRef.current = stream
         setLocalStream(stream)
         if (videoRef.current) {
           videoRef.current.srcObject = stream
@@ -40,9 +42,8 @@ export function PreJoin() {
     initializePreview()
 
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop())
-      }
+      // Don't stop tracks here - let Meet component handle cleanup
+      // Only cleanup if user cancels
     }
   }, [])
 
@@ -69,11 +70,12 @@ export function PreJoin() {
   }
 
   const handleJoin = () => {
-    if (meetId) {
+    if (meetId && streamRef.current) {
       navigate(`/meet/${meetId}/join`, {
         state: {
           initialVideoEnabled: isVideoEnabled,
           initialAudioEnabled: isAudioEnabled,
+          initialStream: streamRef.current,
         },
       })
     }

@@ -101,10 +101,24 @@ export function useMirroredStream({
 
   // Update mirrored stream when mirroring state changes
   useEffect(() => {
-    if (!localStreamRef.current || isScreenSharing) return
+    if (!localStreamRef.current || isScreenSharing) {
+      // Pause animation when screen sharing or no stream
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+      }
+      return
+    }
 
     const videoTrack = localStreamRef.current.getVideoTracks()[0]
-    if (!videoTrack) return
+    if (!videoTrack || !videoTrack.enabled) {
+      // Pause animation when video disabled
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+      }
+      return
+    }
 
     if (isMirrored) {
       // Create and use mirrored stream

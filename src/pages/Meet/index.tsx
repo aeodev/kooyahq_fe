@@ -32,6 +32,7 @@ export function Meet() {
   
   const initialVideoEnabled = location.state?.initialVideoEnabled ?? true
   const initialAudioEnabled = location.state?.initialAudioEnabled ?? true
+  const initialStream = location.state?.initialStream as MediaStream | undefined
   const {
     participants,
     isChatOpen,
@@ -60,7 +61,7 @@ export function Meet() {
     changeAudioOutput,
     flipCamera,
     cleanup,
-  } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled)
+  } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled, initialStream)
 
   // Initialize meet
   useEffect(() => {
