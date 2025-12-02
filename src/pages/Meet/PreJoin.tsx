@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Video, VideoOff, Mic, MicOff, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
+import { cacheStream } from '@/utils/stream-cache'
 
 export function PreJoin() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -71,11 +72,13 @@ export function PreJoin() {
 
   const handleJoin = () => {
     if (meetId && streamRef.current) {
+      // Cache the stream and pass the cache key instead of the stream object
+      const streamCacheKey = cacheStream(streamRef.current)
       navigate(`/meet/${meetId}/join`, {
         state: {
           initialVideoEnabled: isVideoEnabled,
           initialAudioEnabled: isAudioEnabled,
-          initialStream: streamRef.current,
+          streamCacheKey,
         },
       })
     }

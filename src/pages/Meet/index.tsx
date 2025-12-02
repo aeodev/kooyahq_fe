@@ -9,6 +9,7 @@ import { VideoTile } from '@/components/meet/VideoTile'
 import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
 import { cn } from '@/utils/cn'
+import { getCachedStream, removeCachedStream } from '@/utils/stream-cache'
 
 export function Meet() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -32,7 +33,21 @@ export function Meet() {
   
   const initialVideoEnabled = location.state?.initialVideoEnabled ?? true
   const initialAudioEnabled = location.state?.initialAudioEnabled ?? true
-  const initialStream = location.state?.initialStream as MediaStream | undefined
+  const streamCacheKey = location.state?.streamCacheKey as string | undefined
+  
+  // Retrieve stream from cache if available
+  const initialStream = useMemo(() => {
+    if (streamCacheKey) {
+      const stream = getCachedStream(streamCacheKey)
+      if (stream) {
+        // Remove from cache after retrieval to prevent memory leaks
+        removeCachedStream(streamCacheKey)
+        return stream
+      }
+    }
+    return undefined
+  }, [streamCacheKey])
+  
   const {
     participants,
     isChatOpen,
