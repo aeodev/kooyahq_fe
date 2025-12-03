@@ -28,19 +28,45 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
   // Simple video stream handling
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video) {
+      console.log(`[VideoTile] Video element not ready for ${participant.userId}`, { isLocal })
+      return
+    }
 
     if (stream) {
+      const videoTracks = stream.getVideoTracks()
+      console.log(`[VideoTile] Setting stream for ${participant.userId}`, {
+        isLocal,
+        streamId: stream.id,
+        videoTracks: videoTracks.length,
+        videoTrackEnabled: videoTracks[0]?.enabled,
+        videoTrackReadyState: videoTracks[0]?.readyState,
+        currentSrcObject: video.srcObject instanceof MediaStream ? video.srcObject.id : null,
+      })
+      
       if (video.srcObject !== stream) {
+        console.log(`[VideoTile] Updating video srcObject for ${participant.userId}`)
         video.srcObject = stream
       }
+      
+      // Ensure video tracks are enabled
+      videoTracks.forEach((track) => {
+        if (!track.enabled) {
+          console.log(`[VideoTile] Enabling video track for ${participant.userId}`)
+          track.enabled = true
+        }
+      })
+      
       video.play().catch((err) => {
-        if (err.name !== 'AbortError') console.error('Video play error:', err)
+        if (err.name !== 'AbortError') {
+          console.error(`[VideoTile] Video play error for ${participant.userId}:`, err)
+        }
       })
     } else {
+      console.log(`[VideoTile] No stream provided for ${participant.userId}`, { isLocal })
       video.srcObject = null
     }
-  }, [stream])
+  }, [stream, participant.userId, isLocal])
 
   // Simple audio handling for remote streams
   useEffect(() => {

@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSocketStore } from '@/stores/socket.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore } from '@/stores/meet.store'
-import { useWebRTC } from '@/composables/meet/useWebRTC'
+import { useLiveKit } from '@/composables/meet/useLiveKit'
 import { useActiveSpeaker } from '@/composables/meet/useActiveSpeaker'
 import { useRecording } from '@/composables/meet/useRecording'
 import { VideoTile } from '@/components/meet/VideoTile'
@@ -59,7 +59,7 @@ export function Meet() {
     changeAudioOutput,
     flipCamera,
     cleanup,
-  } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled)
+  } = useLiveKit(meetId || null, initialVideoEnabled, initialAudioEnabled)
 
   const { isRecording, startRecording, stopRecording } = useRecording(localStream)
 
@@ -271,6 +271,15 @@ export function Meet() {
           {displayParticipants.map((participant) => {
             const isLocal = participant.userId === user.id
             const stream = isLocal ? localStream : remoteStreams.get(participant.userId) || null
+
+            console.log(`[Meet] Rendering VideoTile for ${participant.userId}`, {
+              isLocal,
+              hasStream: !!stream,
+              streamId: stream?.id,
+              videoTracks: stream?.getVideoTracks().length,
+              remoteStreamsSize: remoteStreams.size,
+              remoteStreamsKeys: Array.from(remoteStreams.keys()),
+            })
 
             return (
               <VideoTile

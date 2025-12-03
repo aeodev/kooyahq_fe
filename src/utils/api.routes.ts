@@ -149,3 +149,6 @@ export const GET_PROJECT = (id: string) => `/projects/${id}`
 export const CREATE_PROJECT = () => `/projects`
 export const UPDATE_PROJECT = (id: string) => `/projects/${id}`
 export const DELETE_PROJECT = (id: string) => `/projects/${id}`
+
+// Meet routes
+export const GET_LIVEKIT_TOKEN = () => `/meet/token`
