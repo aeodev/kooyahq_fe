@@ -22,191 +22,194 @@ import { PreJoin } from '@/pages/Meet/PreJoin'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
 
+import { Toaster } from 'sonner'
+
 function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Home />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/workspace"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Workspace />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/workspace/:boardId"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <BoardDetail />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/time-tracker"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <TimeTracker />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/gallery"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Gallery />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/ai-news"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <AINews />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Profile />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Notifications />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/feed"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <KooyaFeed />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/games"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Games />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/games/play/:gameType"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <PlayGame />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/presence"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Presence />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Admin />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/meet"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <MeetLanding />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/meet/:meetId/join"
-              element={
-                <PrivateRoute fallback={null}>
-                  <AppLayout>
-                    <Meet />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/meet/:meetId"
-              element={
-                <PrivateRoute fallback={null}>
-                  <PreJoin />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <AppLayout>
-                    <Login />
-                  </AppLayout>
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-                <PublicRoute>
-                  <AppLayout>
-                    <Signup />
-                  </AppLayout>
-                </PublicRoute>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Home />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workspace"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Workspace />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workspace/:boardId"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <BoardDetail />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/time-tracker"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <TimeTracker />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/gallery"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Gallery />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/ai-news"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <AINews />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Profile />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Notifications />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/feed"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <KooyaFeed />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/games"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Games />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/games/play/:gameType"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <PlayGame />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/presence"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Presence />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Admin />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/meet"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <MeetLanding />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/meet/:meetId/join"
+            element={
+              <PrivateRoute fallback={null}>
+                <AppLayout>
+                  <Meet />
+                </AppLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/meet/:meetId"
+            element={
+              <PrivateRoute fallback={null}>
+                <PreJoin />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <AppLayout>
+                  <Login />
+                </AppLayout>
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              <PublicRoute>
+                <AppLayout>
+                  <Signup />
+                </AppLayout>
+              </PublicRoute>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+      <Toaster />
     </ThemeProvider>
   )
 }

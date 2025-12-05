@@ -16,6 +16,14 @@ export interface Post {
     email: string
     profilePic?: string
   }
+  poll?: {
+    question: string
+    options: {
+      text: string
+      votes: string[]
+    }[]
+    endDate?: string
+  }
 }
 
 export interface PostComment {

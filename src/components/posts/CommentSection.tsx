@@ -5,22 +5,12 @@ import { CommentItem } from './CommentItem'
 import { Send, Loader2 } from 'lucide-react'
 import { usePostComments } from '@/hooks/post.hooks'
 import type { PostComment } from '@/types/post'
+import { getUserInitials, isValidImageUrl } from '@/utils/formatters'
+import { toast } from 'sonner'
 
 interface CommentSectionProps {
   postId: string
   isExpanded?: boolean
-}
-
-function getUserInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n.charAt(0).toUpperCase())
-    .slice(0, 2)
-    .join('')
-}
-
-function isValidImageUrl(url?: string): boolean {
-  return !!url && url !== 'undefined' && url.trim() !== '' && !url.includes('undefined')
 }
 
 export function CommentSection({ postId, isExpanded = true }: CommentSectionProps) {
@@ -45,8 +35,10 @@ export function CommentSection({ postId, isExpanded = true }: CommentSectionProp
     try {
       await createComment(postId, commentContent.trim())
       setCommentContent('')
+      toast.success('Comment added!')
     } catch (error) {
       console.error('Failed to create comment:', error)
+      toast.error('Failed to add comment')
     } finally {
       setIsSubmitting(false)
     }

@@ -16,7 +16,7 @@ export function PresenceSidebar() {
   const handleLocate = (lat: number, lng: number) => {
     const viewer = getCesiumViewer()
     if (!viewer) return
-    
+
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(lng, lat, 100),
       duration: 1.5,
@@ -78,13 +78,14 @@ export function PresenceSidebar() {
 function Avatar({ name, profilePic }: { name: string; profilePic?: string }) {
   if (profilePic) {
     return (
-      <img 
-        src={profilePic} 
-        alt={name} 
-        className="h-10 w-10 rounded-full object-cover ring-2 ring-background shadow-md" 
+      <img
+        src={profilePic}
+        alt={name}
+        className="h-10 w-10 rounded-full object-cover ring-2 ring-background shadow-md"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
-          e.currentTarget.nextSibling.style.display = 'flex';
+          const sibling = e.currentTarget.nextSibling as HTMLElement;
+          if (sibling) sibling.style.display = 'flex';
         }}
       />
     )

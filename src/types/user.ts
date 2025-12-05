@@ -8,6 +8,7 @@ export type User = {
   profilePic?: string
   banner?: string
   bio?: string
+  status?: 'online' | 'busy' | 'away' | 'offline'
   createdAt: string
   updatedAt: string
 }

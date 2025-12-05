@@ -7,7 +7,7 @@ import CesiumPresence from './CesiumPresence'
 
 export function EarthPresence() {
   const [isViewerReady, setIsViewerReady] = useState(false)
-  const { isDark } = useTheme()
+  const { } = useTheme()
 
   return (
     <Card className="relative h-[500px] sm:h-[600px] overflow-hidden border-border/70 bg-card text-foreground shadow-xl">

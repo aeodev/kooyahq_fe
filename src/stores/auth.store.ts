@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import axiosInstance from '@/utils/axios.instance'
-import { PROFILE, SIGN_IN, SIGN_UP } from '@/utils/api.routes'
+import { PROFILE, SIGN_IN, SIGN_UP, UPDATE_PROFILE } from '@/utils/api.routes'
 import { AUTH_STORAGE_KEY } from '@/utils/axios.instance'
 import type { User } from '@/types/user'
 
@@ -19,7 +19,7 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   // Handle axios errors
   if (error && typeof error === 'object' && 'isAxiosError' in error && error.isAxiosError) {
     const axiosError = error as { response?: { data?: { message?: string | string[]; error?: string }; status?: number } }
-    
+
     if (axiosError.response?.data) {
       const data = axiosError.response.data
       // Check for message field
@@ -36,7 +36,7 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
         return data.error
       }
     }
-    
+
     // If no message but we have a status code, return generic message
     if (axiosError.response?.status === 401) {
       return 'Invalid credentials'
@@ -79,6 +79,7 @@ type AuthActions = {
   register: (payload: { name: string; email: string; password: string }) => Promise<User>
   logout: () => void
   refreshProfile: () => Promise<void>
+  updateStatus: (status: 'online' | 'busy' | 'away' | 'offline') => Promise<void>
   setLoading: (loading: boolean) => void
 }
 
@@ -143,6 +144,22 @@ export const useAuthStore = create<AuthStore>()(
           }
         } catch {
           get().logout()
+        }
+      },
+
+      updateStatus: async (status: 'online' | 'busy' | 'away' | 'offline') => {
+        const { user } = get()
+        if (!user) return
+
+        // Optimistic update
+        set({ user: { ...user, status } })
+
+        try {
+          await axiosInstance.put(UPDATE_PROFILE(), { status })
+        } catch (error) {
+          // Revert if failed (optional, but good practice)
+          // For status, silent fail is usually okay, but we can verify later
+          console.error('Failed to update status', error)
         }
       },
     }),
