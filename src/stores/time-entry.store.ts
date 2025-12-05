@@ -4,6 +4,7 @@ import {
   GET_MY_TIME_ENTRIES,
   GET_ACTIVE_TIMER,
   START_TIMER,
+  ADD_TASK_TO_TIMER,
   PAUSE_TIMER,
   RESUME_TIMER,
   STOP_TIMER,
@@ -72,6 +73,7 @@ type TimeEntryActions = {
   fetchActiveTimer: () => Promise<TimeEntry | null>
   fetchEntries: () => Promise<TimeEntry[]>
   startTimer: (input: StartTimerInput) => Promise<TimeEntry | null>
+  addTaskToTimer: (task: string) => Promise<TimeEntry | null>
   pauseTimer: () => Promise<TimeEntry | null>
   resumeTimer: () => Promise<TimeEntry | null>
   stopTimer: () => Promise<TimeEntry | null>
@@ -164,6 +166,20 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
     }
   },
 
+  addTaskToTimer: async (task: string) => {
+    try {
+      const response = await axiosInstance.post<{ status: string; data: TimeEntry }>(
+        ADD_TASK_TO_TIMER(),
+        { task }
+      )
+      const timer = response.data.data
+      set({ activeTimer: timer })
+      return timer
+    } catch (err) {
+      return null
+    }
+  },
+
   pauseTimer: async () => {
     try {
       const response = await axiosInstance.post<{ status: string; data: TimeEntry }>(PAUSE_TIMER())
@@ -237,8 +253,8 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       )
       const entry = response.data.data
 
-      // Add to entries list
-      set({ entries: [...get().entries, entry] })
+      // Don't add here - let fetchEntries() refresh the list to avoid race condition with socket
+      // The caller (handleAddManualEntry) will call fetchEntries() after this
 
       return entry
     } catch (err) {

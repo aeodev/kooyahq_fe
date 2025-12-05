@@ -5,18 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAnalytics } from '@/hooks/time-entry.hooks'
-
-function formatHours(hours: number): string {
-  const h = Math.floor(hours)
-  const m = Math.round((hours - h) * 60)
-  if (h > 0 && m > 0) {
-    return `${h}h ${m}m`
-  }
-  if (h > 0) {
-    return `${h}h`
-  }
-  return `${m}m`
-}
+import { formatHours } from './utils'
 
 export function AnalyticsView() {
   const { data, loading, error, fetchAnalytics } = useAnalytics()

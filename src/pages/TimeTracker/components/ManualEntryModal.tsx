@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 type ManualEntryModalProps = {
   projects: string[]
@@ -17,8 +23,6 @@ export function ManualEntryModal({ projects, open, onClose, onSubmit, loading }:
   const [hours, setHours] = useState('0')
   const [minutes, setMinutes] = useState('0')
 
-  if (!open) return null
-
   const toggleProject = (project: string) => {
     setSelectedProjects((prev) =>
       prev.includes(project) ? prev.filter((p) => p !== project) : [...prev, project]
@@ -26,16 +30,12 @@ export function ManualEntryModal({ projects, open, onClose, onSubmit, loading }:
   }
 
   const handleSubmit = () => {
-    if (selectedProjects.length === 0 || !task.trim()) {
-      return
-    }
+    if (selectedProjects.length === 0 || !task.trim()) return
 
     const hoursNum = parseInt(hours) || 0
     const minutesNum = parseInt(minutes) || 0
 
-    if (hoursNum === 0 && minutesNum === 0) {
-      return
-    }
+    if (hoursNum === 0 && minutesNum === 0) return
 
     onSubmit({
       projects: selectedProjects,
@@ -44,7 +44,10 @@ export function ManualEntryModal({ projects, open, onClose, onSubmit, loading }:
       minutes: minutesNum,
     })
 
-    // Reset form
+    resetForm()
+  }
+
+  const resetForm = () => {
     setSelectedProjects([])
     setTask('')
     setHours('0')
@@ -52,20 +55,17 @@ export function ManualEntryModal({ projects, open, onClose, onSubmit, loading }:
   }
 
   const handleClose = () => {
-    setSelectedProjects([])
-    setTask('')
-    setHours('0')
-    setMinutes('0')
+    resetForm()
     onClose()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={handleClose}>
-      <Card className="w-full max-w-md m-4 bg-background/95 backdrop-blur-md" onClick={(e) => e.stopPropagation()}>
-        <CardHeader>
-          <CardTitle>Add Time Entry</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Time Entry</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
           <div>
             <label className="text-sm font-medium mb-2 block">Select Projects</label>
             <div className="flex flex-wrap gap-2">
@@ -137,29 +137,19 @@ export function ManualEntryModal({ projects, open, onClose, onSubmit, loading }:
               </div>
             </div>
           </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              className="flex-1"
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={selectedProjects.length === 0 || !task.trim() || loading || (parseInt(hours) === 0 && parseInt(minutes) === 0)}
-              className="flex-1"
-            >
-              {loading ? 'Adding...' : 'Add Entry'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={handleClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={selectedProjects.length === 0 || !task.trim() || loading || (parseInt(hours) === 0 && parseInt(minutes) === 0)}
+          >
+            {loading ? 'Adding...' : 'Add Entry'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
-
-
-

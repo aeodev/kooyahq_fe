@@ -1,10 +1,17 @@
+export type TaskItem = {
+  text: string
+  addedAt: string
+  duration: number
+}
+
 export type TimeEntry = {
   id: string
   userId: string
   userName: string
   userEmail: string
   projects: string[]
-  task: string
+  task: string // DEPRECATED - kept for backwards compatibility
+  tasks: TaskItem[]
   duration: number // in minutes
   startTime: string | null
   endTime: string | null
@@ -39,3 +46,6 @@ export type ManualEntryInput = {
   isOvertime?: boolean
 }
 
+export type AddTaskInput = {
+  task: string
+}

@@ -77,6 +77,7 @@ export const GET_ANALYTICS = (startDate?: string, endDate?: string, userId?: str
 }
 export const GET_ACTIVE_TIMER = () => `/time-entries/timer/active`
 export const START_TIMER = () => `/time-entries/timer/start`
+export const ADD_TASK_TO_TIMER = () => `/time-entries/timer/add-task`
 export const PAUSE_TIMER = () => `/time-entries/timer/pause`
 export const RESUME_TIMER = () => `/time-entries/timer/resume`
 export const STOP_TIMER = () => `/time-entries/timer/stop`
