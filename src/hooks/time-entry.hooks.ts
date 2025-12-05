@@ -1,73 +1,8 @@
 import { useCallback, useState, useEffect, useRef } from 'react'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_TIME_ENTRIES, GET_ANALYTICS } from '@/utils/api.routes'
+import { GET_ANALYTICS } from '@/utils/api.routes'
+import { normalizeError, type Errors } from '@/utils/error'
 import type { TimeEntry } from '@/types/time-entry'
-
-export type Errors = {
-  message: string | string[]
-  statusCode?: number
-}
-
-function normalizeError(error: unknown): Errors {
-  if (typeof error === 'string') {
-    return { message: error }
-  }
-
-  if (error && typeof error === 'object') {
-    const anyError = error as Record<string, unknown>
-
-    if ('response' in anyError && anyError.response && typeof anyError.response === 'object') {
-      const response = anyError.response as Record<string, unknown>
-      const data = response.data as Record<string, unknown> | undefined
-      const status = (response.status as number | undefined) ?? undefined
-
-      if (data) {
-        const message =
-          (data.message as string | string[] | undefined) ??
-          (data.error as string | undefined) ??
-          'Request failed'
-        return { message: message ?? 'Request failed', statusCode: status }
-      }
-
-      return {
-        message: `Request failed with status ${status ?? 'unknown'}`,
-        statusCode: status,
-      }
-    }
-
-    if ('message' in anyError && typeof anyError.message === 'string') {
-      return { message: anyError.message }
-    }
-  }
-
-  return { message: 'Something went wrong' }
-}
-
-export const useTimeEntries = () => {
-  const [data, setData] = useState<TimeEntry[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Errors | null>(null)
-
-  const fetchEntries = useCallback(async () => {
-    setError(null)
-    setLoading(true)
-
-    try {
-      const response = await axiosInstance.get<{ status: string; data: TimeEntry[] }>(GET_TIME_ENTRIES())
-      setData(response.data.data)
-    } catch (err) {
-      setError(normalizeError(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchEntries()
-  }, [fetchEntries])
-
-  return { data, loading, error, fetchEntries }
-}
 
 // Hook for real-time timer updates
 export const useTimerDuration = (activeTimer: TimeEntry | null) => {

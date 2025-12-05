@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useProjectTaskStore } from '@/stores/project-task.store'
-import { useTimeEntries, useTimerDuration } from '@/hooks/time-entry.hooks'
+import { useTimerDuration } from '@/hooks/time-entry.hooks'
+import { useTeamUsers } from '@/hooks/user.hooks'
 import { useProjects } from '@/hooks/project.hooks'
-import type { TimeEntry } from '@/types/time-entry'
 import { ActiveTimerCard } from './components/ActiveTimerCard'
 import { StartTimerForm } from './components/StartTimerForm'
 import { QuickActions } from './components/QuickActions'
@@ -15,10 +15,8 @@ import { AnalyticsView } from './components/AnalyticsView'
 import { ManualEntryModal } from './components/ManualEntryModal'
 import { EndDayModal } from './components/EndDayModal'
 import { OvertimeConfirmationModal } from './components/OvertimeConfirmationModal'
-import { formatDuration, formatTimeRange, calculateActiveDuration } from './components/utils'
-import { GET_USERS } from '@/utils/api.routes'
-import axiosInstance from '@/utils/axios.instance'
-import type { User } from '@/types/user'
+import { formatDuration, formatTimeRange } from './components/utils'
+import { transformEntriesToTeamMembers } from './components/team-utils'
 
 type TabType = 'you' | 'all' | 'analytics'
 
@@ -42,7 +40,8 @@ export function TimeTracker() {
     getProjectTask,
   } = useProjectTaskStore()
 
-  const { data: allEntries, fetchEntries } = useTimeEntries()
+  const allEntries = useTimeEntryStore((state) => state.allTodayEntries)
+  const fetchAllEntries = useTimeEntryStore((state) => state.fetchAllTodayEntries)
   const { data: projectsData, fetchProjects } = useProjects()
   
   // Convert projects to array of names for compatibility
@@ -69,7 +68,7 @@ export function TimeTracker() {
   const timerDuration = useTimerDuration(activeTimer)
   
   const [loggingManual, setLoggingManual] = useState(false)
-  const [users, setUsers] = useState<Array<{ id: string; position?: string; profilePic?: string }>>([])
+  const { users, fetchUsers } = useTeamUsers()
 
   const user = useAuthStore((state) => state.user)
   const isLoading = useAuthStore((state) => state.isLoading)
@@ -89,22 +88,16 @@ export function TimeTracker() {
   // Fetch users for position and profile data
   useEffect(() => {
     if (user && !isLoading && activeTab === 'all') {
-      axiosInstance.get<{ status: string; data: User[] }>(GET_USERS())
-        .then((response) => {
-          setUsers(response.data.data.map((u) => ({ id: u.id, position: u.position, profilePic: u.profilePic })))
-        })
-        .catch(() => {
-          // Silently fail - position is optional
-        })
+      fetchUsers()
     }
-  }, [user, isLoading, activeTab])
+  }, [user, isLoading, activeTab, fetchUsers])
 
   // Fetch immediately when switching to "All" tab
   useEffect(() => {
     if (activeTab === 'all' && user && !isLoading) {
-      fetchEntries()
+      fetchAllEntries()
     }
-  }, [activeTab, user, isLoading, fetchEntries])
+  }, [activeTab, user, isLoading, fetchAllEntries])
 
   // Socket handles real-time updates, no need for polling
 
@@ -215,7 +208,6 @@ export function TimeTracker() {
   const handleResume = async () => {
     if (activeTimer && activeTimer.isPaused) {
       await resumeTimer()
-      // Timer is automatically updated in store
     }
   }
 
@@ -227,8 +219,8 @@ export function TimeTracker() {
     await endDay()
     setShowEndDayModal(false)
     setDayEndedToday(true)
-    fetchEntries() // Still need to fetch all entries for analytics
-    // Timer and my entries are automatically updated in store
+    fetchAllEntries() // Still need to fetch all entries for analytics
+
   }
 
   const handleAddManualEntry = async (data: { projects: string[]; task: string; hours: number; minutes: number }) => {
@@ -251,8 +243,7 @@ export function TimeTracker() {
 
     if (result) {
       setShowManualModal(false)
-      fetchEntries() // Still need to fetch all entries for analytics
-      // Entry is automatically added to store
+      fetchAllEntries()
     }
   }
 
@@ -288,9 +279,8 @@ export function TimeTracker() {
 
       if (result) {
         setShowManualModal(false)
-        setDayEndedToday(false) // Allow End Day button to reappear
-        fetchEntries() // Still need to fetch all entries for analytics
-        // Entry is automatically added to store
+        setDayEndedToday(false)
+        fetchAllEntries() 
       }
       setPendingManualEntryData(null)
     }
@@ -347,53 +337,7 @@ export function TimeTracker() {
   }, [activeTab])
 
   const teamMembers = useMemo(() => {
-    const membersMap = new Map<string, TimeEntry[]>()
-    allTodayEntries.forEach((entry) => {
-      const existing = membersMap.get(entry.userId) || []
-      existing.push(entry)
-      membersMap.set(entry.userId, existing)
-    })
-
-    return Array.from(membersMap.entries()).map(([userId, entries]) => {
-      const firstEntry = entries[0]
-      const activeEntry = entries.find(e => e.isActive)
-      const totalMinutes = entries.reduce((sum, e) => {
-        if (e.isActive && e.startTime) {
-          const start = new Date(e.startTime)
-          let elapsedMs = now.getTime() - start.getTime()
-          elapsedMs -= e.pausedDuration || 0
-          if (e.isPaused && e.lastPausedAt) {
-            elapsedMs -= now.getTime() - new Date(e.lastPausedAt).getTime()
-          }
-          return sum + Math.max(0, Math.floor(elapsedMs / 60000))
-        }
-        return sum + e.duration
-      }, 0)
-
-      const userData = users.find((u) => u.id === userId)
-
-      return {
-        id: userId,
-        name: firstEntry.userName,
-        email: firstEntry.userEmail,
-        position: userData?.position,
-        profilePic: userData?.profilePic,
-        status: activeEntry ? ('active' as const) : ('inactive' as const),
-        todayHours: formatDuration(totalMinutes),
-        activeTimer: activeEntry ? {
-          duration: userId === user?.id ? timerDuration : calculateActiveDuration(activeEntry, now),
-          projects: activeEntry.projects,
-          task: activeEntry.task,
-        } : undefined,
-        entries: entries.slice(0, 3).map((e) => ({
-          id: e.id,
-          project: e.projects.join(', '),
-          task: e.task,
-          duration: formatDuration(e.duration),
-          time: formatTimeRange(e.startTime, e.endTime),
-        })),
-      }
-    })
+    return transformEntriesToTeamMembers(allTodayEntries, users, user?.id, timerDuration, now)
   }, [allTodayEntries, now, timerDuration, user?.id, users])
 
   return (

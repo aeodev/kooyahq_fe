@@ -10,7 +10,6 @@ export type TimeEntry = {
   userName: string
   userEmail: string
   projects: string[]
-  task: string // DEPRECATED - kept for backwards compatibility
   tasks: TaskItem[]
   duration: number // in minutes
   startTime: string | null

@@ -494,7 +494,7 @@ export function Home() {
             <div className="flex-1">
               {activeTimer && activeTimer.isActive ? (
                 <div className="text-sm">
-                  <p className="font-medium">{activeTimer.task}</p>
+                  <p className="font-medium">{activeTimer.tasks[activeTimer.tasks.length - 1]?.text || 'No task'}</p>
                   <p className="text-xs text-muted-foreground">
                     {activeTimer.projects.join(', ')}
                   </p>
