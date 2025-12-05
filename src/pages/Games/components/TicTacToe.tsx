@@ -31,6 +31,7 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
     updateMatch,
     completeMatch,
     clearMatch,
+    refreshCurrentMatch,
   } = useGameMatch()
 
   // Handle move updates from multiplayer socket
@@ -77,6 +78,39 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winner, match, isMultiplayer])
+
+  // Sync local state from match metadata whenever it changes (e.g., from poll or initial load)
+  useEffect(() => {
+    if (!match?.metadata) return
+
+    const metadata = match.metadata as any
+
+    if (metadata.board && winner === null) {  // Only sync board if no winner yet
+      const newBoard = metadata.board as Board
+      setBoard(newBoard)
+
+      // Re-check for winner from synced board (only if no winner yet)
+      const gameWinner = checkWinner(newBoard)
+      if (gameWinner) {
+        setWinner(gameWinner)
+      }
+    }
+
+    if (metadata.currentPlayer && winner === null) {  // Only sync currentPlayer if no winner yet
+      setCurrentPlayer(metadata.currentPlayer as Player)
+    }
+  }, [match?.metadata])
+
+  // Poll for match updates every 3s during active multiplayer play (ensures sync if socket misses)
+  useEffect(() => {
+    if (!isMultiplayer || !match || winner !== null || loading) return
+
+    const interval = setInterval(async () => {
+      await refreshCurrentMatch()
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [isMultiplayer, match, winner, loading, refreshCurrentMatch])
 
   const initializeGame = async () => {
     if (!user) return

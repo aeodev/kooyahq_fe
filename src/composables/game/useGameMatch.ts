@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import axiosInstance from '@/utils/axios.instance'
-import { CREATE_MATCH, UPDATE_MATCH, GET_MY_ACTIVE_MATCHES } from '@/utils/api.routes'
+import { CREATE_MATCH, UPDATE_MATCH, GET_MY_ACTIVE_MATCHES, GET_MATCH } from '@/utils/api.routes'
 import { useAuthStore } from '@/stores/auth.store'
 import type { GameMatch, GameType } from '@/types/game'
 
@@ -172,6 +172,19 @@ export function useGameMatch() {
     setMatch(null)
   }, [])
 
+  const refreshCurrentMatch = useCallback(async (): Promise<GameMatch | null> => {
+    if (!match?.id) return null
+    try {
+      const response = await axiosInstance.get<{ status: string; data: GameMatch }>(GET_MATCH(match.id))
+      const refreshed = response.data.data
+      setMatch(refreshed)
+      return refreshed
+    } catch (error: any) {
+      console.error('Failed to refresh match:', error)
+      return null
+    }
+  }, [match?.id])
+
   return {
     match,
     loading,
@@ -182,6 +195,7 @@ export function useGameMatch() {
     abandonMatch,
     clearMatch,
     setMatch,
+    refreshCurrentMatch,
   }
 }
 

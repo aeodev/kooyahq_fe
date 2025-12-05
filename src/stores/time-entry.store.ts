@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import axiosInstance from '@/utils/axios.instance'
 import {
+  GET_TIME_ENTRIES,
   GET_MY_TIME_ENTRIES,
   GET_ACTIVE_TIMER,
   START_TIMER,
+  ADD_TASK_TO_TIMER,
   PAUSE_TIMER,
   RESUME_TIMER,
   STOP_TIMER,
@@ -13,65 +15,31 @@ import {
   UPDATE_TIME_ENTRY,
   DELETE_TIME_ENTRY,
 } from '@/utils/api.routes'
+import { normalizeError, type Errors } from '@/utils/error'
 import type { TimeEntry, StartTimerInput, UpdateTimeEntryInput, ManualEntryInput } from '@/types/time-entry'
-
-type Errors = {
-  message: string | string[]
-  statusCode?: number
-}
-
-function normalizeError(error: unknown): Errors {
-  if (typeof error === 'string') {
-    return { message: error }
-  }
-
-  if (error && typeof error === 'object') {
-    const anyError = error as Record<string, unknown>
-
-    if ('response' in anyError && anyError.response && typeof anyError.response === 'object') {
-      const response = anyError.response as Record<string, unknown>
-      const data = response.data as Record<string, unknown> | undefined
-      const status = (response.status as number | undefined) ?? undefined
-
-      if (data) {
-        const message =
-          (data.message as string | string[] | undefined) ??
-          (data.error as string | undefined) ??
-          'Request failed'
-        return { message: message ?? 'Request failed', statusCode: status }
-      }
-
-      return {
-        message: `Request failed with status ${status ?? 'unknown'}`,
-        statusCode: status,
-      }
-    }
-
-    if ('message' in anyError && typeof anyError.message === 'string') {
-      return { message: anyError.message }
-    }
-  }
-
-  return { message: 'Something went wrong' }
-}
 
 type TimeEntryState = {
   activeTimer: TimeEntry | null
   entries: TimeEntry[]
+  allTodayEntries: TimeEntry[]
   loading: {
     activeTimer: boolean
     entries: boolean
+    allTodayEntries: boolean
   }
   errors: {
     activeTimer: Errors | null
     entries: Errors | null
+    allTodayEntries: Errors | null
   }
 }
 
 type TimeEntryActions = {
   fetchActiveTimer: () => Promise<TimeEntry | null>
   fetchEntries: () => Promise<TimeEntry[]>
+  fetchAllTodayEntries: () => Promise<TimeEntry[]>
   startTimer: (input: StartTimerInput) => Promise<TimeEntry | null>
+  addTaskToTimer: (task: string) => Promise<TimeEntry | null>
   pauseTimer: () => Promise<TimeEntry | null>
   resumeTimer: () => Promise<TimeEntry | null>
   stopTimer: () => Promise<TimeEntry | null>
@@ -89,13 +57,16 @@ type TimeEntryStore = TimeEntryState & TimeEntryActions
 export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
   activeTimer: null,
   entries: [],
+  allTodayEntries: [],
   loading: {
     activeTimer: false,
     entries: false,
+    allTodayEntries: false,
   },
   errors: {
     activeTimer: null,
     entries: null,
+    allTodayEntries: null,
   },
 
   fetchActiveTimer: async () => {
@@ -150,11 +121,51 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
     }
   },
 
+  fetchAllTodayEntries: async () => {
+    set({
+      loading: { ...get().loading, allTodayEntries: true },
+      errors: { ...get().errors, allTodayEntries: null },
+    })
+
+    try {
+      const response = await axiosInstance.get<{ status: string; data: TimeEntry[] }>(
+        GET_TIME_ENTRIES()
+      )
+      const allTodayEntries = response.data.data
+      set({
+        allTodayEntries,
+        loading: { ...get().loading, allTodayEntries: false },
+      })
+      return allTodayEntries
+    } catch (err) {
+      const normalized = normalizeError(err)
+      set({
+        errors: { ...get().errors, allTodayEntries: normalized },
+        loading: { ...get().loading, allTodayEntries: false },
+      })
+      return []
+    }
+  },
+
   startTimer: async (input: StartTimerInput) => {
     try {
       const response = await axiosInstance.post<{ status: string; data: TimeEntry }>(
         START_TIMER(),
         input
+      )
+      const timer = response.data.data
+      set({ activeTimer: timer })
+      return timer
+    } catch (err) {
+      return null
+    }
+  },
+
+  addTaskToTimer: async (task: string) => {
+    try {
+      const response = await axiosInstance.post<{ status: string; data: TimeEntry }>(
+        ADD_TASK_TO_TIMER(),
+        { task }
       )
       const timer = response.data.data
       set({ activeTimer: timer })
@@ -237,8 +248,8 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       )
       const entry = response.data.data
 
-      // Add to entries list
-      set({ entries: [...get().entries, entry] })
+      // Don't add here - let fetchEntries() refresh the list to avoid race condition with socket
+      // The caller (handleAddManualEntry) will call fetchEntries() after this
 
       return entry
     } catch (err) {
