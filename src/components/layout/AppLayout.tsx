@@ -71,7 +71,7 @@ export function AppLayout({ children, className }: AppLayoutProps) {
     [user?.isAdmin],
   )
 
-  const isMeetPage = location.pathname.startsWith('/meet/')
+  const isMeetPage = location.pathname === '/meet'
 
   if (!user) {
     return (
@@ -154,9 +154,9 @@ export function AppLayout({ children, className }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className={cn('flex-1', isMeetPage ? 'overflow-hidden' : 'overflow-y-auto', isMeetPage ? '' : 'px-4 py-4 sm:py-6 md:px-6')}>
+        <main className={cn('flex-1 min-h-0', isMeetPage ? 'overflow-hidden' : 'overflow-y-auto', isMeetPage ? '' : 'px-4 py-4 sm:py-6 md:px-6')}>
           {isMeetPage ? (
-            children
+            <div className="h-full w-full">{children}</div>
           ) : (
             <div className="mx-auto w-full max-w-7xl">{children}</div>
           )}

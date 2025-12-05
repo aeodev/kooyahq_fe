@@ -25,13 +25,13 @@ export function EntryList({ entries }: EntryListProps) {
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className="flex flex-col gap-2 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 hover:bg-card/70 hover:shadow-md transition-all duration-300"
+              className="flex flex-col gap-2 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 hover:bg-card/70 hover:shadow-md transition-colors duration-150"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="border border-border/60 rounded-lg p-3 bg-background/50">
                     <ul className="list-disc list-inside space-y-1">
-                      {entry.task.split(',').map((task, index) => (
+                      {(entry.task || '').split(',').filter(t => t.trim()).map((task, index) => (
                         <li key={index} className="text-sm font-medium text-foreground">
                           {task.trim()}
                         </li>
