@@ -23,7 +23,7 @@ export function AppLayout({ children, className }: AppLayoutProps) {
       .map((part) => part.charAt(0).toUpperCase())
       .slice(0, 2)
       .join('') ?? ''
-  
+
   // Debug: log user profilePic
   if (user?.profilePic) {
     console.log('AppLayout - User profilePic:', user.profilePic)
@@ -38,7 +38,7 @@ export function AppLayout({ children, className }: AppLayoutProps) {
       if (e.key.toLowerCase() === 'k' && !collapsed) {
         const target = e.target as HTMLElement
         const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
-        
+
         if (!isInput) {
           e.preventDefault()
           setCollapsed(true)
@@ -64,14 +64,15 @@ export function AppLayout({ children, className }: AppLayoutProps) {
         { name: 'Meet', to: '/meet', icon: Video },
         { name: 'Admin', to: '/admin', icon: Users, adminOnly: true },
       ]
-      
+
       // Filter admin-only items if user is not admin
       return nav.filter((item) => !item.adminOnly || user?.isAdmin)
     },
     [user?.isAdmin],
   )
 
-  const isMeetPage = location.pathname.startsWith('/meet/')
+  const isMeetPage = location.pathname === '/meet'
+  const isFeedPage = location.pathname === '/feed'
 
   if (!user) {
     return (
@@ -154,9 +155,9 @@ export function AppLayout({ children, className }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className={cn('flex-1', isMeetPage ? 'overflow-hidden' : 'overflow-y-auto', isMeetPage ? '' : 'px-4 py-4 sm:py-6 md:px-6')}>
-          {isMeetPage ? (
-            children
+        <main className={cn('flex-1 min-h-0', (isMeetPage || isFeedPage) ? 'overflow-hidden' : 'overflow-y-auto', (isMeetPage || isFeedPage) ? '' : 'px-4 py-4 sm:py-6 md:px-6')}>
+          {(isMeetPage || isFeedPage) ? (
+            <div className="h-full w-full overflow-y-auto">{children}</div>
           ) : (
             <div className="mx-auto w-full max-w-7xl">{children}</div>
           )}

@@ -1,10 +1,10 @@
-import { type LucideIcon, ChevronLeft, LogOut } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { ThemeToggle } from '@/components/theme/ThemeToggle'
-import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { cn } from '@/utils/cn'
 import { useState, useEffect } from 'react'
+import { useTheme } from '@/composables/useTheme'
+import { useUnreadCount } from '@/hooks/notification.hooks'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 type NavItem = {
   name: string
@@ -40,110 +40,152 @@ export function Sidebar({
   onCloseMobile,
   onLogout,
 }: SidebarProps) {
-  const brand = collapsed ? 'K' : 'KooyaHQ'
   const [imageError, setImageError] = useState(false)
   const isValidProfilePic = profilePic && profilePic !== 'undefined' && profilePic.trim() !== ''
+  const { isDark, toggleTheme } = useTheme()
+  const { count: unreadCount } = useUnreadCount()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  // Reset error state when profilePic changes
   useEffect(() => {
     setImageError(false)
   }, [profilePic])
 
+  const handleNotificationClick = () => {
+    onCloseMobile()
+    if (location.pathname === '/notifications') {
+      if (window.history.length > 1) {
+        navigate(-1)
+      } else {
+        navigate('/')
+      }
+    } else {
+      navigate('/notifications')
+    }
+  }
+
   const Content = (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="relative flex items-center border-b border-border/40 px-3 sm:px-4 py-3 sm:py-4">
-        {collapsed ? (
+      <div className="relative flex items-center px-4 py-3.5 h-[52px]">
+        {/* Collapsed "K" logo */}
+        <div
+          className={cn(
+            'sidebar-icon-center absolute inset-0 flex items-center justify-center',
+            collapsed ? 'collapsed' : 'expanded'
+          )}
+        >
           <button
             type="button"
-            className={cn(
-              'truncate font-bold tracking-tight text-primary transition-all hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md text-lg sm:text-xl mx-auto cursor-pointer',
-              'font-[Poppins]'
-            )}
+            className="text-[22px] font-bold tracking-tight text-primary hover:opacity-80 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md cursor-pointer"
+            style={{ fontFamily: "'Poppins', sans-serif" }}
             onClick={onToggleCollapse}
             aria-label="Expand sidebar"
           >
-            {brand}
+            K
           </button>
-        ) : (
-          <>
-            <Link
-              to="/"
-              className={cn(
-                'truncate font-bold tracking-tight text-primary transition-all hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md text-xl sm:text-2xl flex-1',
-                'font-[Poppins]'
-              )}
-              onClick={onCloseMobile}
-            >
-              {brand}
-            </Link>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="hidden h-8 w-8 shrink-0 rounded-xl text-muted-foreground transition-all duration-300 hover:bg-accent/50 hover:text-foreground hover:shadow-md border border-transparent hover:border-border/30 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:flex"
-              onClick={onToggleCollapse}
-              aria-label="Collapse sidebar"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          </>
-        )}
+        </div>
+
+        {/* Expanded brand + collapse button */}
+        <div
+          className={cn(
+            'sidebar-content-fade flex items-center w-full',
+            collapsed ? 'collapsed' : 'expanded'
+          )}
+        >
+          <Link
+            to="/"
+            className="text-[20px] font-bold tracking-tight text-primary hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md flex-1"
+            style={{ fontFamily: "'Poppins', sans-serif" }}
+            onClick={onCloseMobile}
+          >
+            KooyaHQ
+          </Link>
+          <button
+            type="button"
+            className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md md:flex text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary transition-all duration-150"
+            onClick={onToggleCollapse}
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeft className="h-4 w-4 stroke-[1.5]" />
+          </button>
+        </div>
       </div>
 
+      {/* Divider */}
+      <div className={cn(
+        'h-px bg-[hsl(var(--ios-divider))] transition-[margin] duration-300 ease-out',
+        collapsed ? 'mx-2' : 'mx-4'
+      )} />
+
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 sm:space-y-1.5 overflow-y-auto px-2 sm:px-3 py-3 sm:py-4" aria-label="Main navigation">
-        {navigation.map((item) => {
-          const Icon = item.icon
-          const isActive = pathname === item.to
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={onCloseMobile}
-              className={cn(
-                'group relative flex items-center gap-2 sm:gap-3 rounded-xl px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-medium transition-all duration-300',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                isActive
-                  ? 'bg-primary/10 backdrop-blur-sm text-primary dark:bg-primary/20 border border-primary/30 shadow-md'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground border border-transparent hover:border-border/30',
-                collapsed && 'justify-center px-2',
-              )}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              {/* Active indicator */}
-              {isActive && (
+      <nav className="flex-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
+        <div className="space-y-0.5">
+          {navigation.map((item) => {
+            const Icon = item.icon
+            const isActive = pathname === item.to
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onCloseMobile}
+                className={cn(
+                  'group relative flex items-center rounded-xl text-[14px] font-medium transition-all duration-300 ease-out',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                  isActive
+                    ? 'bg-primary/10 dark:bg-primary/20 backdrop-blur-sm text-primary border border-primary/30 shadow-md'
+                    : 'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
+                  // Keep icons on the left - use padding to visually center them when collapsed
+                  collapsed ? 'pl-[18px] pr-2 py-2.5' : 'gap-3 px-3 py-2.5',
+                )}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                {/* Selection indicator */}
                 <span
                   className={cn(
-                    'absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary',
-                    collapsed && 'hidden',
+                    'selection-indicator absolute left-0 top-1/2 w-[2.5px] -translate-y-1/2 rounded-r-full bg-[hsl(var(--ios-selection-indicator))]',
+                    isActive && !collapsed ? 'h-5 opacity-100' : 'h-0 opacity-0'
                   )}
                 />
-              )}
-              <Icon
-                className={cn(
-                  'h-5 w-5 shrink-0 transition-colors',
-                  isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
-                )}
-                aria-hidden="true"
-              />
-              <span className={cn('truncate transition-opacity', collapsed && 'sr-only')}>
-                {item.name}
-              </span>
-            </Link>
-          )
-        })}
+                <Icon
+                  className={cn(
+                    'h-5 w-5 shrink-0 stroke-[1.5] transition-colors duration-150',
+                    isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+                  )}
+                  aria-hidden="true"
+                />
+                <span
+                  className={cn(
+                    'nav-item-text',
+                    collapsed ? 'collapsed' : 'expanded'
+                  )}
+                >
+                  {item.name}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
       </nav>
 
+
+
       {/* Footer */}
-      <div className={cn('mt-auto space-y-2 border-t border-border/40 py-3 sm:py-4', collapsed ? 'px-2' : 'px-2 sm:px-3')}>
+      <div className={cn(
+        'mt-auto mx-3 mb-3 rounded-xl backdrop-blur-sm',
+        'bg-[hsl(var(--ios-footer-bg))]',
+        'border border-[hsl(var(--ios-sidebar-border))]',
+        'transition-[padding] duration-300 ease-out',
+        collapsed ? 'px-2 py-3' : 'px-3 py-3'
+      )}>
         {/* User Profile */}
         <Link
           to="/profile"
           onClick={onCloseMobile}
           className={cn(
-            'flex items-center gap-2 sm:gap-3 rounded-xl px-2 sm:px-3 py-2 sm:py-2.5 transition-all duration-300 hover:bg-accent/50 cursor-pointer border border-transparent hover:border-border/30',
-            collapsed && 'justify-center px-2',
+            'flex items-center rounded-lg py-2 hover:bg-[hsl(var(--ios-selection-bg))] cursor-pointer transition-all duration-200 ease-out',
+            // Keep avatar on the left - use padding to visually center when collapsed
+            collapsed ? 'justify-center px-0' : 'gap-3 px-2',
           )}
         >
           {isValidProfilePic && !imageError ? (
@@ -151,47 +193,110 @@ export function Sidebar({
               key={profilePic}
               src={profilePic}
               alt={userName}
-              className="h-9 w-9 shrink-0 rounded-full object-cover shadow-sm ring-2 ring-background"
+              className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-[hsl(var(--ios-divider))] transition-all duration-300 ease-out"
               onError={() => setImageError(true)}
             />
           ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/80 text-xs font-bold text-primary-foreground shadow-sm ring-2 ring-background">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-xs font-medium text-primary-foreground transition-all duration-300 ease-out">
               {initials || 'KH'}
             </span>
           )}
-          {!collapsed ? (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{userName}</p>
-              <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
-            </div>
-          ) : null}
+          <div
+            className={cn(
+              'sidebar-content-fade min-w-0 flex-1',
+              collapsed ? 'collapsed' : 'expanded'
+            )}
+          >
+            <p className="truncate text-[14px] font-semibold text-foreground whitespace-nowrap">{userName}</p>
+            <p className="truncate text-[12px] text-muted-foreground whitespace-nowrap">{userEmail}</p>
+          </div>
         </Link>
 
+        {/* Divider */}
+        <div className={cn(
+          'my-2 h-px bg-[hsl(var(--ios-divider))] transition-[margin] duration-300 ease-out',
+          collapsed && 'mx-1'
+        )} />
+
         {/* Actions */}
-        <div className={cn('flex items-center gap-2', collapsed && 'flex-col items-center')}>
-          <Button
-            variant="ghost"
-            size={collapsed ? "icon" : "sm"}
+        <div className={cn(
+          'flex items-center transition-all duration-300 ease-out',
+          collapsed ? 'flex-col gap-1' : 'justify-between gap-1'
+        )}>
+          {/* Theme Toggle */}
+          <button
+            type="button"
             className={cn(
-              'gap-2 text-sm text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-              collapsed ? 'h-9 w-9' : 'flex-1 justify-start',
+              'flex h-8 items-center justify-center rounded-lg',
+              'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
+              'transition-all duration-150 ease-out hover:scale-105 active:scale-95',
+              collapsed ? 'w-full' : 'w-8'
             )}
-            onClick={onLogout}
-            aria-label="Log out"
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
           >
-            <LogOut className="h-4 w-4" />
-            {!collapsed && <span>Log out</span>}
-          </Button>
-          {!collapsed && (
-            <div onClick={onCloseMobile} className="flex-shrink-0">
-              <NotificationBell />
+            <div className="relative h-5 w-5">
+              <Moon
+                className={cn(
+                  'theme-icon h-5 w-5 stroke-[1.5] absolute inset-0',
+                  isDark ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 rotate-90 scale-50'
+                )}
+              />
+              <Sun
+                className={cn(
+                  'theme-icon h-5 w-5 stroke-[1.5] absolute inset-0',
+                  isDark ? 'opacity-0 -rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100'
+                )}
+              />
             </div>
-          )}
-          <div className={cn('hidden md:flex', collapsed && 'w-full justify-center')}>
-            <ThemeToggle
-              className={cn('h-9 w-9', !collapsed && 'shrink-0')}
-              aria-label="Toggle theme"
-            />
+          </button>
+
+          <div className={cn(
+            'flex items-center gap-1 transition-all duration-300 ease-out',
+            collapsed && 'flex-col w-full'
+          )}>
+            {/* Notifications */}
+            <button
+              type="button"
+              className={cn(
+                'relative flex h-8 items-center justify-center rounded-lg',
+                'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
+                'transition-all duration-150 ease-out hover:scale-105 active:scale-95',
+                collapsed ? 'w-full' : 'w-8'
+              )}
+              onClick={handleNotificationClick}
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5 stroke-[1.5]" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Log Out */}
+            <button
+              type="button"
+              className={cn(
+                'flex items-center rounded-lg py-1.5 text-[14px] font-medium text-muted-foreground',
+                'hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground transition-all duration-150 ease-out',
+                // Keep icon on the left - use padding to visually center when collapsed
+                collapsed ? 'w-full justify-center px-2' : 'gap-2 px-2',
+              )}
+              onClick={onLogout}
+              aria-label="Log out"
+            >
+              <LogOut className="h-5 w-5 stroke-[1.5] shrink-0" />
+              <span
+                className={cn(
+                  'nav-item-text',
+                  collapsed ? 'collapsed' : 'expanded'
+                )}
+              >
+                Log out
+              </span>
+            </button>
           </div>
         </div>
       </div>
@@ -200,19 +305,28 @@ export function Sidebar({
 
   return (
     <>
+      {/* Mobile Overlay */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-black/40 md:hidden',
-          mobileOpen ? 'block' : 'hidden',
+          'sidebar-overlay fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden',
+          mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none',
         )}
         onClick={onCloseMobile}
       />
+
+      {/* Sidebar Container */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-border bg-background shadow-xl transition-all duration-300 ease-in-out md:static md:h-full md:translate-x-0 md:z-auto',
-          collapsed ? 'w-20' : 'w-64',
+          'sidebar-container fixed inset-y-0 left-0 z-50 flex h-screen flex-col',
+          'bg-[hsl(var(--ios-sidebar-bg))] backdrop-blur-xl',
+          'border-r border-[hsl(var(--ios-sidebar-border))]',
+          'md:static md:h-full md:translate-x-0 md:z-auto',
+          collapsed ? 'w-[72px]' : 'w-64',
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}
+        style={{
+          transition: 'width 400ms cubic-bezier(0.4, 0, 0.2, 1), transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
         aria-label="Sidebar navigation"
       >
         <div className="flex h-full flex-col overflow-hidden">{Content}</div>
