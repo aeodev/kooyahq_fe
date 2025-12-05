@@ -1,22 +1,18 @@
 import { useCallback, useRef, useState } from 'react'
 import { useMeetStore } from '@/stores/meet.store'
 
-interface UseRecordingOptions {
-  localStreamRef: React.RefObject<MediaStream | null>
-}
-
-export function useRecording({ localStreamRef }: UseRecordingOptions) {
+export function useRecording(stream: MediaStream | null) {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const recordedChunksRef = useRef<Blob[]>([])
 
   const startRecording = useCallback(() => {
-    if (!localStreamRef.current) return
+    if (!stream) return
 
     const chunks: Blob[] = []
     recordedChunksRef.current = chunks
 
-    const recorder = new MediaRecorder(localStreamRef.current, {
+    const recorder = new MediaRecorder(stream, {
       mimeType: 'video/webm;codecs=vp8,opus',
     })
 
@@ -42,7 +38,7 @@ export function useRecording({ localStreamRef }: UseRecordingOptions) {
     setMediaRecorder(recorder)
     setIsRecording(true)
     useMeetStore.getState().setRecording(true)
-  }, [localStreamRef])
+  }, [stream])
 
   const stopRecording = useCallback(() => {
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -59,7 +55,3 @@ export function useRecording({ localStreamRef }: UseRecordingOptions) {
     stopRecording,
   }
 }
-
-
-
-

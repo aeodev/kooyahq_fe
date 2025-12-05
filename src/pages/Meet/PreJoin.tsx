@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Video, VideoOff, Mic, MicOff, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
-import { cacheStream } from '@/utils/stream-cache'
 
 export function PreJoin() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -43,8 +42,8 @@ export function PreJoin() {
     initializePreview()
 
     return () => {
-      // Don't stop tracks here - let Meet component handle cleanup
-      // Only cleanup if user cancels
+      // Stop tracks on unmount (e.g., if user navigates away without joining)
+      streamRef.current?.getTracks().forEach((track) => track.stop())
     }
   }, [])
 
@@ -71,14 +70,12 @@ export function PreJoin() {
   }
 
   const handleJoin = () => {
-    if (meetId && streamRef.current) {
-      // Cache the stream and pass the cache key instead of the stream object
-      const streamCacheKey = cacheStream(streamRef.current)
+    if (meetId) {
+      streamRef.current?.getTracks().forEach((track) => track.stop())
       navigate(`/meet/${meetId}/join`, {
         state: {
           initialVideoEnabled: isVideoEnabled,
           initialAudioEnabled: isAudioEnabled,
-          streamCacheKey,
         },
       })
     }
@@ -121,15 +118,15 @@ export function PreJoin() {
         </CardHeader>
         <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
           <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
-            {isVideoEnabled ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-            ) : (
+            {/* Always render video element, hide with CSS when disabled */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+            />
+            {!isVideoEnabled && (
               <div className="w-full h-full flex items-center justify-center bg-gray-800">
                 {user?.profilePic ? (
                   <img

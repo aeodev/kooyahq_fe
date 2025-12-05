@@ -3,13 +3,13 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSocketStore } from '@/stores/socket.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore } from '@/stores/meet.store'
-import { useWebRTC } from '@/composables/meet/useWebRTC'
+import { useLiveKit } from '@/composables/meet/useLiveKit'
 import { useActiveSpeaker } from '@/composables/meet/useActiveSpeaker'
+import { useRecording } from '@/composables/meet/useRecording'
 import { VideoTile } from '@/components/meet/VideoTile'
 import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
 import { cn } from '@/utils/cn'
-import { getCachedStream, removeCachedStream } from '@/utils/stream-cache'
 
 export function Meet() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -33,20 +33,6 @@ export function Meet() {
   
   const initialVideoEnabled = location.state?.initialVideoEnabled ?? true
   const initialAudioEnabled = location.state?.initialAudioEnabled ?? true
-  const streamCacheKey = location.state?.streamCacheKey as string | undefined
-  
-  // Retrieve stream from cache if available
-  const initialStream = useMemo(() => {
-    if (streamCacheKey) {
-      const stream = getCachedStream(streamCacheKey)
-      if (stream) {
-        // Remove from cache after retrieval to prevent memory leaks
-        removeCachedStream(streamCacheKey)
-        return stream
-      }
-    }
-    return undefined
-  }, [streamCacheKey])
   
   const {
     participants,
@@ -63,12 +49,9 @@ export function Meet() {
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
-    isRecording,
     toggleVideo,
     toggleAudio,
     toggleScreenShare,
-    startRecording,
-    stopRecording,
     getRemoteStreams,
     streamsUpdateCounter,
     changeVideoDevice,
@@ -76,7 +59,9 @@ export function Meet() {
     changeAudioOutput,
     flipCamera,
     cleanup,
-  } = useWebRTC(meetId || null, initialVideoEnabled, initialAudioEnabled, initialStream)
+  } = useLiveKit(meetId || null, initialVideoEnabled, initialAudioEnabled)
+
+  const { isRecording, startRecording, stopRecording } = useRecording(localStream)
 
   // Initialize meet
   useEffect(() => {
@@ -286,6 +271,15 @@ export function Meet() {
           {displayParticipants.map((participant) => {
             const isLocal = participant.userId === user.id
             const stream = isLocal ? localStream : remoteStreams.get(participant.userId) || null
+
+            console.log(`[Meet] Rendering VideoTile for ${participant.userId}`, {
+              isLocal,
+              hasStream: !!stream,
+              streamId: stream?.id,
+              videoTracks: stream?.getVideoTracks().length,
+              remoteStreamsSize: remoteStreams.size,
+              remoteStreamsKeys: Array.from(remoteStreams.keys()),
+            })
 
             return (
               <VideoTile
