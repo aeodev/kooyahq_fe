@@ -1,30 +1,32 @@
-export type NewsItemType = 'news' | 'tweet'
-
-export type NewsSource = 
-  | 'openai' 
-  | 'techcrunch' 
-  | 'google-ai' 
-  | 'sama'
-  | 'wangzjeff'
-  | 'mattpocockuk'
-  | 'KaranVaidya6'
-  | 'chetaslua'
-  | 'MaximeRivest'
+export type NewsSource =
+  | 'openai'
+  | 'techcrunch'
+  | 'google-ai'
+  | 'reddit'
+  | 'reddit-artificial'
+  | 'hackernews'
+  | 'devto-ai'
+  | 'devto-ml'
+  | 'arxiv'
 
 export interface NewsItem {
   id: string
-  type: NewsItemType
+  type: 'news'
   title: string
   content: string
   author?: string
-  authorHandle?: string
   source: NewsSource
   url: string
   publishedAt: string
   imageUrl?: string
-  avatarUrl?: string
-  verified?: boolean
 }
 
-export type NewsFilter = 'all' | 'news' | 'tweets' | NewsSource
+export type NewsFilter = 'all' | 'news' | NewsSource
 
+export interface NewsResponse {
+  status: 'success' | 'error'
+  data: NewsItem[]
+  hasMore: boolean
+  total: number
+  filter: NewsFilter
+}
