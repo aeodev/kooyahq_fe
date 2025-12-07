@@ -21,28 +21,8 @@ export function MeetLanding() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col items-center p-6 pt-[15vh] relative overflow-hidden">
-      {/* Background decorations */}
-      <div className="absolute inset-0 pointer-events-none">
-        {/* Top right blob */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-green-400/30 dark:bg-green-500/10 rounded-full blur-3xl" />
-        {/* Bottom left blob */}
-        <div className="absolute -bottom-32 -left-32 w-[500px] h-[500px] bg-emerald-400/20 dark:bg-emerald-500/8 rounded-full blur-3xl" />
-        {/* Center accent */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-72 h-72 bg-green-500/15 dark:bg-green-600/5 rounded-full blur-2xl" />
-        {/* Extra blob for light mode */}
-        <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-teal-400/20 dark:bg-teal-500/5 rounded-full blur-3xl" />
-        {/* Grid pattern */}
-        <div 
-          className="absolute inset-0 opacity-[0.04] dark:opacity-[0.015]"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-            backgroundSize: '40px 40px'
-          }}
-        />
-      </div>
-
-      <div className="w-full max-w-md space-y-8 relative z-10">
+    <div className="flex flex-col items-center pt-[10vh]">
+      <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="text-center space-y-3">
           <img src={meetingIcon} alt="Meeting" className="w-24 h-24 mx-auto" />

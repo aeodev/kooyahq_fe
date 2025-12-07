@@ -73,29 +73,8 @@ export function KooyaFeed() {
   if (!user) return null
 
   return (
-    <div className="h-full w-full relative overflow-hidden">
-      {/* Background decorations - matching Meet landing page */}
-      <div className="absolute inset-0 pointer-events-none">
-        {/* Top right blob */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-green-400/30 dark:bg-green-500/10 rounded-full blur-3xl" />
-        {/* Bottom left blob */}
-        <div className="absolute -bottom-32 -left-32 w-[500px] h-[500px] bg-emerald-400/20 dark:bg-emerald-500/8 rounded-full blur-3xl" />
-        {/* Center accent */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-72 h-72 bg-green-500/15 dark:bg-green-600/5 rounded-full blur-2xl" />
-        {/* Extra blob */}
-        <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-teal-400/20 dark:bg-teal-500/5 rounded-full blur-3xl" />
-        {/* Grid pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.04] dark:opacity-[0.015]"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-            backgroundSize: '40px 40px'
-          }}
-        />
-      </div>
-
-      <div className="relative flex gap-0 h-full">
-        <div className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-12 pr-0 md:pr-16 overflow-y-auto no-scrollbar">
+    <div className="flex gap-0">
+      <div className="flex-1 w-full max-w-4xl mx-auto space-y-6 pb-12 pr-0 md:pr-16">
           <FeedHeader filter={filter} onFilterChange={setFilter} />
 
           <CreatePostCard user={user} onCreatePost={handleCreatePost} />
@@ -132,6 +111,5 @@ export function KooyaFeed() {
           onPoke={handlePoke}
         />
       </div>
-    </div>
   )
 }

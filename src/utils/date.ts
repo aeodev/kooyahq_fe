@@ -8,3 +8,4 @@ export function formatTimeAgo(dateStr: string): string {
 
   return new Date(dateStr).toLocaleDateString()
 }
+

@@ -1,10 +1,11 @@
-import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, useCallback } from 'react'
+import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { create } from 'zustand'
 import { cn } from '@/utils/cn'
-import { useState, useEffect } from 'react'
 import { useTheme } from '@/composables/useTheme'
 import { useUnreadCount } from '@/hooks/notification.hooks'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuthStore } from '@/stores/auth.store'
 
 type NavItem = {
   name: string
@@ -13,46 +14,84 @@ type NavItem = {
   adminOnly?: boolean
 }
 
-type SidebarProps = {
-  navigation: NavItem[]
-  pathname: string
-  userName: string
-  userEmail: string
-  initials: string
-  profilePic?: string
+const NAVIGATION: NavItem[] = [
+  { name: 'Dashboard', to: '/', icon: Home },
+  { name: 'Workspace', to: '/workspace', icon: LayoutGrid },
+  { name: 'Presence', to: '/presence', icon: Globe },
+  { name: 'Time Tracker', to: '/time-tracker', icon: Clock4 },
+  { name: 'Gallery', to: '/gallery', icon: Images, adminOnly: true },
+  { name: 'AI News', to: '/ai-news', icon: Sparkles },
+  { name: 'Feed', to: '/feed', icon: MessageSquare },
+  { name: 'Games', to: '/games', icon: Gamepad2 },
+  { name: 'Meet', to: '/meet', icon: Video },
+  { name: 'Admin', to: '/admin', icon: Users, adminOnly: true },
+]
+
+// Sidebar store for state management
+type SidebarState = {
   collapsed: boolean
-  onToggleCollapse: () => void
   mobileOpen: boolean
-  onCloseMobile: () => void
-  onLogout: () => void
+  toggleCollapse: () => void
+  openMobile: () => void
+  closeMobile: () => void
 }
 
-export function Sidebar({
-  navigation,
-  pathname,
-  userName,
-  userEmail,
-  initials,
-  profilePic,
-  collapsed,
-  onToggleCollapse,
-  mobileOpen,
-  onCloseMobile,
-  onLogout,
-}: SidebarProps) {
-  const [imageError, setImageError] = useState(false)
-  const isValidProfilePic = profilePic && profilePic !== 'undefined' && profilePic.trim() !== ''
+export const useSidebarStore = create<SidebarState>((set) => ({
+  collapsed: false,
+  mobileOpen: false,
+  toggleCollapse: () => set((s) => ({ collapsed: !s.collapsed })),
+  openMobile: () => set({ mobileOpen: true }),
+  closeMobile: () => set({ mobileOpen: false }),
+}))
+
+export function Sidebar() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const { isDark, toggleTheme } = useTheme()
   const { count: unreadCount } = useUnreadCount()
-  const navigate = useNavigate()
-  const location = useLocation()
+  
+  const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
+  
+  const collapsed = useSidebarStore((s) => s.collapsed)
+  const mobileOpen = useSidebarStore((s) => s.mobileOpen)
+  const toggleCollapse = useSidebarStore((s) => s.toggleCollapse)
+  const closeMobile = useSidebarStore((s) => s.closeMobile)
+
+  const [imageError, setImageError] = useState(false)
+  
+  const firstName = user?.name.split(' ')[0] ?? user?.name ?? ''
+  const initials = user?.name
+    .split(' ')
+    .map((part) => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join('') ?? ''
+  const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
+  
+  const navigation = NAVIGATION.filter((item) => !item.adminOnly || user?.isAdmin)
 
   useEffect(() => {
     setImageError(false)
-  }, [profilePic])
+  }, [user?.profilePic])
 
-  const handleNotificationClick = () => {
-    onCloseMobile()
+  // Keyboard shortcut: Press 'K' to collapse sidebar when expanded
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'k' && !collapsed) {
+        const target = e.target as HTMLElement
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+        if (!isInput) {
+          e.preventDefault()
+          toggleCollapse()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [collapsed, toggleCollapse])
+
+  const handleNotificationClick = useCallback(() => {
+    closeMobile()
     if (location.pathname === '/notifications') {
       if (window.history.length > 1) {
         navigate(-1)
@@ -62,7 +101,9 @@ export function Sidebar({
     } else {
       navigate('/notifications')
     }
-  }
+  }, [closeMobile, location.pathname, navigate])
+
+  if (!user) return null
 
   const Content = (
     <div className="flex h-full flex-col">
@@ -79,7 +120,7 @@ export function Sidebar({
             type="button"
             className="text-[22px] font-bold tracking-tight text-primary hover:opacity-80 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md cursor-pointer"
             style={{ fontFamily: "'Poppins', sans-serif" }}
-            onClick={onToggleCollapse}
+            onClick={toggleCollapse}
             aria-label="Expand sidebar"
           >
             K
@@ -97,14 +138,14 @@ export function Sidebar({
             to="/"
             className="text-[20px] font-bold tracking-tight text-primary hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md flex-1"
             style={{ fontFamily: "'Poppins', sans-serif" }}
-            onClick={onCloseMobile}
+            onClick={closeMobile}
           >
             KooyaHQ
           </Link>
           <button
             type="button"
             className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md md:flex text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary transition-all duration-150"
-            onClick={onToggleCollapse}
+            onClick={toggleCollapse}
             aria-label="Collapse sidebar"
           >
             <ChevronLeft className="h-4 w-4 stroke-[1.5]" />
@@ -123,24 +164,22 @@ export function Sidebar({
         <div className="space-y-0.5">
           {navigation.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.to
+            const isActive = location.pathname === item.to
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                onClick={onCloseMobile}
+                onClick={closeMobile}
                 className={cn(
                   'group relative flex items-center rounded-xl text-[14px] font-medium transition-all duration-300 ease-out',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                   isActive
                     ? 'bg-primary/10 dark:bg-primary/20 backdrop-blur-sm text-primary border border-primary/30 shadow-md'
                     : 'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
-                  // Keep icons on the left - use padding to visually center them when collapsed
                   collapsed ? 'pl-[18px] pr-2 py-2.5' : 'gap-3 px-3 py-2.5',
                 )}
                 aria-current={isActive ? 'page' : undefined}
               >
-                {/* Selection indicator */}
                 <span
                   className={cn(
                     'selection-indicator absolute left-0 top-1/2 w-[2.5px] -translate-y-1/2 rounded-r-full bg-[hsl(var(--ios-selection-indicator))]',
@@ -154,12 +193,7 @@ export function Sidebar({
                   )}
                   aria-hidden="true"
                 />
-                <span
-                  className={cn(
-                    'nav-item-text',
-                    collapsed ? 'collapsed' : 'expanded'
-                  )}
-                >
+                <span className={cn('nav-item-text', collapsed ? 'collapsed' : 'expanded')}>
                   {item.name}
                 </span>
               </Link>
@@ -167,8 +201,6 @@ export function Sidebar({
           })}
         </div>
       </nav>
-
-
 
       {/* Footer */}
       <div className={cn(
@@ -181,18 +213,17 @@ export function Sidebar({
         {/* User Profile */}
         <Link
           to="/profile"
-          onClick={onCloseMobile}
+          onClick={closeMobile}
           className={cn(
             'flex items-center rounded-lg py-2 hover:bg-[hsl(var(--ios-selection-bg))] cursor-pointer transition-all duration-200 ease-out',
-            // Keep avatar on the left - use padding to visually center when collapsed
             collapsed ? 'justify-center px-0' : 'gap-3 px-2',
           )}
         >
           {isValidProfilePic && !imageError ? (
             <img
-              key={profilePic}
-              src={profilePic}
-              alt={userName}
+              key={user.profilePic}
+              src={user.profilePic}
+              alt={firstName}
               className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-[hsl(var(--ios-divider))] transition-all duration-300 ease-out"
               onError={() => setImageError(true)}
             />
@@ -201,28 +232,17 @@ export function Sidebar({
               {initials || 'KH'}
             </span>
           )}
-          <div
-            className={cn(
-              'sidebar-content-fade min-w-0 flex-1',
-              collapsed ? 'collapsed' : 'expanded'
-            )}
-          >
-            <p className="truncate text-[14px] font-semibold text-foreground whitespace-nowrap">{userName}</p>
-            <p className="truncate text-[12px] text-muted-foreground whitespace-nowrap">{userEmail}</p>
+          <div className={cn('sidebar-content-fade min-w-0 flex-1', collapsed ? 'collapsed' : 'expanded')}>
+            <p className="truncate text-[14px] font-semibold text-foreground whitespace-nowrap">{firstName}</p>
+            <p className="truncate text-[12px] text-muted-foreground whitespace-nowrap">{user.email}</p>
           </div>
         </Link>
 
         {/* Divider */}
-        <div className={cn(
-          'my-2 h-px bg-[hsl(var(--ios-divider))] transition-[margin] duration-300 ease-out',
-          collapsed && 'mx-1'
-        )} />
+        <div className={cn('my-2 h-px bg-[hsl(var(--ios-divider))] transition-[margin] duration-300 ease-out', collapsed && 'mx-1')} />
 
         {/* Actions */}
-        <div className={cn(
-          'flex items-center transition-all duration-300 ease-out',
-          collapsed ? 'flex-col gap-1' : 'justify-between gap-1'
-        )}>
+        <div className={cn('flex items-center transition-all duration-300 ease-out', collapsed ? 'flex-col gap-1' : 'justify-between gap-1')}>
           {/* Theme Toggle */}
           <button
             type="button"
@@ -236,25 +256,12 @@ export function Sidebar({
             aria-label="Toggle theme"
           >
             <div className="relative h-5 w-5">
-              <Moon
-                className={cn(
-                  'theme-icon h-5 w-5 stroke-[1.5] absolute inset-0',
-                  isDark ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 rotate-90 scale-50'
-                )}
-              />
-              <Sun
-                className={cn(
-                  'theme-icon h-5 w-5 stroke-[1.5] absolute inset-0',
-                  isDark ? 'opacity-0 -rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100'
-                )}
-              />
+              <Moon className={cn('theme-icon h-5 w-5 stroke-[1.5] absolute inset-0', isDark ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 rotate-90 scale-50')} />
+              <Sun className={cn('theme-icon h-5 w-5 stroke-[1.5] absolute inset-0', isDark ? 'opacity-0 -rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100')} />
             </div>
           </button>
 
-          <div className={cn(
-            'flex items-center gap-1 transition-all duration-300 ease-out',
-            collapsed && 'flex-col w-full'
-          )}>
+          <div className={cn('flex items-center gap-1 transition-all duration-300 ease-out', collapsed && 'flex-col w-full')}>
             {/* Notifications */}
             <button
               type="button"
@@ -281,21 +288,13 @@ export function Sidebar({
               className={cn(
                 'flex items-center rounded-lg py-1.5 text-[14px] font-medium text-muted-foreground',
                 'hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground transition-all duration-150 ease-out',
-                // Keep icon on the left - use padding to visually center when collapsed
                 collapsed ? 'w-full justify-center px-2' : 'gap-2 px-2',
               )}
-              onClick={onLogout}
+              onClick={logout}
               aria-label="Log out"
             >
               <LogOut className="h-5 w-5 stroke-[1.5] shrink-0" />
-              <span
-                className={cn(
-                  'nav-item-text',
-                  collapsed ? 'collapsed' : 'expanded'
-                )}
-              >
-                Log out
-              </span>
+              <span className={cn('nav-item-text', collapsed ? 'collapsed' : 'expanded')}>Log out</span>
             </button>
           </div>
         </div>
@@ -311,7 +310,7 @@ export function Sidebar({
           'sidebar-overlay fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden',
           mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none',
         )}
-        onClick={onCloseMobile}
+        onClick={closeMobile}
       />
 
       {/* Sidebar Container */}

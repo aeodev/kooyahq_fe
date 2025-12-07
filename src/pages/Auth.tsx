@@ -1,326 +1,306 @@
-import { useState, useEffect, type FormEvent } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/stores/auth.store'
 import { cn } from '@/utils/cn'
-import { SplineScene } from '@/components/SplineScene'
 
-type AuthMode = 'login' | 'signup'
+type AuthMode = 'signin' | 'signup'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MIN_PASSWORD_LENGTH = 8
 
 export function Auth() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const [mode, setMode] = useState<AuthMode>(location.pathname === '/signup' ? 'signup' : 'login')
-
-  useEffect(() => {
-    const newMode = location.pathname === '/signup' ? 'signup' : 'login'
-    if (newMode !== mode) {
-      setMode(newMode)
-      setError(null)
-    }
-  }, [location.pathname, mode])
-  
   const login = useAuthStore((state) => state.login)
   const register = useAuthStore((state) => state.register)
   
-  const [loginEmail, setLoginEmail] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
-  const [signupName, setSignupName] = useState('')
-  const [signupEmail, setSignupEmail] = useState('')
-  const [signupPassword, setSignupPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [mode, setMode] = useState<AuthMode>('signin')
+  const [formData, setFormData] = useState({ name: '', email: '', password: '' })
+  const [uiState, setUIState] = useState({
+    showPassword: false,
+    emailTouched: false,
+    error: null as string | null,
+    isSubmitting: false,
+  })
+
+  // Validation helpers
+  const isValidEmail = (email: string) => email.length === 0 || EMAIL_REGEX.test(email)
+  const isValidPassword = (password: string) => password.length >= MIN_PASSWORD_LENGTH || password.length === 0
+  
+  const emailValid = isValidEmail(formData.email)
+  const passwordValid = isValidPassword(formData.password)
+  const shouldShowEmailError = uiState.emailTouched && formData.email.length > 0 && !emailValid
+  
+  const isFormValid = mode === 'signin'
+    ? formData.email && formData.password && emailValid
+    : formData.name && formData.email && formData.password && emailValid && passwordValid
+  
+  const isDisabled = !isFormValid || uiState.isSubmitting
+
+  const resetForm = () => {
+    setFormData({ name: '', email: '', password: '' })
+    setUIState(prev => ({ ...prev, showPassword: false, emailTouched: false, error: null }))
+  }
 
   const switchMode = (newMode: AuthMode) => {
-    setMode(newMode)
-    setError(null)
-    navigate(newMode === 'signup' ? '/signup' : '/login', { replace: true })
-  }
-
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setError(null)
-    setIsSubmitting(true)
-    try {
-      await login({ email: loginEmail, password: loginPassword })
-      navigate('/')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to log in')
-    } finally {
-      setIsSubmitting(false)
+    if (newMode !== mode) {
+      setMode(newMode)
+      resetForm()
     }
   }
 
-  const handleSignup = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setError(null)
-    setIsSubmitting(true)
-    try {
-      await register({ name: signupName, email: signupEmail, password: signupPassword })
-      navigate('/')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create account')
-    } finally {
-      setIsSubmitting(false)
-    }
+  const updateField = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    if (uiState.error) setUIState(prev => ({ ...prev, error: null }))
   }
 
-  const loginDisabled = !loginEmail || !loginPassword || isSubmitting
-  const signupDisabled = !signupName || !signupEmail || signupPassword.length < 8 || isSubmitting
-  const passwordValid = signupPassword.length >= 8 || signupPassword.length === 0
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setUIState(prev => ({ ...prev, error: null, isSubmitting: true }))
+
+    try {
+      if (mode === 'signin') {
+        await login({ email: formData.email, password: formData.password })
+      } else {
+        await register({ name: formData.name, email: formData.email, password: formData.password })
+      }
+      navigate('/')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : mode === 'signin' ? 'Unable to log in' : 'Unable to create account'
+      setUIState(prev => ({ ...prev, error: message, isSubmitting: false }))
+    }
+  }
 
   return (
-    <div className="flex h-full w-full items-center justify-center px-4 sm:px-6 lg:px-12 py-8 sm:py-12">
-      <div className="flex w-full max-w-6xl items-center justify-center gap-8 lg:gap-12">
-        {/* Spline Scene */}
-        <div className="hidden lg:flex lg:w-2/5 lg:items-center lg:justify-center">
-          <div className="h-[650px] w-full max-w-md">
-            <SplineScene />
-          </div>
+    <div className="flex h-full w-full items-center justify-center px-6 sm:px-8 lg:px-12 xl:px-16">
+      <div className="w-full max-w-[500px] space-y-10">
+        {/* Header - bold and confident */}
+        <div className="text-center">
+          <AnimatePresence mode="wait">
+            <motion.h1
+              key={mode}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="text-5xl sm:text-6xl font-bold tracking-tight text-foreground"
+              style={{ fontStyle: 'normal', fontFamily: 'inherit' }}
+            >
+              {mode === 'signin' ? 'Welcome back' : 'Get started'}
+            </motion.h1>
+          </AnimatePresence>
         </div>
 
-        {/* Auth Form */}
-        <div className="flex-1 flex justify-center">
-          <div className="w-full max-w-[420px]">
-            {/* Header */}
-            <div className="mb-8 text-center">
-              <h1 className="text-3xl font-bold tracking-tight mb-2">
-                {mode === 'login' ? 'Welcome back' : 'Get started'}
-              </h1>
-              <p className="text-muted-foreground">
-                {mode === 'login' 
-                  ? 'Sign in to continue to KooyaHQ' 
-                  : 'Create an account to get started'}
-              </p>
-            </div>
+        {/* Card - larger, more substantial, confident */}
+        <Card className="border-2 border-border shadow-[0_12px_40px_rgba(0,0,0,0.15)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.5)] bg-card overflow-hidden relative">
+          
+          {/* Mode Toggle Tabs - more premium */}
+          <div className="relative flex border-b border-border/60 bg-muted/30">
+            <button
+              type="button"
+              onClick={() => switchMode('signin')}
+              className={cn(
+                "flex-1 py-4 text-sm font-semibold transition-all duration-200 relative z-10",
+                mode === 'signin' 
+                  ? 'text-foreground' 
+                  : 'text-muted-foreground/70 hover:text-foreground'
+              )}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('signup')}
+              className={cn(
+                "flex-1 py-4 text-sm font-semibold transition-all duration-200 relative z-10",
+                mode === 'signup' 
+                  ? 'text-foreground' 
+                  : 'text-muted-foreground/70 hover:text-foreground'
+              )}
+            >
+              Sign up
+            </button>
+            {/* Animated tab indicator - thicker and more visible */}
+            <motion.div
+              className="absolute bottom-0 h-[2px] bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.5)]"
+              initial={false}
+              animate={{
+                left: mode === 'signin' ? '0%' : '50%',
+                width: '50%'
+              }}
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+            />
+          </div>
 
-            {/* Toggle */}
-            <div className="mb-6 flex gap-2 p-1 bg-muted rounded-lg">
-              <button
-                type="button"
-                onClick={() => switchMode('login')}
-                className={cn(
-                  'flex-1 py-2.5 px-4 text-sm font-medium rounded-md transition-all duration-200',
-                  mode === 'login'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
+          <CardHeader className="pb-1">
+            {/* Removed redundant heading - tabs already indicate mode */}
+          </CardHeader>
+
+          <CardContent className="space-y-6 pb-8">
+            <AnimatePresence mode="wait">
+              <motion.form
+                key={mode}
+                initial={{ opacity: 0, x: mode === 'signin' ? -20 : 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: mode === 'signin' ? 20 : -20 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-5"
+                onSubmit={handleSubmit}
+                noValidate
               >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode('signup')}
-                className={cn(
-                  'flex-1 py-2.5 px-4 text-sm font-medium rounded-md transition-all duration-200',
-                  mode === 'signup'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                {/* Name field - only for signup */}
+                {mode === 'signup' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-2 overflow-hidden"
+                  >
+                    <Label htmlFor="name" className="text-sm font-semibold text-foreground">
+                      Full name
+                    </Label>
+                    <Input
+                      id="name"
+                      autoComplete="name"
+                      value={formData.name}
+                      onChange={(e) => updateField('name', e.target.value)}
+                      placeholder="John Doe"
+                      className="h-12 text-base border-2 border-border/80 hover:border-primary/40 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-1 transition-all"
+                      required
+                      disabled={uiState.isSubmitting}
+                    />
+                  </motion.div>
                 )}
-              >
-                Sign up
-              </button>
-            </div>
 
-            {/* Form Card */}
-            <Card className="border shadow-lg">
-              <CardContent className="p-6 sm:p-8">
-                <AnimatePresence mode="wait">
-                  {mode === 'login' ? (
-                    <motion.form
-                      key="login"
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 10 }}
-                      transition={{ duration: 0.2 }}
-                      className="space-y-5"
-                      onSubmit={handleLogin}
-                      noValidate
-                    >
-                      <div className="space-y-2">
-                        <Label htmlFor="login-email" className="text-sm font-medium">
-                          Email
-                        </Label>
-                        <Input
-                          id="login-email"
-                          type="email"
-                          autoComplete="email"
-                          value={loginEmail}
-                          onChange={(e) => {
-                            setLoginEmail(e.target.value)
-                            setError(null)
-                          }}
-                          placeholder="you@example.com"
-                          className="h-11"
-                          required
-                          disabled={isSubmitting}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="login-password" className="text-sm font-medium">
-                          Password
-                        </Label>
-                        <Input
-                          id="login-password"
-                          type="password"
-                          autoComplete="current-password"
-                          value={loginPassword}
-                          onChange={(e) => {
-                            setLoginPassword(e.target.value)
-                            setError(null)
-                          }}
-                          placeholder="••••••••"
-                          className="h-11"
-                          required
-                          disabled={isSubmitting}
-                        />
-                      </div>
-
-                      {error && (
-                        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                          {error}
-                        </div>
-                      )}
-
-                      <Button
-                        type="submit"
-                        disabled={loginDisabled}
-                        className="w-full h-11 font-medium"
-                        size="lg"
-                      >
-                        {isSubmitting ? (
-                          <span className="flex items-center gap-2">
-                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            Signing in...
-                          </span>
-                        ) : (
-                          'Sign in'
-                        )}
-                      </Button>
-                    </motion.form>
-                  ) : (
-                    <motion.form
-                      key="signup"
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 10 }}
-                      transition={{ duration: 0.2 }}
-                      className="space-y-5"
-                      onSubmit={handleSignup}
-                      noValidate
-                    >
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-name" className="text-sm font-medium">
-                          Full name
-                        </Label>
-                        <Input
-                          id="signup-name"
-                          autoComplete="name"
-                          value={signupName}
-                          onChange={(e) => {
-                            setSignupName(e.target.value)
-                            setError(null)
-                          }}
-                          placeholder="John Doe"
-                          className="h-11"
-                          required
-                          disabled={isSubmitting}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-email" className="text-sm font-medium">
-                          Email
-                        </Label>
-                        <Input
-                          id="signup-email"
-                          type="email"
-                          autoComplete="email"
-                          value={signupEmail}
-                          onChange={(e) => {
-                            setSignupEmail(e.target.value)
-                            setError(null)
-                          }}
-                          placeholder="you@example.com"
-                          className="h-11"
-                          required
-                          disabled={isSubmitting}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-password" className="text-sm font-medium">
-                          Password
-                        </Label>
-                        <Input
-                          id="signup-password"
-                          type="password"
-                          autoComplete="new-password"
-                          value={signupPassword}
-                          onChange={(e) => {
-                            setSignupPassword(e.target.value)
-                            setError(null)
-                          }}
-                          placeholder="••••••••"
-                          className={cn(
-                            'h-11',
-                            !passwordValid && signupPassword.length > 0 && 'border-destructive focus-visible:ring-destructive'
-                          )}
-                          required
-                          disabled={isSubmitting}
-                        />
-                        {signupPassword.length > 0 && (
-                          <p className={cn(
-                            'text-xs',
-                            passwordValid ? 'text-muted-foreground' : 'text-destructive'
-                          )}>
-                            {signupPassword.length < 8
-                              ? `At least ${8 - signupPassword.length} more character${8 - signupPassword.length === 1 ? '' : 's'}`
-                              : 'Password meets requirements'}
-                          </p>
-                        )}
-                      </div>
-
-                      {error && (
-                        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                          {error}
-                        </div>
-                      )}
-
-                      <Button
-                        type="submit"
-                        disabled={signupDisabled}
-                        className="w-full h-11 font-medium"
-                        size="lg"
-                      >
-                        {isSubmitting ? (
-                          <span className="flex items-center gap-2">
-                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            Creating account...
-                          </span>
-                        ) : (
-                          'Create account'
-                        )}
-                      </Button>
-                    </motion.form>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-semibold text-foreground">
+                    Email address
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={(e) => updateField('email', e.target.value)}
+                    onBlur={() => setUIState(prev => ({ ...prev, emailTouched: true }))}
+                    placeholder="name@kooya.com"
+                    className={cn(
+                      "h-12 text-base border-2 border-border/80 hover:border-primary/40 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-1 transition-all",
+                      shouldShowEmailError && "border-destructive/60 focus-visible:border-destructive focus-visible:ring-destructive/40"
+                    )}
+                    required
+                    disabled={uiState.isSubmitting}
+                  />
+                  {shouldShowEmailError && (
+                    <p className="text-xs font-medium text-destructive">
+                      Please enter a valid email address
+                    </p>
                   )}
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm font-semibold text-foreground">
+                    Password
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={uiState.showPassword ? 'text' : 'password'}
+                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                      value={formData.password}
+                      onChange={(e) => updateField('password', e.target.value)}
+                      placeholder={mode === 'signin' ? 'Enter your password' : 'Create a secure password'}
+                      className={cn(
+                        'h-12 text-base border-2 border-border/80 hover:border-primary/40 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-1 transition-all pr-10',
+                        mode === 'signup' && !passwordValid && formData.password.length > 0 && 'border-destructive focus-visible:ring-destructive',
+                      )}
+                      required
+                      disabled={uiState.isSubmitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setUIState(prev => ({ ...prev, showPassword: !prev.showPassword }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={uiState.showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {uiState.showPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+                  {mode === 'signin' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // TODO: Implement forgot password flow
+                        console.log('Forgot password clicked')
+                      }}
+                      className="text-sm font-medium text-primary hover:text-primary/90 underline-offset-4 hover:underline transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                  {mode === 'signup' && (
+                    <p
+                      className={cn(
+                        'text-xs font-medium',
+                        passwordValid || formData.password.length === 0
+                          ? 'text-muted-foreground'
+                          : 'text-destructive',
+                      )}
+                    >
+                      {formData.password.length === 0
+                        ? `Must be at least ${MIN_PASSWORD_LENGTH} characters long`
+                        : formData.password.length < MIN_PASSWORD_LENGTH
+                          ? `At least ${MIN_PASSWORD_LENGTH - formData.password.length} more character${MIN_PASSWORD_LENGTH - formData.password.length === 1 ? '' : 's'} required`
+                          : 'Password meets requirements'}
+                    </p>
+                  )}
+                </div>
+
+                {uiState.error && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="rounded-lg border-2 border-destructive bg-destructive/20 px-4 py-3 text-sm text-destructive font-semibold shadow-sm"
+                    role="alert"
+                  >
+                    {uiState.error}
+                  </motion.div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isDisabled}
+                  className={cn(
+                    "h-12 w-full text-base font-semibold shadow-lg transition-all duration-200",
+                    isDisabled 
+                      ? "bg-muted text-foreground/50 cursor-not-allowed hover:scale-100 hover:shadow-lg border border-border/50" 
+                      : "bg-primary hover:bg-primary/95 text-primary-foreground hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]"
+                  )}
+                  size="lg"
+                >
+                  {uiState.isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      {mode === 'signin' ? 'Signing in...' : 'Creating account...'}
+                    </span>
+                  ) : (
+                    mode === 'signin' ? 'Sign in' : 'Create account'
+                  )}
+                </Button>
+              </motion.form>
+            </AnimatePresence>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
 }
-
-
-
-
-
-
