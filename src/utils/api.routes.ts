@@ -38,6 +38,7 @@ export const PROFILE = () => `/auth/me`
 export const GET_USERS = () => `/users`
 export const GET_USER_BY_ID = (userId: string) => `/users/${userId}`
 export const UPDATE_EMPLOYEE = (userId: string) => `/users/${userId}`
+export const DELETE_EMPLOYEE = (userId: string) => `/users/${userId}`
 
 // Board routes
 export const CREATE_BOARD = () => `/boards`
@@ -153,3 +154,8 @@ export const DELETE_PROJECT = (id: string) => `/projects/${id}`
 
 // Meet routes
 export const GET_LIVEKIT_TOKEN = () => `/meet/token`
+
+// Admin routes
+export const GET_ADMIN_STATS = () => `/admin/stats`
+export const GET_ADMIN_ACTIVITY = () => `/admin/activity`
+export const EXPORT_USERS = (format: 'csv' | 'json') => `/admin/export/users?format=${format}`

@@ -73,12 +73,16 @@ export function AppLayout({ children, className }: AppLayoutProps) {
 
   const isMeetPage = location.pathname === '/meet'
   const isFeedPage = location.pathname === '/feed'
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
 
   if (!user) {
     return (
       <div className={cn('flex min-h-screen flex-col bg-background text-foreground', className)}>
         <header className="border-b border-border">
-          <div className="mx-auto flex h-14 sm:h-16 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
+          <div className={cn(
+            'mx-auto flex h-14 sm:h-16 w-full items-center justify-between',
+            isAuthPage ? 'px-8 sm:px-12 lg:px-16 xl:px-20' : 'px-4 sm:px-6 max-w-5xl'
+          )}>
             <Link to="/" className="text-base sm:text-lg font-semibold tracking-tight text-primary font-[Poppins]">
               KooyaHQ
             </Link>
@@ -102,12 +106,22 @@ export function AppLayout({ children, className }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 sm:py-8 sm:px-6">
-          <div className="mx-auto w-full max-w-3xl">{children}</div>
+        <main className={cn(
+          'flex-1 min-h-0',
+          isAuthPage ? 'overflow-x-hidden overflow-y-auto' : 'overflow-y-auto px-4 py-6 sm:py-8 sm:px-6'
+        )}>
+          {isAuthPage ? (
+            <div className="h-full w-full overflow-x-hidden overflow-y-auto">{children}</div>
+          ) : (
+            <div className={cn('mx-auto w-full', 'max-w-3xl')}>{children}</div>
+          )}
         </main>
 
         <footer className="border-t border-border bg-background">
-          <div className="mx-auto w-full max-w-3xl px-4 py-3 sm:py-4">
+          <div className={cn(
+            'mx-auto w-full py-3 sm:py-4',
+            isAuthPage ? 'px-8 sm:px-12 lg:px-16 xl:px-20' : 'px-4 max-w-3xl'
+          )}>
             <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
               <span className="whitespace-nowrap">© {new Date().getFullYear()} KooyaHQ</span>
               <span className="font-medium text-primary whitespace-nowrap">Ship work that matters.</span>

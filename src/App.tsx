@@ -2,8 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ThemeProvider } from '@/composables/useTheme'
 import { Home } from '@/pages/Home'
-import { Login } from '@/pages/Login'
-import { Signup } from '@/pages/Signup'
+import { Auth } from '@/pages/Auth'
 import { TimeTracker } from '@/pages/TimeTracker'
 import { BoardDetail } from '@/pages/Workspace/BoardDetail'
 import { Workspace } from '@/pages/Workspace'
@@ -21,6 +20,7 @@ import { MeetLanding } from '@/pages/Meet/Landing'
 import { PreJoin } from '@/pages/Meet/PreJoin'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
+import { AdminRoute } from '@/routes/AdminRoute'
 
 import { Toaster } from 'sonner'
 
@@ -153,9 +153,11 @@ function App() {
             path="/admin"
             element={
               <PrivateRoute fallback={null}>
+                <AdminRoute>
                 <AppLayout>
                   <Admin />
                 </AppLayout>
+                </AdminRoute>
               </PrivateRoute>
             }
           />
@@ -192,7 +194,7 @@ function App() {
             element={
               <PublicRoute>
                 <AppLayout>
-                  <Login />
+                  <Auth />
                 </AppLayout>
               </PublicRoute>
             }
@@ -202,7 +204,7 @@ function App() {
             element={
               <PublicRoute>
                 <AppLayout>
-                  <Signup />
+                  <Auth />
                 </AppLayout>
               </PublicRoute>
             }

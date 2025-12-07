@@ -1,14 +1,17 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/stores/auth.store'
 import { cn } from '@/utils/cn'
+import { SplineScene } from '@/components/SplineScene'
 
 export function Signup() {
   const navigate = useNavigate()
+  const location = useLocation()
   const register = useAuthStore((state) => state.register)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -36,8 +39,29 @@ export function Signup() {
   const passwordValid = password.length >= 8 || password.length === 0
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-8 sm:py-12">
-      <div className="w-full max-w-md space-y-6 sm:space-y-8">
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="flex h-full w-full items-center justify-center px-8 sm:px-12 lg:px-16 xl:px-20 py-8 sm:py-12"
+      >
+        <div className="flex w-full items-center justify-center gap-12 lg:gap-16 xl:gap-20">
+          <motion.div
+            layoutId="spline-scene"
+            initial={{ x: 200, opacity: 0, scale: 0.8 }}
+            animate={{ x: 0, opacity: 1, scale: 1 }}
+            exit={{ x: -200, opacity: 0, scale: 0.8 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="hidden lg:flex lg:w-1/2 lg:items-center lg:justify-center"
+          >
+            <div className="h-[800px] w-full">
+              <SplineScene />
+            </div>
+          </motion.div>
+        <div className="w-full max-w-md space-y-6 sm:space-y-8">
         <div className="space-y-2 sm:space-y-3 text-center">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
             Create your account
@@ -174,7 +198,9 @@ export function Signup() {
             </Link>
           </p>
         </div>
-      </div>
-    </div>
+        </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
