@@ -13,6 +13,7 @@ export function LazyNewsCard({ item }: LazyNewsCardProps) {
   const [hasRendered, setHasRendered] = useState(false)
 
   useEffect(() => {
+    // Once rendered, keep it rendered to avoid flickering
     if (isIntersecting && !hasRendered) {
       setHasRendered(true)
     }
@@ -24,7 +25,7 @@ export function LazyNewsCard({ item }: LazyNewsCardProps) {
         <NewsCard item={item} formattedDate={formatTimeAgo(item.publishedAt)} />
       ) : (
         <div
-          className="h-[200px] bg-muted/50 rounded-lg animate-pulse mb-4"
+          className="h-[400px] bg-muted/50 rounded-lg animate-pulse"
           aria-label="Loading news item"
         />
       )}

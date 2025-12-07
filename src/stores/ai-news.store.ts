@@ -4,6 +4,7 @@ import { GET_AI_NEWS } from '@/utils/api.routes'
 import type { NewsItem, NewsFilter, NewsResponse } from '@/types/ai-news'
 
 const LIMIT = 50
+let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 interface AINewsState {
   items: NewsItem[]
@@ -74,19 +75,34 @@ export const useAINewsStore = create<AINewsState & AINewsActions>((set, get) => 
     set({ loadingMore: true })
 
     try {
+      const currentOffset = items.length
       const params = new URLSearchParams({
         limit: String(LIMIT),
-        offset: String(items.length),
+        offset: String(currentOffset),
       })
       if (filter !== 'all') params.append('filter', filter)
 
       const { data } = await axiosInstance.get<NewsResponse>(`${GET_AI_NEWS()}?${params}`)
 
-      set(state => ({
-        items: [...state.items, ...data.data],
-        hasMore: data.hasMore,
-        loadingMore: false,
-      }))
+      // Use functional update and check for duplicates to prevent race conditions
+      set(state => {
+        // Check if items were already updated (race condition protection)
+        if (state.items.length !== currentOffset) {
+          // Items changed during fetch, recalculate offset
+          const newOffset = state.items.length
+          return { loadingMore: false }
+        }
+        
+        // Filter out duplicates by ID
+        const existingIds = new Set(state.items.map(item => item.id))
+        const newItems = data.data.filter(item => !existingIds.has(item.id))
+        
+        return {
+          items: [...state.items, ...newItems],
+          hasMore: data.hasMore,
+          loadingMore: false,
+        }
+      })
     } catch (err: any) {
       set({
         error: err.response?.data?.message || 'Failed to load more',
@@ -97,12 +113,25 @@ export const useAINewsStore = create<AINewsState & AINewsActions>((set, get) => 
 
   setFilter: (filter) => {
     if (get().filter === filter) return
+    
+    // Clear any pending debounce
+    if (filterDebounceTimer) {
+      clearTimeout(filterDebounceTimer)
+      filterDebounceTimer = null
+    }
+    
     set({ filter })
-    get().fetchNews(true)
+    
+    // Debounce filter change to prevent multiple rapid requests
+    filterDebounceTimer = setTimeout(() => {
+      get().fetchNews(true)
+      filterDebounceTimer = null
+    }, 300)
   },
 
   refreshBackground: async () => {
     const { items, filter, loading, loadingMore } = get()
+    // Safety check: don't refresh if loading, loading more, or no items
     if (loading || loadingMore || items.length === 0) return
 
     try {
@@ -111,7 +140,11 @@ export const useAINewsStore = create<AINewsState & AINewsActions>((set, get) => 
 
       const { data } = await axiosInstance.get<NewsResponse>(`${GET_AI_NEWS()}?${params}`)
 
-      const firstItemTime = new Date(items[0].publishedAt).getTime()
+      // Safety check: ensure items array still has items
+      const currentItems = get().items
+      if (currentItems.length === 0) return
+
+      const firstItemTime = new Date(currentItems[0].publishedAt).getTime()
       const newItems = data.data.filter(
         (item: NewsItem) => new Date(item.publishedAt).getTime() > firstItemTime
       )

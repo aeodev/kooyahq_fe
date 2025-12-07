@@ -43,7 +43,6 @@ export function Presence() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Globe className="h-8 w-8 text-primary" />
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Presence</h1>
             </div>
             <p className="text-sm sm:text-base text-muted-foreground max-w-2xl">
