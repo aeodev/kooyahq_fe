@@ -10,11 +10,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import type { TaskItem } from '@/types/time-entry'
 
 type ActiveTimerCardProps = {
   duration: string
   projects: string[]
-  task: string
+  tasks: TaskItem[]
   isPaused: boolean
   onStop: () => void
   onQuickAddTask?: (task: string) => void
@@ -25,7 +26,7 @@ type ActiveTimerCardProps = {
 
 export function ActiveTimerCard({ 
   duration, 
-  task, 
+  tasks, 
   isPaused, 
   onStop, 
   onQuickAddTask,
@@ -36,6 +37,9 @@ export function ActiveTimerCard({
   const [quickTask, setQuickTask] = useState('')
   const hasMultipleProjects = selectedProjects.length > 1
   const otherProjects = selectedProjects.filter(p => p !== activeProject)
+
+  // Get the latest task text
+  const latestTask = tasks.length > 0 ? tasks[tasks.length - 1].text : ''
 
   const handleQuickAdd = () => {
     if (quickTask.trim() && onQuickAddTask) {
@@ -101,8 +105,8 @@ export function ActiveTimerCard({
             </div>
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground leading-5">Task</p>
-            <p className="text-sm font-normal text-foreground leading-5">{task}</p>
+            <p className="text-sm font-medium text-muted-foreground leading-5">Current Task</p>
+            <p className="text-sm font-normal text-foreground leading-5">{latestTask || 'No task'}</p>
           </div>
         </div>
       </CardHeader>
@@ -142,4 +146,3 @@ export function ActiveTimerCard({
     </Card>
   )
 }
-

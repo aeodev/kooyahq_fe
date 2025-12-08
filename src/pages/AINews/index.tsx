@@ -1,307 +1,194 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import axiosInstance from '@/utils/axios.instance'
-import { GET_AI_NEWS } from '@/utils/api.routes'
-import type { NewsItem, NewsFilter } from '@/types/ai-news'
 import { cn } from '@/utils/cn'
-import { Loader2, Sparkles, Twitter, Newspaper, Filter, RefreshCw } from 'lucide-react'
+import { Loader2, Newspaper, Bell } from 'lucide-react'
 import { LazyNewsCard } from './LazyNewsCard'
-import { NewsCardSkeleton } from './NewsCardSkeleton'
+import { useAINews } from '@/hooks/ai-news.hooks'
+import type { NewsFilter } from '@/types/ai-news'
 
-const CACHE_KEY = 'ai-news-cache'
-const CACHE_TIMESTAMP_KEY = 'ai-news-cache-timestamp'
-const CACHE_DURATION = 1000 * 60 * 30 // 30 minutes
-
-interface CachedData {
-  items: NewsItem[]
-  timestamp: number
-}
-
-function formatTimeAgo(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-  
-  if (diffInSeconds < 60) return 'just now'
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`
-  
-  return date.toLocaleDateString()
-}
-
-// Helper function to get cached news synchronously
-const getCachedNewsSync = (): CachedData | null => {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY)
-    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY)
-    
-    if (cached && timestamp) {
-      const age = Date.now() - parseInt(timestamp, 10)
-      if (age < CACHE_DURATION) {
-        return {
-          items: JSON.parse(cached),
-          timestamp: parseInt(timestamp, 10),
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error reading cache:', error)
-  }
-  return null
-}
+const FILTERS: { value: NewsFilter; label: string; icon?: typeof Filter }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'news', label: 'News' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'techcrunch', label: 'TechCrunch' },
+  { value: 'reddit', label: 'Reddit ML' },
+  { value: 'hackernews', label: 'HackerNews' },
+  { value: 'devto-ai', label: 'Dev.to AI' },
+  { value: 'arxiv', label: 'ArXiv' },
+]
 
 export function AINews() {
-  // Initialize with cached data if available to prevent flicker
-  const cachedData = useMemo(() => getCachedNewsSync(), [])
-  const [items, setItems] = useState<NewsItem[]>(cachedData?.items || [])
-  const [loading, setLoading] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<NewsFilter>('all')
-  const [hasMore, setHasMore] = useState(cachedData ? cachedData.items.length >= 50 : true)
-  const observerTarget = useRef<HTMLDivElement>(null)
-  const hasInitialized = useRef(false)
+  const observerRef = useRef<HTMLDivElement>(null)
+  const filterContainerRef = useRef<HTMLDivElement>(null)
+  const filterButtonRefs = useRef<Map<NewsFilter, HTMLButtonElement>>(new Map())
+  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+  
+  const {
+    items,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    filter,
+    hasPendingItems,
+    pendingItems,
+    setFilter,
+    fetchNews,
+    loadMore,
+    showPendingItems,
+  } = useAINews()
 
+  // Update indicator position when filter changes
   useEffect(() => {
-    if (!hasInitialized.current) {
-      hasInitialized.current = true
-      loadNews()
-    }
-  }, [])
-
-  const loadNews = async () => {
-    // If we already have cached data displayed, fetch fresh data in background
-    if (cachedData && items.length > 0) {
-      // Silently update in background
-      fetchNews(true, true)
-    } else if (items.length === 0) {
-      // No cache and no items, fetch immediately with loading state
-      await fetchNews(true)
-    }
-  }
-
-  const getCachedNews = (): CachedData | null => {
-    return getCachedNewsSync()
-  }
-
-  const setCachedNews = (items: NewsItem[]) => {
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(items))
-      localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString())
-    } catch (error) {
-      console.error('Error setting cache:', error)
-    }
-  }
-
-  const fetchNews = async (reset = false, silent = false) => {
-    if (reset && !silent) {
-      setLoading(true)
-      setItems([])
-    } else if (!silent) {
-      setLoadingMore(true)
-    }
-    setError(null)
-    
-    // Get current items length before async operation
-    const currentLength = items.length
-    const offset = reset ? 0 : currentLength
-    const limit = 50
-    
-    try {
-      const response = await axiosInstance.get<{ 
-        status: string
-        data: NewsItem[]
-        hasMore: boolean
-        total: number
-      }>(`${GET_AI_NEWS()}?limit=${limit}&offset=${offset}`)
+    const updateIndicator = () => {
+      const activeButton = filterButtonRefs.current.get(filter)
+      const container = filterContainerRef.current
       
-      if (reset) {
-        setItems(response.data.data)
-        // Cache the first page of results
-        setCachedNews(response.data.data)
-      } else {
-        setItems(prev => [...prev, ...response.data.data])
-      }
-      setHasMore(response.data.hasMore)
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load AI news')
-      // If there's an error and we have cached data, don't clear it
-      if (silent && items.length === 0) {
-        const cached = getCachedNews()
-        if (cached) {
-          setItems(cached.items)
-        }
-      }
-    } finally {
-      if (!silent) {
-        setLoading(false)
-        setLoadingMore(false)
+      if (activeButton && container) {
+        const containerRect = container.getBoundingClientRect()
+        const buttonRect = activeButton.getBoundingClientRect()
+        
+        setIndicatorStyle({
+          left: buttonRect.left - containerRect.left,
+          width: buttonRect.width,
+        })
       }
     }
-  }
+    
+    // Initial position
+    updateIndicator()
+    
+    // Update on window resize
+    window.addEventListener('resize', updateIndicator)
+    return () => window.removeEventListener('resize', updateIndicator)
+  }, [filter])
 
+  // Memoize loadMore to prevent unnecessary re-renders
+  const handleLoadMore = useCallback(() => {
+    if (hasMore && !loadingMore && !loading) {
+      loadMore()
+    }
+  }, [hasMore, loadingMore, loading, loadMore])
+
+  // Infinite scroll
   useEffect(() => {
+    const target = observerRef.current
+    if (!target) return
+
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
-          fetchNews(false)
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          handleLoadMore()
         }
       },
       { threshold: 0.1, rootMargin: '200px' }
     )
 
-    const currentTarget = observerTarget.current
-    if (currentTarget) {
-      observer.observe(currentTarget)
-    }
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [handleLoadMore])
 
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget)
-      }
-    }
-  }, [hasMore, loadingMore, loading])
-
-  const filteredItems = useMemo(() => {
-    let filtered: NewsItem[]
-    
-    if (filter === 'all') filtered = items
-    else if (filter === 'news') filtered = items.filter((item) => item.type === 'news')
-    else if (filter === 'tweets') filtered = items.filter((item) => item.type === 'tweet')
-    else filtered = items.filter((item) => item.source === filter)
-
-    // Pre-calculate formatted dates to avoid recalculating on every render
-    return filtered.map((item) => ({
-      ...item,
-      formattedDate: formatTimeAgo(item.publishedAt),
-    }))
-  }, [items, filter])
-
-  const filters: { value: NewsFilter; label: string; icon?: any }[] = [
-    { value: 'all', label: 'All', icon: Filter },
-    { value: 'news', label: 'News', icon: Newspaper },
-    { value: 'tweets', label: 'Tweets', icon: Twitter },
-    { value: 'openai', label: 'OpenAI' },
-    { value: 'techcrunch', label: 'TechCrunch' },
-    { value: 'sama', label: 'Sam Altman' },
-    { value: 'chetaslua', label: 'Chetaslua' },
-  ]
-
-  if (loading && items.length === 0 && !cachedData) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Sparkles className="h-8 w-8 text-primary" />
-              AI News
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Latest AI news and insights from top sources
-            </p>
-          </div>
-          <Button variant="outline" size="icon" disabled title="Loading">
-            <Loader2 className="h-4 w-4 animate-spin" />
-          </Button>
-        </div>
-
-        {/* Skeleton Loading */}
-        <div className="space-y-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <NewsCardSkeleton key={i} />
-          ))}
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Sparkles className="h-8 w-8 text-primary" />
-            AI News
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Latest AI news and insights from top sources
-          </p>
-        </div>
-        <Button 
-          onClick={() => {
-            // Clear cache and force refresh
-            localStorage.removeItem(CACHE_KEY)
-            localStorage.removeItem(CACHE_TIMESTAMP_KEY)
-            fetchNews(true)
-          }} 
-          variant="outline" 
-          size="icon"
-          disabled={loading}
-          title="Refresh"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-        </Button>
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+    
+          AI News
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Stay ahead with curated AI insights and breakthroughs
+        </p>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
+      {/* New items banner */}
+      {hasPendingItems && (
+        <button
+          onClick={showPendingItems}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors"
+        >
+          <Bell className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-primary">
+            {pendingItems.length} new {pendingItems.length === 1 ? 'item' : 'items'}
+          </span>
+        </button>
+      )}
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        {filters.map((f) => {
-          const Icon = f.icon
-          return (
-            <Button
-              key={f.value}
-              variant={filter === f.value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                'gap-2',
-                filter === f.value && 'bg-primary text-primary-foreground'
-              )}
-            >
-              {Icon && <Icon className="h-4 w-4" />}
-              {f.label}
-            </Button>
-          )
-        })}
+      <div 
+        ref={filterContainerRef}
+        className="relative flex flex-wrap gap-2 pb-3 border-b"
+      >
+        {/* Animated jelly selector indicator */}
+        {indicatorStyle.width > 0 && (
+          <div
+            className="absolute bottom-0 h-[3px] bg-primary rounded-full transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+            style={{
+              left: `${indicatorStyle.left}px`,
+              width: `${indicatorStyle.width}px`,
+              transform: 'translateY(3px)',
+            }}
+          />
+        )}
+        
+        {FILTERS.map(({ value, label, icon: Icon }) => (
+          <Button
+            key={value}
+            ref={(el) => {
+              if (el) filterButtonRefs.current.set(value, el)
+            }}
+            variant="ghost"
+            size="sm"
+            onClick={() => setFilter(value)}
+            className={cn(
+              'gap-2 relative z-10 transition-all duration-300 rounded-lg',
+              filter === value
+                ? 'text-primary font-semibold scale-105'
+                : 'text-muted-foreground hover:text-foreground hover:scale-[1.02]'
+            )}
+          >
+            {Icon && <Icon className="h-4 w-4" />}
+            {label}
+          </Button>
+        ))}
       </div>
 
-      {/* News Feed */}
-      {filteredItems.length === 0 ? (
+      {/* Content */}
+      {loading && items.length === 0 ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : items.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
             <Newspaper className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
-              No news items found. Try refreshing or selecting a different filter.
-            </p>
+            <p className="text-muted-foreground">No news found</p>
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="space-y-4">
-            {filteredItems.map((item) => (
-              <LazyNewsCard key={item.id} item={item} />
+          <div className="columns-1 md:columns-2 lg:columns-3 gap-6">
+            {items.map(item => (
+              <div key={item.id} className="break-inside-avoid mb-6">
+                <LazyNewsCard item={item} />
+              </div>
             ))}
           </div>
-          <div ref={observerTarget} className="h-10 flex items-center justify-center">
-            {loadingMore && (
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            )}
+
+          <div ref={observerRef} className="h-10 flex items-center justify-center mt-8">
+            {loadingMore && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
           </div>
         </>
       )}
     </div>
   )
 }
-

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Edit2, Save, X, Trash2, Plus, Loader2 } from 'lucide-react'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, type Project } from '@/hooks/project.hooks'
+import { toast } from 'sonner'
 
 export function ProjectsSection() {
   const { data: projects, loading, error, fetchProjects } = useProjects()
@@ -31,9 +32,12 @@ export function ProjectsSection() {
     const result = await createProject({ name: trimmedName })
     
     if (result) {
+      toast.success('Project created successfully')
       setNewProjectName('')
       setShowAddForm(false)
       fetchProjects() // Refresh list
+    } else {
+      toast.error('Failed to create project')
     }
   }
 
@@ -57,8 +61,11 @@ export function ProjectsSection() {
     const result = await updateProject(projectId, { name: trimmedName })
     
     if (result) {
+      toast.success('Project updated successfully')
       cancelEdit()
       fetchProjects() // Refresh list
+    } else {
+      toast.error('Failed to update project')
     }
   }
 
@@ -70,10 +77,13 @@ export function ProjectsSection() {
     const success = await deleteProject(projectId)
     
     if (success) {
+      toast.success('Project deleted successfully')
       if (editingId === projectId) {
         cancelEdit()
       }
       fetchProjects() // Refresh list
+    } else {
+      toast.error('Failed to delete project')
     }
   }
 

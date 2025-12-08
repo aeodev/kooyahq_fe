@@ -8,7 +8,10 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    /* iOS System Font Stack - SF Pro */
+    --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+
+    /* Core theme colors */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -29,6 +32,14 @@
     --input: 150 12% 88%;
     --ring: 142 71% 29%;
     --radius: 0.5rem;
+
+    /* iOS Sidebar Design Tokens */
+    --ios-sidebar-bg: 0 0% 98%;
+    --ios-sidebar-border: 0 0% 0% / 0.04;
+    --ios-selection-bg: 142 71% 29% / 0.08;
+    --ios-selection-indicator: 142 71% 35%;
+    --ios-divider: 0 0% 0% / 0.03;
+    --ios-footer-bg: 0 0% 100% / 0.7;
   }
 
   .dark {
@@ -51,6 +62,14 @@
     --border: 220 12% 23%;
     --input: 220 12% 23%;
     --ring: 142 70% 45%;
+
+    /* iOS Sidebar Design Tokens - Dark Mode */
+    --ios-sidebar-bg: 240 6% 10%;
+    --ios-sidebar-border: 0 0% 100% / 0.06;
+    --ios-selection-bg: 142 70% 45% / 0.12;
+    --ios-selection-indicator: 142 70% 50%;
+    --ios-divider: 0 0% 100% / 0.04;
+    --ios-footer-bg: 240 6% 15% / 0.8;
   }
 
   * {
@@ -79,27 +98,35 @@
     word-wrap: break-word;
     overflow-wrap: break-word;
   }
+
   .rich-text-display p {
     margin: 0.5rem 0;
   }
+
   .rich-text-display p:first-child {
     margin-top: 0;
   }
+
   .rich-text-display p:last-child {
     margin-bottom: 0;
   }
+
   .rich-text-display strong {
     font-weight: 600;
   }
+
   .rich-text-display em {
     font-style: italic;
   }
+
   .rich-text-display u {
     text-decoration: underline;
   }
+
   .rich-text-display s {
     text-decoration: line-through;
   }
+
   .rich-text-display code {
     background: hsl(var(--muted));
     padding: 0.125rem 0.25rem;
@@ -107,6 +134,7 @@
     font-size: 0.875em;
     font-family: 'Courier New', monospace;
   }
+
   .rich-text-display pre {
     background: hsl(var(--muted));
     padding: 0.75rem;
@@ -114,28 +142,35 @@
     overflow-x: auto;
     margin: 0.5rem 0;
   }
+
   .rich-text-display pre code {
     background: none;
     padding: 0;
   }
-  .rich-text-display ul, .rich-text-display ol {
+
+  .rich-text-display ul,
+  .rich-text-display ol {
     margin: 0.5rem 0;
     padding-left: 1.5rem;
   }
+
   .rich-text-display li {
     margin: 0.25rem 0;
   }
+
   .rich-text-display blockquote {
     border-left: 3px solid hsl(var(--border));
     padding-left: 1rem;
     margin: 0.5rem 0;
     color: hsl(var(--muted-foreground));
   }
+
   .rich-text-display a {
     color: hsl(var(--primary));
     text-decoration: underline;
   }
   /* Image styling - matches Quill editor */
+
   .rich-text-display img {
     max-width: 100%;
     height: auto;
@@ -203,16 +238,19 @@
     margin-left: 0;
     margin-right: auto;
   }
+
   .rich-text-display h1 {
     font-size: 1.5rem;
     font-weight: 600;
     margin: 1rem 0 0.5rem;
   }
+
   .rich-text-display h2 {
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0.875rem 0 0.5rem;
   }
+
   .rich-text-display h3 {
     font-size: 1.125rem;
     font-weight: 600;
@@ -284,4 +322,130 @@
   .rich-text-display video:not([src]) {
     display: none;
   }
+}
+
+/* iOS Spring Animation Utilities for Sidebar */
+@layer utilities {
+
+  /* Apple's iOS spring timing - feels natural and bouncy */
+  .spring-ios {
+    transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  /* Apple's smooth ease for content fading */
+  .ease-smooth {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+}
+
+/* Sidebar Animation Styles */
+.sidebar-container {
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+
+.sidebar-content-fade {
+  transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+}
+
+.sidebar-content-fade.collapsed {
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+}
+
+.sidebar-content-fade.expanded {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.sidebar-icon-center {
+  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+}
+
+.sidebar-icon-center.collapsed {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sidebar-icon-center.expanded {
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+}
+
+/* Nav item text animation */
+.nav-item-text {
+  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, width, transform;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nav-item-text.collapsed {
+  opacity: 0;
+  width: 0;
+  transform: translateX(4px);
+}
+
+.nav-item-text.expanded {
+  opacity: 1;
+  width: auto;
+  transform: translateX(0);
+}
+
+/* Selection indicator animation */
+.selection-indicator {
+  transition: height 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: height, opacity;
+}
+
+/* Theme toggle icon rotation */
+.theme-icon {
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+}
+
+/* Mobile overlay fade */
+.sidebar-overlay {
+  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
+}
+
+/* Chevron rotation on click */
+@keyframes chevron-bounce {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(-2px);
+  }
+}
+
+.chevron-animate {
+  animation: chevron-bounce 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }

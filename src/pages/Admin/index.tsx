@@ -3,12 +3,14 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { useAuthStore } from '@/stores/auth.store'
 import { EmployeesSection } from './components/EmployeesSection'
 import { ProjectsSection } from './components/ProjectsSection'
+import { DashboardSection } from './components/DashboardSection'
+import { ActivityLogSection } from './components/ActivityLogSection'
 
-type TabType = 'employees' | 'projects'
+type TabType = 'dashboard' | 'employees' | 'projects' | 'activity'
 
 export function Admin() {
   const user = useAuthStore((state) => state.user)
-  const [activeTab, setActiveTab] = useState<TabType>('employees')
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard')
 
   if (!user?.isAdmin) {
     return (
@@ -33,6 +35,16 @@ export function Admin() {
       {/* Tabs - Mobile-first with horizontal scroll */}
       <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 sm:pb-0">
         <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-300 whitespace-nowrap ${
+            activeTab === 'dashboard'
+              ? 'bg-primary/10 text-primary border border-primary/50 shadow-md'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
+          }`}
+        >
+          Dashboard
+        </button>
+        <button
           onClick={() => setActiveTab('employees')}
           className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-300 whitespace-nowrap ${
             activeTab === 'employees'
@@ -52,12 +64,24 @@ export function Admin() {
         >
           Projects
         </button>
+        <button
+          onClick={() => setActiveTab('activity')}
+          className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-300 whitespace-nowrap ${
+            activeTab === 'activity'
+              ? 'bg-primary/10 text-primary border border-primary/50 shadow-md'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
+          }`}
+        >
+          Activity Log
+        </button>
       </div>
 
       {/* Tab Content */}
       <div>
+        {activeTab === 'dashboard' && <DashboardSection />}
         {activeTab === 'employees' && <EmployeesSection />}
         {activeTab === 'projects' && <ProjectsSection />}
+        {activeTab === 'activity' && <ActivityLogSection />}
       </div>
     </section>
   )

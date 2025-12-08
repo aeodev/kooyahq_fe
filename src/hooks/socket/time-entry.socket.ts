@@ -51,17 +51,12 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
   }
 
   const handleCreated = (data: { entry: TimeEntry; userId: string }) => {
-    const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
-    // If it's our own entry, add to entries list
+    // If it's our own entry, just refresh entries to get the latest
+    // This avoids race conditions with the store action that also adds entries
     if (data.userId === user?.id) {
-      const entries = timeEntryStore.entries
-      // Avoid duplicates
-      if (!entries.find(e => e.id === data.entry.id)) {
-        // Add entry by setting state directly (Zustand allows this)
-        useTimeEntryStore.setState({ entries: [...entries, data.entry] })
-      }
+      useTimeEntryStore.getState().fetchEntries()
     }
   }
 

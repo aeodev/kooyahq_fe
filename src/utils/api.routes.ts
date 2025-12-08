@@ -38,6 +38,7 @@ export const PROFILE = () => `/auth/me`
 export const GET_USERS = () => `/users`
 export const GET_USER_BY_ID = (userId: string) => `/users/${userId}`
 export const UPDATE_EMPLOYEE = (userId: string) => `/users/${userId}`
+export const DELETE_EMPLOYEE = (userId: string) => `/users/${userId}`
 
 // Workspace routes
 export const GET_WORKSPACES = () => `/workspaces`
@@ -95,6 +96,7 @@ export const GET_ANALYTICS = (startDate?: string, endDate?: string, userId?: str
 }
 export const GET_ACTIVE_TIMER = () => `/time-entries/timer/active`
 export const START_TIMER = () => `/time-entries/timer/start`
+export const ADD_TASK_TO_TIMER = () => `/time-entries/timer/add-task`
 export const PAUSE_TIMER = () => `/time-entries/timer/pause`
 export const RESUME_TIMER = () => `/time-entries/timer/resume`
 export const STOP_TIMER = () => `/time-entries/timer/stop`
@@ -173,3 +175,7 @@ export const GET_LIVEKIT_TOKEN = () => `/meet/token`
 
 // Media upload routes (for rich text editor)
 export const UPLOAD_MEDIA = () => `/media/upload`
+// Admin routes
+export const GET_ADMIN_STATS = () => `/admin/stats`
+export const GET_ADMIN_ACTIVITY = () => `/admin/activity`
+export const EXPORT_USERS = (format: 'csv' | 'json') => `/admin/export/users?format=${format}`

@@ -15,12 +15,31 @@ import {
 } from '@/utils/api.routes'
 import type { Post, PostReaction, PostComment } from '@/types/post'
 
-export const usePosts = () => {
-  const [posts, setPosts] = useState<Post[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+import { usePostStore } from '@/stores/post.store'
 
-  const fetchPosts = useCallback(async () => {
+export const usePosts = () => {
+  const {
+    posts,
+    loading,
+    error,
+    setPosts,
+    addPost,
+    updatePost: updateDescription,
+    deletePost: removePost,
+    setLoading,
+    setError,
+    lastFetched
+  } = usePostStore()
+
+  const fetchPosts = useCallback(async (force = false) => {
+    // Cache strategy: If we have posts and it's been less than 1 minute, don't refetch
+    // unless 'force' is true. 
+    const isStale = !lastFetched || (Date.now() - lastFetched > 60000)
+
+    if (posts.length > 0 && !force && !isStale) {
+      return posts
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -36,28 +55,43 @@ export const usePosts = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [posts, lastFetched, setPosts, setLoading, setError])
 
-  const createPost = useCallback(async (content: string, image?: File) => {
+  const createPost = useCallback(async (content: string, image?: File, poll?: any) => {
     try {
       const formData = new FormData()
       formData.append('content', content.trim() || '')
       if (image) {
         formData.append('image', image)
       }
+      if (poll) {
+        formData.append('poll', JSON.stringify(poll))
+      }
 
       const response = await axiosInstance.post(CREATE_PROFILE_POST(), formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       const newPost = response.data.data
-      setPosts((prev) => [newPost, ...prev])
+      addPost(newPost)
       return newPost
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to create post'
       console.error('Failed to create post:', err)
       throw new Error(errorMsg)
     }
-  }, [])
+  }, [addPost])
+
+  const votePoll = useCallback(async (postId: string, optionIndex: number) => {
+    try {
+      const response = await axiosInstance.post(`/posts/${postId}/poll/vote`, { optionIndex })
+      const updatedPost = response.data.data
+      updateDescription(updatedPost)
+      return updatedPost
+    } catch (err: any) {
+      console.error('Failed to vote:', err)
+      throw err
+    }
+  }, [updateDescription])
 
   const updatePost = useCallback(async (postId: string, content: string, image?: File) => {
     try {
@@ -71,26 +105,26 @@ export const usePosts = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       const updatedPost = response.data.data
-      setPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)))
+      updateDescription(updatedPost)
       return updatedPost
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to update post'
       console.error('Failed to update post:', err)
       throw new Error(errorMsg)
     }
-  }, [])
+  }, [updateDescription])
 
   const deletePost = useCallback(async (postId: string) => {
     try {
       await axiosInstance.delete(DELETE_POST(postId))
-      setPosts((prev) => prev.filter((p) => p.id !== postId))
+      removePost(postId)
       return true
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to delete post'
       console.error('Failed to delete post:', err)
       throw new Error(errorMsg)
     }
-  }, [])
+  }, [removePost])
 
   return {
     posts,
@@ -100,6 +134,7 @@ export const usePosts = () => {
     createPost,
     updatePost,
     deletePost,
+    votePoll,
   }
 }
 

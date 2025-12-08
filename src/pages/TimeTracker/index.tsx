@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useProjectTaskStore } from '@/stores/project-task.store'
-import { useTimeEntries, useTimerDuration } from '@/hooks/time-entry.hooks'
+import { useTimerDuration } from '@/hooks/time-entry.hooks'
+import { useTeamUsers } from '@/hooks/user.hooks'
 import { useProjects } from '@/hooks/project.hooks'
-import type { TimeEntry } from '@/types/time-entry'
 import { ActiveTimerCard } from './components/ActiveTimerCard'
 import { StartTimerForm } from './components/StartTimerForm'
 import { QuickActions } from './components/QuickActions'
@@ -15,32 +15,10 @@ import { AnalyticsView } from './components/AnalyticsView'
 import { ManualEntryModal } from './components/ManualEntryModal'
 import { EndDayModal } from './components/EndDayModal'
 import { OvertimeConfirmationModal } from './components/OvertimeConfirmationModal'
-import { GET_USERS } from '@/utils/api.routes'
-import axiosInstance from '@/utils/axios.instance'
-import type { User } from '@/types/user'
+import { formatDuration, formatTimeRange } from './components/utils'
+import { transformEntriesToTeamMembers } from './components/team-utils'
 
 type TabType = 'you' | 'all' | 'analytics'
-
-function formatDuration(minutes: number): string {
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  if (hours > 0) {
-    return `${hours}h ${mins}m`
-  }
-  return `${mins}m`
-}
-
-function formatTimeRange(startTime: string | null, endTime: string | null): string {
-  if (!startTime) return ''
-  const start = new Date(startTime)
-  const end = endTime ? new Date(endTime) : new Date()
-  
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-  
-  return `${formatTime(start)} - ${formatTime(end)}`
-}
 
 export function TimeTracker() {
   const [activeTab, setActiveTab] = useState<TabType>('you')
@@ -62,7 +40,8 @@ export function TimeTracker() {
     getProjectTask,
   } = useProjectTaskStore()
 
-  const { data: allEntries, fetchEntries } = useTimeEntries()
+  const allEntries = useTimeEntryStore((state) => state.allTodayEntries)
+  const fetchAllEntries = useTimeEntryStore((state) => state.fetchAllTodayEntries)
   const { data: projectsData, fetchProjects } = useProjects()
   
   // Convert projects to array of names for compatibility
@@ -79,17 +58,17 @@ export function TimeTracker() {
   const activeTimer = useTimeEntryStore((state) => state.activeTimer)
   const fetchActiveTimer = useTimeEntryStore((state) => state.fetchActiveTimer)
   const startTimer = useTimeEntryStore((state) => state.startTimer)
+  const addTaskToTimer = useTimeEntryStore((state) => state.addTaskToTimer)
   const pauseTimer = useTimeEntryStore((state) => state.pauseTimer)
   const resumeTimer = useTimeEntryStore((state) => state.resumeTimer)
   const stopTimer = useTimeEntryStore((state) => state.stopTimer)
   const endDay = useTimeEntryStore((state) => state.endDay)
   const checkDayEndedStatus = useTimeEntryStore((state) => state.checkDayEndedStatus)
   const logManualEntry = useTimeEntryStore((state) => state.logManualEntry)
-  const updateEntry = useTimeEntryStore((state) => state.updateEntry)
   const timerDuration = useTimerDuration(activeTimer)
   
   const [loggingManual, setLoggingManual] = useState(false)
-  const [users, setUsers] = useState<Array<{ id: string; position?: string; profilePic?: string }>>([])
+  const { users, fetchUsers } = useTeamUsers()
 
   const user = useAuthStore((state) => state.user)
   const isLoading = useAuthStore((state) => state.isLoading)
@@ -109,22 +88,16 @@ export function TimeTracker() {
   // Fetch users for position and profile data
   useEffect(() => {
     if (user && !isLoading && activeTab === 'all') {
-      axiosInstance.get<{ status: string; data: User[] }>(GET_USERS())
-        .then((response) => {
-          setUsers(response.data.data.map((u) => ({ id: u.id, position: u.position, profilePic: u.profilePic })))
-        })
-        .catch(() => {
-          // Silently fail - position is optional
-        })
+      fetchUsers()
     }
-  }, [user, isLoading, activeTab])
+  }, [user, isLoading, activeTab, fetchUsers])
 
   // Fetch immediately when switching to "All" tab
   useEffect(() => {
     if (activeTab === 'all' && user && !isLoading) {
-      fetchEntries()
+      fetchAllEntries()
     }
-  }, [activeTab, user, isLoading, fetchEntries])
+  }, [activeTab, user, isLoading, fetchAllEntries])
 
   // Socket handles real-time updates, no need for polling
 
@@ -144,6 +117,7 @@ export function TimeTracker() {
 
   const handleStart = async () => {
     if (selectedProjects.length === 0) return
+    if (activeTimer) return // Don't start if already running
     const projectToStart = activeProject || selectedProjects[0]
     if (!projectToStart) return
     const taskForProject = getProjectTask(projectToStart) || taskDescription.trim()
@@ -182,48 +156,38 @@ export function TimeTracker() {
   const handleSwitchProject = async (newProject: string) => {
     if (!activeTimer || !selectedProjects.includes(newProject)) return
     
-    const currentProject = activeProject
-    
-    // Auto-mark current project's task as complete (clear it)
-    if (currentProject) {
-      resetProjectTask(currentProject)
-    }
-    
+    // Don't switch if already on this project
+    if (newProject === activeProject) return
+
+    const previousProject = activeProject
+
     // Stop current timer (saves time entry for current project)
     await stopTimer()
-    
+
     // Switch to new project
     setActiveProject(newProject)
+
+    // Get the preset task for the new project (keep it if switching to a fresh project)
+    const presetTask = getProjectTask(newProject) || ''
+
+    // Start new timer with the preset task
+    await startTimer({
+      projects: [newProject],
+      task: presetTask,
+    })
     
-    // Get saved task for new project (if any, otherwise empty string)
-    const taskForNewProject = getProjectTask(newProject) || ''
-    const taskToUse = taskForNewProject.trim() || ''
-    
-    // Always start timer for new project (even if task is empty)
-    // User can add task later via Quick Add
-    try {
-      const result = await startTimer({
-        projects: [newProject],
-        task: taskToUse,
-      })
-      
-      // Only save non-empty tasks to store
-      if (result && taskToUse) {
-        setProjectTask(newProject, taskToUse)
-      }
-    } catch (error) {
-      console.error('Failed to start timer after switching project:', error)
-      // Timer failed to start - user will need to manually start it
+    // Clear the task for the previous project since it was already logged
+    if (previousProject) {
+      resetProjectTask(previousProject)
     }
   }
 
   const handleQuickAddTask = async (task: string) => {
-    if (!activeTimer || !activeProject || !task.trim()) return
-    const currentTask = activeTimer.task || ''
-    const newTask = currentTask ? `${currentTask}, ${task.trim()}` : task.trim()
-    // Save updated task to store
-    setProjectTask(activeProject, newTask)
-    await updateEntry(activeTimer.id, { task: newTask })
+    if (!activeTimer || !task.trim()) return
+    // Use the new backend endpoint to add task with timestamp
+    await addTaskToTimer(task.trim())
+    // Refresh entries to get updated task in activity log
+    await fetchMyEntries()
   }
 
   const handleStop = async () => {
@@ -244,7 +208,6 @@ export function TimeTracker() {
   const handleResume = async () => {
     if (activeTimer && activeTimer.isPaused) {
       await resumeTimer()
-      // Timer is automatically updated in store
     }
   }
 
@@ -256,8 +219,8 @@ export function TimeTracker() {
     await endDay()
     setShowEndDayModal(false)
     setDayEndedToday(true)
-    fetchEntries() // Still need to fetch all entries for analytics
-    // Timer and my entries are automatically updated in store
+    fetchAllEntries() // Still need to fetch all entries for analytics
+
   }
 
   const handleAddManualEntry = async (data: { projects: string[]; task: string; hours: number; minutes: number }) => {
@@ -280,8 +243,7 @@ export function TimeTracker() {
 
     if (result) {
       setShowManualModal(false)
-      fetchEntries() // Still need to fetch all entries for analytics
-      // Entry is automatically added to store
+      fetchAllEntries()
     }
   }
 
@@ -317,9 +279,8 @@ export function TimeTracker() {
 
       if (result) {
         setShowManualModal(false)
-        setDayEndedToday(false) // Allow End Day button to reappear
-        fetchEntries() // Still need to fetch all entries for analytics
-        // Entry is automatically added to store
+        setDayEndedToday(false)
+        fetchAllEntries() 
       }
       setPendingManualEntryData(null)
     }
@@ -335,8 +296,14 @@ export function TimeTracker() {
     if (entry.isActive && entry.startTime) {
       const start = new Date(entry.startTime)
       const now = new Date()
-      const diffMs = now.getTime() - start.getTime()
-      return sum + Math.floor(diffMs / 60000)
+      let diffMs = now.getTime() - start.getTime()
+      // Subtract paused duration
+      diffMs -= entry.pausedDuration || 0
+      // If currently paused, subtract current pause time too
+      if (entry.isPaused && entry.lastPausedAt) {
+        diffMs -= now.getTime() - new Date(entry.lastPausedAt).getTime()
+      }
+      return sum + Math.max(0, Math.floor(diffMs / 60000))
     }
     return sum + entry.duration
   }, 0)
@@ -347,10 +314,11 @@ export function TimeTracker() {
   const displayEntries = todayMyEntries.map((entry) => ({
     id: entry.id,
     project: entry.projects.join(', '),
-    task: entry.task,
+    tasks: entry.tasks || [],
     duration: formatDuration(entry.duration),
     time: formatTimeRange(entry.startTime, entry.endTime),
     isOvertime: entry.isOvertime,
+    isActive: entry.isActive,
   }))
 
   // Calculate analytics data
@@ -360,106 +328,16 @@ export function TimeTracker() {
     return entryDate.toDateString() === today.toDateString()
   })
 
-  // Force re-render every second to update timer displays
+  // Only update time when on "All" tab to avoid unnecessary re-renders
   const [now, setNow] = useState(new Date())
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date())
-    }, 1000)
+    if (activeTab !== 'all') return
+    const interval = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(interval)
-  }, [])
-
-  // Timer stop is now handled by backend with 15-second grace period
-  // This allows page refreshes to reconnect before the timer stops
-  // The backend socket disconnect handler will stop the timer after 15 seconds
-  // if the user doesn't reconnect (actual tab close), or cancel if they do (page refresh)
-
-  // Helper function to calculate duration for an active timer entry
-  const calculateActiveDuration = (entry: TimeEntry): string => {
-    if (!entry.isActive || !entry.startTime) {
-      return '00:00'
-    }
-
-    const start = new Date(entry.startTime)
-    
-    // Calculate total elapsed time
-    let elapsedMs = now.getTime() - start.getTime()
-    
-    // Subtract paused duration (accumulated paused time)
-    const pausedMs = entry.pausedDuration || 0
-    elapsedMs -= pausedMs
-    
-    // If currently paused, subtract current pause time
-    if (entry.isPaused && entry.lastPausedAt) {
-      const currentPauseMs = now.getTime() - new Date(entry.lastPausedAt).getTime()
-      elapsedMs -= currentPauseMs
-    }
-    
-    // Calculate seconds
-    const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000))
-    const hours = Math.floor(totalSeconds / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const seconds = totalSeconds % 60
-
-    // Format duration
-    if (hours > 0) {
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-    } else {
-      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-    }
-  }
+  }, [activeTab])
 
   const teamMembers = useMemo(() => {
-    // Create team members map from entries
-    const membersMap = new Map<string, TimeEntry[]>()
-    allTodayEntries.forEach((entry) => {
-      const existing = membersMap.get(entry.userId) || []
-      existing.push(entry)
-      membersMap.set(entry.userId, existing)
-    })
-
-    return Array.from(membersMap.entries()).map(([userId, entries]) => {
-      const firstEntry = entries[0]
-      const activeEntry = entries.find(e => e.isActive)
-      const totalMinutes = entries.reduce((sum, e) => {
-        if (e.isActive && e.startTime) {
-          const start = new Date(e.startTime)
-          let elapsedMs = now.getTime() - start.getTime()
-          const pausedMs = e.pausedDuration || 0
-          elapsedMs -= pausedMs
-          if (e.isPaused && e.lastPausedAt) {
-            const currentPauseMs = now.getTime() - new Date(e.lastPausedAt).getTime()
-            elapsedMs -= currentPauseMs
-          }
-          return sum + Math.max(0, Math.floor(elapsedMs / 60000))
-        }
-        return sum + e.duration
-      }, 0)
-
-      const userData = users.find((u) => u.id === userId)
-
-      return {
-        id: userId,
-        name: firstEntry.userName,
-        email: firstEntry.userEmail,
-        position: userData?.position,
-        profilePic: userData?.profilePic,
-        status: activeEntry ? ('active' as const) : ('inactive' as const),
-        todayHours: formatDuration(totalMinutes),
-        activeTimer: activeEntry ? {
-          duration: userId === user?.id ? timerDuration : calculateActiveDuration(activeEntry),
-          projects: activeEntry.projects,
-          task: activeEntry.task,
-        } : undefined,
-        entries: entries.slice(0, 3).map((e) => ({
-          id: e.id,
-          project: e.projects.join(', '),
-          task: e.task,
-          duration: formatDuration(e.duration),
-          time: formatTimeRange(e.startTime, e.endTime),
-        })),
-      }
-    })
+    return transformEntriesToTeamMembers(allTodayEntries, users, user?.id, timerDuration, now)
   }, [allTodayEntries, now, timerDuration, user?.id, users])
 
   return (
@@ -511,7 +389,7 @@ export function TimeTracker() {
             <ActiveTimerCard
               duration={timerDuration}
               projects={activeTimer.projects}
-              task={activeTimer.task}
+              tasks={activeTimer.tasks || []}
               isPaused={activeTimer.isPaused}
               onStop={handleStop}
               selectedProjects={selectedProjects}
@@ -603,7 +481,12 @@ export function TimeTracker() {
               if (e.isActive && e.startTime) {
                 const start = new Date(e.startTime)
                 const now = new Date()
-                return sum + Math.floor((now.getTime() - start.getTime()) / 60000)
+                let diffMs = now.getTime() - start.getTime()
+                diffMs -= e.pausedDuration || 0
+                if (e.isPaused && e.lastPausedAt) {
+                  diffMs -= now.getTime() - new Date(e.lastPausedAt).getTime()
+                }
+                return sum + Math.max(0, Math.floor(diffMs / 60000))
               }
               return sum + e.duration
             }, 0)

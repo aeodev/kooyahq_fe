@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { Globe, Loader2 } from 'lucide-react'
 import { usePresenceStore } from '@/stores/presence.store'
 import { usePresenceChannel, useLiveLocationSharing } from '@/hooks/presence.hooks'
 import { useUsers } from '@/hooks/user.hooks'
@@ -39,27 +40,37 @@ export function Presence() {
   return (
     <section className="space-y-4 sm:space-y-6 lg:space-y-8">
       <header className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Presence</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Presence</h1>
+            </div>
             <p className="text-sm sm:text-base text-muted-foreground max-w-2xl">
               View teammates on a live globe, broadcast your current location, and keep tabs on who is actively
               collaborating in real time.
             </p>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>{activeCount} of {totalUsers || 0} teammates active</span>
-              {syncing && <span className="text-primary">· syncing latest positions…</span>}
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
+                {activeCount} of {totalUsers || 0} active
+              </Badge>
+              {syncing && (
+                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Syncing positions…
+                </Badge>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 w-12">
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 order-2 sm:order-1">
               <Switch
                 checked={locationSharingEnabled}
                 onCheckedChange={setLocationSharingEnabled}
                 disabled={!geolocationSupported || permissionDenied}
               />
+              <span className="text-sm font-medium">Share Location</span>
             </div>
-            <Badge variant="outline" className={`${statusTone} min-w-[200px] text-center`}>
+            <Badge variant="outline" className={`${statusTone} min-w-[180px] text-xs sm:text-sm text-center px-2 py-1`}>
               {statusLabel}
             </Badge>
           </div>
