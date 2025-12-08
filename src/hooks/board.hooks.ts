@@ -2,30 +2,33 @@ import { useCallback, useState } from 'react'
 import axiosInstance from '@/utils/axios.instance'
 import {
   CREATE_BOARD,
-  CREATE_CARD,
+  CREATE_TICKET,
   CREATE_COMMENT,
   DELETE_BOARD,
-  DELETE_CARD,
+  DELETE_TICKET,
   DELETE_COMMENT,
   GET_BOARD_BY_ID,
   GET_BOARDS,
-  GET_CARDS_BY_BOARD,
-  GET_COMMENTS_BY_CARD,
-  GET_CARD_ACTIVITIES,
-  MOVE_CARD,
+  GET_TICKETS_BY_BOARD,
+  GET_COMMENTS_BY_TICKET,
+  MOVE_TICKET,
   UPDATE_BOARD,
-  UPDATE_CARD,
+  UPDATE_TICKET,
   UPDATE_COMMENT,
+  TOGGLE_BOARD_FAVORITE,
 } from '@/utils/api.routes'
 import type {
   Board,
   Card,
+  Ticket,
   Comment,
   CardActivity,
   CreateBoardInput,
   UpdateBoardInput,
   CreateCardInput,
   UpdateCardInput,
+  CreateTicketInput,
+  UpdateTicketInput,
 } from '@/types/board'
 
 export type Errors = {
@@ -47,11 +50,14 @@ function normalizeError(error: unknown): Errors {
       const status = (response.status as number | undefined) ?? undefined
 
       if (data) {
+        // Handle new error format: { success: false, error: { message, code } }
+        const errorObj = data.error as Record<string, unknown> | undefined
         const message =
+          (errorObj?.message as string | undefined) ??
           (data.message as string | string[] | undefined) ??
           (data.error as string | undefined) ??
           'Request failed'
-        return { message: message ?? 'Request failed', statusCode: status }
+        return { message: typeof message === 'string' ? message : 'Request failed', statusCode: status }
       }
 
       return {
@@ -68,17 +74,25 @@ function normalizeError(error: unknown): Errors {
   return { message: 'Something went wrong' }
 }
 
-export const useBoards = (type?: 'kanban' | 'sprint') => {
+export const useBoards = (workspaceId?: string, type?: 'kanban' | 'sprint') => {
   const [data, setData] = useState<Board[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const fetchBoards = useCallback(async () => {
+  const fetchBoards = useCallback(async (wsId?: string) => {
+    const id = wsId || workspaceId
+    if (!id) {
+      setData([])
+      return []
+    }
+
     setError(null)
     setLoading(true)
 
     try {
-      const response = await axiosInstance.get<{ status: string; data: Board[] }>(GET_BOARDS(type))
+      const response = await axiosInstance.get<{ success: boolean; data: Board[] }>(
+        GET_BOARDS(id, type)
+      )
       setData(response.data.data)
       return response.data.data
     } catch (err) {
@@ -88,13 +102,45 @@ export const useBoards = (type?: 'kanban' | 'sprint') => {
     } finally {
       setLoading(false)
     }
-  }, [type])
+  }, [workspaceId, type])
+
+  const updateBoardFavorite = useCallback((boardId: string, isFavorite: boolean) => {
+    setData((prev) =>
+      prev.map((board) =>
+        board.id === boardId ? { ...board, isFavorite } : board
+      )
+    )
+  }, [])
+
+  const updateBoard = useCallback((updatedBoard: Board) => {
+    setData((prev) =>
+      prev.map((board) =>
+        board.id === updatedBoard.id ? updatedBoard : board
+      )
+    )
+  }, [])
+
+  const addBoard = useCallback((newBoard: Board) => {
+    setData((prev) => {
+      // Avoid duplicates
+      if (prev.find((b) => b.id === newBoard.id)) return prev
+      return [...prev, newBoard]
+    })
+  }, [])
+
+  const removeBoard = useCallback((boardId: string) => {
+    setData((prev) => prev.filter((board) => board.id !== boardId))
+  }, [])
 
   return {
     data,
     loading,
     error,
     fetchBoards,
+    updateBoardFavorite,
+    updateBoard,
+    addBoard,
+    removeBoard,
   }
 }
 
@@ -102,13 +148,13 @@ export const useCreateBoard = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const createBoard = useCallback(async (input: CreateBoardInput): Promise<Board | null> => {
+  const createBoard = useCallback(async (workspaceId: string, input: CreateBoardInput): Promise<Board | null> => {
     setError(null)
     setLoading(true)
 
     try {
-      const response = await axiosInstance.post<{ status: string; data: Board }>(
-        CREATE_BOARD(),
+      const response = await axiosInstance.post<{ success: boolean; data: Board }>(
+        CREATE_BOARD(workspaceId),
         input,
       )
       return response.data.data
@@ -161,18 +207,18 @@ export const useBoard = () => {
   }
 }
 
-export const useCards = () => {
-  const [data, setData] = useState<Card[]>([])
+export const useTickets = () => {
+  const [data, setData] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const fetchCards = useCallback(async (boardId: string) => {
+  const fetchTickets = useCallback(async (boardId: string) => {
     setError(null)
     setLoading(true)
 
     try {
-      const response = await axiosInstance.get<{ status: string; data: Card[] }>(
-        GET_CARDS_BY_BOARD(boardId),
+      const response = await axiosInstance.get<{ success: boolean; data: Ticket[] }>(
+        GET_TICKETS_BY_BOARD(boardId),
       )
       setData(response.data.data)
       return response.data.data
@@ -189,22 +235,22 @@ export const useCards = () => {
     data,
     loading,
     error,
-    fetchCards,
+    fetchTickets,
   }
 }
 
-export const useCreateCard = () => {
+export const useCreateTicket = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const createCard = useCallback(
-    async (boardId: string, input: CreateCardInput): Promise<Card | null> => {
+  const createTicket = useCallback(
+    async (boardId: string, input: CreateTicketInput): Promise<Ticket | null> => {
       setError(null)
       setLoading(true)
 
       try {
-        const response = await axiosInstance.post<{ status: string; data: Card }>(
-          CREATE_CARD(boardId),
+        const response = await axiosInstance.post<{ success: boolean; data: Ticket }>(
+          CREATE_TICKET(boardId),
           input,
         )
         return response.data.data
@@ -222,22 +268,22 @@ export const useCreateCard = () => {
   return {
     loading,
     error,
-    createCard,
+    createTicket,
   }
 }
 
-export const useMoveCard = () => {
+export const useMoveTicket = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const moveCard = useCallback(
-    async (cardId: string, columnId: string, boardId: string): Promise<Card | null> => {
+  const moveTicket = useCallback(
+    async (ticketId: string, columnId: string, boardId: string): Promise<Ticket | null> => {
       setError(null)
       setLoading(true)
 
       try {
-        const response = await axiosInstance.put<{ status: string; data: Card }>(
-          MOVE_CARD(cardId),
+        const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
+          MOVE_TICKET(ticketId),
           { columnId, boardId },
         )
         return response.data.data
@@ -255,7 +301,7 @@ export const useMoveCard = () => {
   return {
     loading,
     error,
-    moveCard,
+    moveTicket,
   }
 }
 
@@ -264,14 +310,17 @@ export const useUpdateBoard = () => {
   const [error, setError] = useState<Errors | null>(null)
 
   const updateBoard = useCallback(
-    async (boardId: string, updates: UpdateBoardInput): Promise<Board | null> => {
+    async (boardId: string, updates: UpdateBoardInput['data']): Promise<Board | null> => {
       setError(null)
       setLoading(true)
 
       try {
-        const response = await axiosInstance.put<{ status: string; data: Board }>(
+        const response = await axiosInstance.put<{ success: boolean; data: Board }>(
           UPDATE_BOARD(boardId),
-          updates,
+          {
+            timestamp: new Date().toISOString(),
+            data: updates,
+          },
         )
         return response.data.data
       } catch (err) {
@@ -319,19 +368,22 @@ export const useDeleteBoard = () => {
   }
 }
 
-export const useUpdateCard = () => {
+export const useUpdateTicket = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const updateCard = useCallback(
-    async (cardId: string, updates: UpdateCardInput): Promise<Card | null> => {
+  const updateTicket = useCallback(
+    async (ticketId: string, updates: UpdateTicketInput['data']): Promise<Ticket | null> => {
       setError(null)
       setLoading(true)
 
       try {
-        const response = await axiosInstance.put<{ status: string; data: Card }>(
-          UPDATE_CARD(cardId),
-          updates,
+        const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
+          UPDATE_TICKET(ticketId),
+          {
+            timestamp: new Date().toISOString(),
+            data: updates,
+          },
         )
         return response.data.data
       } catch (err) {
@@ -348,20 +400,20 @@ export const useUpdateCard = () => {
   return {
     loading,
     error,
-    updateCard,
+    updateTicket,
   }
 }
 
-export const useDeleteCard = () => {
+export const useDeleteTicket = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const deleteCard = useCallback(async (cardId: string): Promise<boolean> => {
+  const deleteTicket = useCallback(async (ticketId: string): Promise<boolean> => {
     setError(null)
     setLoading(true)
 
     try {
-      await axiosInstance.delete(DELETE_CARD(cardId))
+      await axiosInstance.delete(DELETE_TICKET(ticketId))
       return true
     } catch (err) {
       const normalized = normalizeError(err)
@@ -375,7 +427,7 @@ export const useDeleteCard = () => {
   return {
     loading,
     error,
-    deleteCard,
+    deleteTicket,
   }
 }
 
@@ -384,13 +436,13 @@ export const useComments = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const fetchComments = useCallback(async (cardId: string) => {
+  const fetchComments = useCallback(async (ticketId: string) => {
     setError(null)
     setLoading(true)
 
     try {
-      const response = await axiosInstance.get<{ status: string; data: Comment[] }>(
-        GET_COMMENTS_BY_CARD(cardId),
+      const response = await axiosInstance.get<{ success: boolean; data: Comment[] }>(
+        GET_COMMENTS_BY_TICKET(ticketId),
       )
       setData(response.data.data)
       return response.data.data
@@ -416,13 +468,13 @@ export const useCreateComment = () => {
   const [error, setError] = useState<Errors | null>(null)
 
   const createComment = useCallback(
-    async (cardId: string, content: string): Promise<Comment | null> => {
+    async (ticketId: string, content: string): Promise<Comment | null> => {
       setError(null)
       setLoading(true)
 
       try {
-        const response = await axiosInstance.post<{ status: string; data: Comment }>(
-          CREATE_COMMENT(cardId),
+        const response = await axiosInstance.post<{ success: boolean; data: Comment }>(
+          CREATE_COMMENT(ticketId),
           { content },
         )
         return response.data.data
@@ -538,6 +590,38 @@ export const useCardActivities = () => {
     loading,
     error,
     fetchActivities,
+  }
+}
+
+export const useToggleBoardFavorite = () => {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Errors | null>(null)
+
+  const toggleFavorite = useCallback(
+    async (boardId: string): Promise<{ isFavorite: boolean } | null> => {
+      setError(null)
+      setLoading(true)
+
+      try {
+        const response = await axiosInstance.post<{ success: boolean; data: { isFavorite: boolean } }>(
+          TOGGLE_BOARD_FAVORITE(boardId),
+        )
+        return response.data.data
+      } catch (err) {
+        const normalized = normalizeError(err)
+        setError(normalized)
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    [],
+  )
+
+  return {
+    loading,
+    error,
+    toggleFavorite,
   }
 }
 

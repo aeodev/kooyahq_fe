@@ -11,18 +11,34 @@ export type Sprint = {
 
 export type Board = {
   id: string
+  workspaceId: string
   name: string
+  description?: string
+  prefix: string
+  emoji?: string
   type: 'kanban' | 'sprint'
-  ownerId: string
-  memberIds: string[]
-  columns: string[]
-  columnLimits?: Record<string, number>
-  sprints?: Sprint[]
-  sprintStartDate?: string // Deprecated
-  sprintEndDate?: string // Deprecated
-  sprintGoal?: string // Deprecated
+  settings: {
+    defaultView: 'board' | 'list' | 'timeline'
+    showSwimlanes: boolean
+  }
+  columns: Array<{
+    id: string
+    name: string
+    order: number
+    hexColor?: string
+    wipLimit?: number
+    isDoneColumn: boolean
+  }>
+  members: Array<{
+    userId: string
+    role: 'admin' | 'member' | 'viewer'
+    joinedAt: string
+  }>
+  createdBy: string
+  deletedAt?: string
   createdAt: string
   updatedAt: string
+  isFavorite?: boolean
 }
 
 export type CardAttachment = {
@@ -35,6 +51,7 @@ export type CardAttachment = {
   uploadedAt: string
 }
 
+// Legacy Card type - use Ticket instead
 export type Card = {
   id: string
   title: string
@@ -55,6 +72,43 @@ export type Card = {
   flagged?: boolean
   createdAt: string
   updatedAt: string
+}
+
+export type Ticket = {
+  id: string
+  ticketKey: string
+  title: string
+  description?: any // RichTextDoc
+  boardId: string
+  columnId: string
+  ticketType: 'epic' | 'story' | 'task' | 'bug' | 'subtask'
+  parentTicketId?: string
+  rootEpicId?: string
+  rank: string
+  points?: number
+  priority: 'highest' | 'high' | 'medium' | 'low' | 'lowest'
+  tags: string[]
+  assigneeId?: string
+  reporterId: string
+  acceptanceCriteria: Array<{ text: string; completed: boolean }>
+  documents: Array<{ url: string; label?: string }>
+  attachments?: CardAttachment[]
+  startDate?: string
+  endDate?: string
+  dueDate?: string
+  createdAt: string
+  updatedAt: string
+  deletedAt?: string
+  completedAt?: string
+  github?: {
+    branchName?: string
+    pullRequestUrl?: string
+    status?: 'open' | 'merged' | 'closed'
+  }
+  viewedBy?: Array<{
+    userId: string
+    viewedAt: string
+  }>
 }
 
 export type Comment = {
@@ -85,15 +139,33 @@ export type CreateBoardInput = {
 }
 
 export type UpdateBoardInput = {
-  name?: string
-  memberIds?: string[]
-  columns?: string[]
-  columnLimits?: Record<string, number>
-  sprintStartDate?: string | null
-  sprintEndDate?: string | null
-  sprintGoal?: string
+  timestamp: string
+  data: {
+    name?: string
+    description?: string
+    prefix?: string
+    emoji?: string
+    settings?: {
+      defaultView: 'board' | 'list' | 'timeline'
+      showSwimlanes: boolean
+    }
+    columns?: Array<{
+      id: string
+      name: string
+      order: number
+      hexColor?: string
+      wipLimit?: number
+      isDoneColumn: boolean
+    }>
+    members?: Array<{
+      userId: string
+      role: 'admin' | 'member' | 'viewer'
+      joinedAt: Date
+    }>
+  }
 }
 
+// Legacy Card types - use Ticket types instead
 export type CreateCardInput = {
   title: string
   description?: string
@@ -125,5 +197,56 @@ export type UpdateCardInput = {
   epicId?: string | null
   rank?: number | null
   flagged?: boolean
+}
+
+export type CreateTicketInput = {
+  ticketType: 'epic' | 'story' | 'task' | 'bug' | 'subtask'
+  title: string
+  description?: any
+  parentTicketId?: string
+  rootEpicId?: string
+  columnId?: string
+  rank?: string
+  points?: number
+  priority?: 'highest' | 'high' | 'medium' | 'low' | 'lowest'
+  tags?: string[]
+  assigneeId?: string
+  acceptanceCriteria?: Array<{ text: string; completed: boolean }>
+  documents?: Array<{ url: string; label?: string }>
+  startDate?: string
+  endDate?: string
+  dueDate?: string
+  github?: {
+    branchName?: string
+    pullRequestUrl?: string
+    status?: 'open' | 'merged' | 'closed'
+  }
+}
+
+export type UpdateTicketInput = {
+  timestamp: string
+  data: {
+    title?: string
+    description?: any
+    ticketType?: 'epic' | 'story' | 'task' | 'bug' | 'subtask'
+    parentTicketId?: string | null
+    rootEpicId?: string | null
+    columnId?: string
+    rank?: string
+    points?: number | null
+    priority?: 'highest' | 'high' | 'medium' | 'low' | 'lowest'
+    tags?: string[]
+    assigneeId?: string | null
+    acceptanceCriteria?: Array<{ text: string; completed: boolean }>
+    documents?: Array<{ url: string; label?: string }>
+    startDate?: string | null
+    endDate?: string | null
+    dueDate?: string | null
+    github?: {
+      branchName?: string
+      pullRequestUrl?: string
+      status?: 'open' | 'merged' | 'closed'
+    }
+  }
 }
 

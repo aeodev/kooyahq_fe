@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowRight, Clock4, Kanban, Bell, Calendar as CalendarIcon,
-  MessageSquare, Globe, Sparkles, Gamepad2, Play, Plus, Megaphone
+  ArrowRight, Clock4, Bell, Calendar as CalendarIcon,
+  MessageSquare, Globe, Sparkles, Gamepad2, Play, Megaphone
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,6 @@ import { Calendar } from '@/components/ui/calendar'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { CreateAnnouncementForm } from '@/components/announcements/CreateAnnouncementForm'
 import { useAuthStore } from '@/stores/auth.store'
-import { useBoardStore } from '@/stores/board.store'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { usePresenceStore } from '@/stores/presence.store'
 import {
@@ -27,7 +26,6 @@ import { useUsers } from '@/hooks/user.hooks'
 import { useGameTypes } from '@/hooks/game.hooks'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_AI_NEWS } from '@/utils/api.routes'
-import type { Board } from '@/types/board'
 import type { TimeEntry } from '@/types/time-entry'
 import type { Announcement } from '@/types/announcement'
 import type { Post } from '@/types/post'
@@ -38,7 +36,6 @@ const CACHE_DURATION = 1000 * 60 * 10 // 10 minutes
 const CACHE_KEY = 'home-dashboard-data'
 
 interface DashboardCache {
-  boards: Board[]
   entries: TimeEntry[]
   activeTimer: TimeEntry | null
   analytics: AnalyticsData | null
@@ -112,8 +109,6 @@ function formatDate(): string {
 
 export function Home() {
   const user = useAuthStore((state) => state.user)
-  const boardsFromStore = useBoardStore((state) => state.boards)
-  const fetchBoards = useBoardStore((state) => state.fetchBoards)
   const activeTimerFromStore = useTimeEntryStore((state) => state.activeTimer)
   const fetchActiveTimer = useTimeEntryStore((state) => state.fetchActiveTimer)
   const timerLoading = useTimeEntryStore((state) => state.loading.activeTimer)
@@ -135,7 +130,6 @@ export function Home() {
     const cached = getCachedDashboard()
     if (!cached) {
       return {
-        boards: [],
         entries: [],
         activeTimer: null,
         analytics: null,
@@ -154,7 +148,6 @@ export function Home() {
     const validAnalytics = cached.analytics && cached.dateRange === today ? cached.analytics : null
 
     return {
-      boards: cached.boards || [],
       entries: cached.entries || [],
       activeTimer: cached.activeTimer,
       analytics: validAnalytics,
@@ -169,7 +162,6 @@ export function Home() {
   }, [])
 
   // Use store data when available, otherwise fall back to cached data
-  const boards = boardsFromStore.length > 0 ? boardsFromStore : cachedData.boards
   const myEntries = myEntriesFromStore.length > 0 ? myEntriesFromStore : cachedData.entries
   const activeTimer = activeTimerFromStore ?? cachedData.activeTimer ?? null
   const announcements = announcementsFromStore.length > 0 ? announcementsFromStore : cachedData.announcements
@@ -193,7 +185,6 @@ export function Home() {
 
       // Fetch all data in parallel
       Promise.all([
-        fetchBoards().catch(() => []),
         fetchActiveTimer().catch(() => null),
         fetchEntries().catch(() => []),
         fetchAnnouncements(true).catch(() => []),
@@ -202,11 +193,10 @@ export function Home() {
         fetchPosts().catch(() => []),
         fetchGameTypes().catch(() => []),
         axiosInstance.get<{ status: string; data: NewsItem[] }>(`${GET_AI_NEWS()}?limit=1`).then(res => res.data.data[0] || null).catch(() => null),
-      ]).then(([boards, timer, entries, announcements, analytics, unreadCount, posts, gameTypes, news]) => {
+      ]).then(([timer, entries, announcements, analytics, unreadCount, posts, gameTypes, news]) => {
         if (news) setLatestNews(news)
         // Update cache with fresh data
         setCachedDashboard({
-          boards: boards || [],
           entries: entries || [],
           activeTimer: timer,
           analytics: analytics,
@@ -222,7 +212,7 @@ export function Home() {
         console.error('Error fetching dashboard data:', error)
       })
     }
-  }, [user, fetchBoards, fetchActiveTimer, fetchEntries, fetchAnnouncements, fetchAnalytics, fetchUnreadCount, fetchPosts, fetchGameTypes, presenceUsers, allUsers])
+  }, [user, fetchActiveTimer, fetchEntries, fetchAnnouncements, fetchAnalytics, fetchUnreadCount, fetchPosts, fetchGameTypes, presenceUsers, allUsers])
 
   if (!user) {
     return null
@@ -244,7 +234,6 @@ export function Home() {
     return sum + entry.duration
   }, 0)
 
-  const recentBoards = boards.slice(0, 4)
   const activeAnnouncement = announcements[0]
   const latestPost = posts[0]
 
@@ -372,20 +361,6 @@ export function Home() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardDescription>Total Boards</CardDescription>
-            <CardTitle className="text-2xl">{boards.length}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="ghost" size="sm" className="w-full">
-              <Link to="/workspace">
-                View All <ArrowRight className="ml-2 h-3 w-3" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
             <CardDescription>Notifications</CardDescription>
             <CardTitle className="text-2xl">{unreadCount}</CardTitle>
           </CardHeader>
@@ -435,43 +410,6 @@ export function Home() {
 
       {/* Quick Access Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="hover:shadow-lg transition-shadow flex flex-col h-[340px]">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Kanban className="h-5 w-5 text-primary" />
-              <CardTitle>Workspace</CardTitle>
-            </div>
-            <CardDescription>
-              {boards.length > 0 ? (
-                `${boards.length} ${boards.length === 1 ? 'board' : 'boards'}`
-              ) : (
-                <Skeleton className="h-4 w-20" />
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col space-y-3">
-            <div className="flex-1">
-              {recentBoards.length > 0 ? (
-                <div className="space-y-2">
-                  {recentBoards.slice(0, 2).map((board) => (
-                    <div key={board.id} className="text-sm">
-                      <p className="font-medium">{board.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{board.type}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">No boards yet</div>
-              )}
-            </div>
-            <Button asChild className="w-full mt-auto">
-              <Link to="/workspace">
-                Go to Workspace <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
         <Card className="hover:shadow-lg transition-shadow flex flex-col h-[340px]">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -677,54 +615,6 @@ export function Home() {
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <Card className="flex flex-col h-[500px]">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Kanban className="h-5 w-5 text-primary" />
-                  <CardTitle>Recent Boards</CardTitle>
-                </div>
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/workspace">
-                    View All <ArrowRight className="ml-2 h-3 w-3" />
-                  </Link>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto">
-              {recentBoards.length === 0 ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">No boards yet.</p>
-                  <Button asChild>
-                    <Link to="/workspace">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Board
-                    </Link>
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {recentBoards.map((board) => (
-                    <Link
-                      key={board.id}
-                      to={`/workspace/${board.id}`}
-                      className="block p-3 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm hover:bg-accent/50 transition-all duration-300 shadow-sm hover:shadow-md"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{board.name}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{board.type}</p>
-                        </div>
-                        <Badge variant="outline">{board.columns.length} columns</Badge>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </section>
   )

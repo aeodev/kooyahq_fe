@@ -39,28 +39,46 @@ export const GET_USERS = () => `/users`
 export const GET_USER_BY_ID = (userId: string) => `/users/${userId}`
 export const UPDATE_EMPLOYEE = (userId: string) => `/users/${userId}`
 
+// Workspace routes
+export const GET_WORKSPACES = () => `/workspaces`
+export const GET_WORKSPACE_BY_ID = (workspaceId: string) => `/workspaces/${workspaceId}`
+export const CREATE_WORKSPACE = () => `/workspaces`
+export const UPDATE_WORKSPACE = (workspaceId: string) => `/workspaces/${workspaceId}`
+export const DELETE_WORKSPACE = (workspaceId: string) => `/workspaces/${workspaceId}`
+
 // Board routes
-export const CREATE_BOARD = () => `/boards`
-export const GET_BOARDS = (type?: 'kanban' | 'sprint') => type ? `/boards?type=${type}` : `/boards`
+export const CREATE_BOARD = (workspaceId: string) => `/workspaces/${workspaceId}/boards`
+export const GET_BOARDS = (workspaceId: string, type?: 'kanban' | 'sprint') => {
+  const base = `/workspaces/${workspaceId}/boards`
+  return type ? `${base}?type=${type}` : base
+}
 export const GET_BOARD_BY_ID = (boardId: string) => `/boards/${boardId}`
+export const GET_BOARD_BY_KEY = (boardKey: string) => `/boards/key/${boardKey}`
 export const UPDATE_BOARD = (boardId: string) => `/boards/${boardId}`
 export const DELETE_BOARD = (boardId: string) => `/boards/${boardId}`
+export const TOGGLE_BOARD_FAVORITE = (boardId: string) => `/boards/${boardId}/favorite`
 
-// Card routes
-export const CREATE_CARD = (boardId: string) => `/boards/${boardId}/cards`
-export const GET_CARDS_BY_BOARD = (boardId: string) => `/boards/${boardId}/cards`
-export const MOVE_CARD = (cardId: string) => `/cards/${cardId}/move`
-export const UPDATE_CARD = (cardId: string) => `/cards/${cardId}`
-export const DELETE_CARD = (cardId: string) => `/cards/${cardId}`
-export const BULK_UPDATE_RANKS = (boardId: string) => `/boards/${boardId}/cards/bulk-rank`
-export const UPLOAD_CARD_ATTACHMENT = (cardId: string) => `/cards/${cardId}/attachments`
-export const DELETE_CARD_ATTACHMENT = (cardId: string, attachmentId: string) => `/cards/${cardId}/attachments/${attachmentId}`
-export const GET_CARD_FILE = (filename: string) => `/cards/files/${filename}`
-export const GET_CARD_ACTIVITIES = (cardId: string) => `/cards/${cardId}/activities`
+// Ticket routes
+export const CREATE_TICKET = (boardId: string) => `/boards/${boardId}/tickets`
+export const GET_TICKETS_BY_BOARD = (boardId: string) => `/boards/${boardId}/tickets`
+export const GET_TICKET_BY_ID = (ticketId: string) => `/tickets/${ticketId}`
+export const MOVE_TICKET = (ticketId: string) => `/tickets/${ticketId}/move`
+export const UPDATE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
+export const DELETE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
+export const BULK_UPDATE_RANKS = (boardId: string) => `/boards/${boardId}/tickets/bulk-rank`
+export const UPLOAD_TICKET_ATTACHMENT = (ticketId: string) => `/tickets/${ticketId}/attachments`
+export const DELETE_TICKET_ATTACHMENT = (ticketId: string, attachmentId: string) => `/tickets/${ticketId}/attachments/${attachmentId}`
+
+// Ticket details settings routes
+export const GET_TICKET_DETAILS_SETTINGS = (boardId?: string) => 
+  `/ticket-details-settings${boardId ? `?boardId=${boardId}` : ''}`
+export const UPDATE_TICKET_DETAILS_SETTINGS = () => `/ticket-details-settings`
+export const RESET_TICKET_DETAILS_SETTINGS = (boardId?: string) => 
+  `/ticket-details-settings/reset${boardId ? `?boardId=${boardId}` : ''}`
 
 // Comment routes
-export const CREATE_COMMENT = (cardId: string) => `/cards/${cardId}/comments`
-export const GET_COMMENTS_BY_CARD = (cardId: string) => `/cards/${cardId}/comments`
+export const CREATE_COMMENT = (ticketId: string) => `/tickets/${ticketId}/comments`
+export const GET_COMMENTS_BY_TICKET = (ticketId: string) => `/tickets/${ticketId}/comments`
 export const UPDATE_COMMENT = (commentId: string) => `/comments/${commentId}`
 export const DELETE_COMMENT = (commentId: string) => `/comments/${commentId}`
 
@@ -152,3 +170,6 @@ export const DELETE_PROJECT = (id: string) => `/projects/${id}`
 
 // Meet routes
 export const GET_LIVEKIT_TOKEN = () => `/meet/token`
+
+// Media upload routes (for rich text editor)
+export const UPLOAD_MEDIA = () => `/media/upload`

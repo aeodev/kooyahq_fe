@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import 'react-quill-new/dist/quill.snow.css';
 
 @tailwind base;
 @tailwind components;
@@ -70,9 +71,13 @@
     margin-right: 0 !important;
   }
 
-  /* Rich text display styles */
+  /* Rich text display styles - matches Quill editor rendering */
   .rich-text-display {
     color: hsl(var(--foreground));
+    font-size: 0.875rem;
+    line-height: 1.5;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
   .rich-text-display p {
     margin: 0.5rem 0;
@@ -130,11 +135,73 @@
     color: hsl(var(--primary));
     text-decoration: underline;
   }
+  /* Image styling - matches Quill editor */
   .rich-text-display img {
     max-width: 100%;
     height: auto;
     border-radius: 0.375rem;
-    margin: 0.5rem 0;
+    margin: 0.75rem 0;
+    display: block;
+    object-fit: contain;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+  .rich-text-display img:hover {
+    opacity: 0.9;
+  }
+  .rich-text-display img[src^="data:"] {
+    /* Data URLs (base64 images) */
+    max-height: 500px;
+  }
+  .rich-text-display .ql-align-center img {
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+  .rich-text-display .ql-align-right img {
+    margin-left: auto;
+    margin-right: 0;
+    display: block;
+  }
+  .rich-text-display .ql-align-left img {
+    margin-left: 0;
+    margin-right: auto;
+    display: block;
+  }
+  /* Video and iframe styling */
+  .rich-text-display video,
+  .rich-text-display iframe {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.375rem;
+    margin: 0.75rem 0;
+    display: block;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted));
+  }
+  .rich-text-display iframe {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    min-height: 300px;
+  }
+  .rich-text-display video {
+    max-height: 500px;
+    width: 100%;
+  }
+  .rich-text-display .ql-align-center video,
+  .rich-text-display .ql-align-center iframe {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .rich-text-display .ql-align-right video,
+  .rich-text-display .ql-align-right iframe {
+    margin-left: auto;
+    margin-right: 0;
+  }
+  .rich-text-display .ql-align-left video,
+  .rich-text-display .ql-align-left iframe {
+    margin-left: 0;
+    margin-right: auto;
   }
   .rich-text-display h1 {
     font-size: 1.5rem;
@@ -150,5 +217,71 @@
     font-size: 1.125rem;
     font-weight: 600;
     margin: 0.75rem 0 0.5rem;
+  }
+  /* Quill-specific alignment classes */
+  .rich-text-display .ql-align-center {
+    text-align: center;
+  }
+  .rich-text-display .ql-align-right {
+    text-align: right;
+  }
+  .rich-text-display .ql-align-justify {
+    text-align: justify;
+  }
+  /* Quill list styles */
+  .rich-text-display .ql-list[data-list="ordered"] {
+    list-style-type: decimal;
+  }
+  .rich-text-display .ql-list[data-list="bullet"] {
+    list-style-type: disc;
+  }
+  /* Preserve inline styles for colors and backgrounds from Quill */
+  .rich-text-display [style*="color"] {
+    /* Inline color styles are preserved */
+  }
+  .rich-text-display [style*="background"] {
+    /* Inline background styles are preserved */
+  }
+  /* Quill indent classes */
+  .rich-text-display .ql-indent-1 {
+    padding-left: 3em;
+  }
+  .rich-text-display .ql-indent-2 {
+    padding-left: 6em;
+  }
+  .rich-text-display .ql-indent-3 {
+    padding-left: 9em;
+  }
+  .rich-text-display .ql-indent-4 {
+    padding-left: 12em;
+  }
+  .rich-text-display .ql-indent-5 {
+    padding-left: 15em;
+  }
+  .rich-text-display .ql-indent-6 {
+    padding-left: 18em;
+  }
+  .rich-text-display .ql-indent-7 {
+    padding-left: 21em;
+  }
+  .rich-text-display .ql-indent-8 {
+    padding-left: 24em;
+  }
+  /* Ensure proper spacing and formatting */
+  .rich-text-display * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  /* Image error handling */
+  .rich-text-display img[src=""],
+  .rich-text-display img:not([src]) {
+    display: none;
+  }
+  /* Video/iframe error handling */
+  .rich-text-display iframe[src=""],
+  .rich-text-display iframe:not([src]),
+  .rich-text-display video[src=""],
+  .rich-text-display video:not([src]) {
+    display: none;
   }
 }

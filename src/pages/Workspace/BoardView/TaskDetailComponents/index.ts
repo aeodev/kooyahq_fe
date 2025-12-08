@@ -1,0 +1,11 @@
+export { TaskDetailHeader } from './TaskDetailHeader'
+export { TaskTitleSection } from './TaskTitleSection'
+export { TaskSubtasksSection } from './TaskSubtasksSection'
+export { TaskRelatedTicketsSection } from './TaskRelatedTicketsSection'
+export { TaskActivitySection } from './TaskActivitySection'
+export { TaskSidebar } from './TaskSidebar'
+export { TaskDetailFields } from './TaskDetailFields'
+export { AcceptanceCriteriaSection } from './AcceptanceCriteriaSection'
+export { DocumentsSection } from './DocumentsSection'
+export type { TicketDetailResponse } from './types'
+

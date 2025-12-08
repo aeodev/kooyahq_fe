@@ -6,6 +6,7 @@ import {
   DELETE_BOARD,
   DELETE_CARD,
   GET_BOARD_BY_ID,
+  GET_BOARD_BY_KEY,
   GET_BOARDS,
   GET_CARDS_BY_BOARD,
   MOVE_CARD,
@@ -82,6 +83,7 @@ type BoardState = {
 type BoardActions = {
   fetchBoards: () => Promise<Board[]>
   fetchBoard: (boardId: string) => Promise<Board | null>
+  fetchBoardByKey: (boardKey: string) => Promise<Board | null>
   fetchCards: (boardId: string) => Promise<Card[]>
   createBoard: (input: CreateBoardInput) => Promise<Board | null>
   updateBoard: (boardId: string, updates: UpdateBoardInput) => Promise<Board | null>
@@ -143,6 +145,33 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
       // Update boards list if board exists there
       const boards = get().boards.map((b) => (b.id === boardId ? board : b))
+      set({
+        currentBoard: board,
+        boards,
+        loading: { ...get().loading, board: false },
+      })
+      return board
+    } catch (err) {
+      const normalized = normalizeError(err)
+      set({
+        errors: { ...get().errors, board: normalized },
+        loading: { ...get().loading, board: false },
+      })
+      return null
+    }
+  },
+
+  fetchBoardByKey: async (boardKey: string) => {
+    set({ loading: { ...get().loading, board: true }, errors: { ...get().errors, board: null } })
+
+    try {
+      const response = await axiosInstance.get<{ status: string; data: Board }>(
+        GET_BOARD_BY_KEY(boardKey)
+      )
+      const board = response.data.data
+
+      // Update boards list if board exists there
+      const boards = get().boards.map((b) => (b.key === board.key ? board : b))
       set({
         currentBoard: board,
         boards,

@@ -5,8 +5,9 @@ import { Home } from '@/pages/Home'
 import { Login } from '@/pages/Login'
 import { Signup } from '@/pages/Signup'
 import { TimeTracker } from '@/pages/TimeTracker'
-import { BoardDetail } from '@/pages/Workspace/BoardDetail'
 import { Workspace } from '@/pages/Workspace'
+import { BoardView } from '@/pages/Workspace/BoardView'
+import { TicketDetailPage } from '@/pages/Workspace/BoardView/TicketDetailPage'
 import { Gallery } from '@/pages/Gallery'
 import { AINews } from '@/pages/AINews'
 import { Profile } from '@/pages/Profile'
@@ -21,11 +22,13 @@ import { MeetLanding } from '@/pages/Meet/Landing'
 import { PreJoin } from '@/pages/Meet/PreJoin'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
+import { ToastContainer } from '@/components/ui/toast'
 
 function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
+        <ToastContainer />
           <Routes>
             <Route
               path="/"
@@ -48,11 +51,21 @@ function App() {
               }
             />
             <Route
-              path="/workspace/:boardId"
+              path="/workspace/:boardKey"
               element={
                 <PrivateRoute fallback={null}>
                   <AppLayout>
-                    <BoardDetail />
+                    <BoardView />
+                  </AppLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/workspace/:boardKey/:ticketKey"
+              element={
+                <PrivateRoute fallback={null}>
+                  <AppLayout>
+                    <TicketDetailPage />
                   </AppLayout>
                 </PrivateRoute>
               }
