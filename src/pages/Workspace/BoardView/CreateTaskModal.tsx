@@ -27,7 +27,7 @@ type CreateTaskModalProps = {
   onSuccess?: () => void
 }
 
-const TASK_TYPES: TaskType[] = ['task', 'bug', 'story', 'epic', 'subtask']
+const TASK_TYPES: TaskType[] = ['task', 'bug', 'story', 'epic']
 const PRIORITY_OPTIONS: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 const FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13]
 
@@ -220,7 +220,7 @@ export function CreateTaskModal({
   // Filter tickets for epic selection (only epics)
   const availableEpics = availableTickets.filter(t => t.ticketType === 'epic')
 
-  const showParentEpicFields = type === 'subtask' || type === 'story' || type === 'task'
+  const showParentEpicFields = type === 'story' || type === 'task'
 
   if (!open) return null
 
@@ -517,7 +517,7 @@ export function CreateTaskModal({
                   </DropdownMenu>
                 </div>
 
-                {/* Parent (for subtasks/stories/tasks) */}
+                {/* Parent (for stories/tasks) */}
                 {showParentEpicFields && (
                   <div>
                     <label className="text-xs text-muted-foreground block mb-1.5">Parent</label>
@@ -554,7 +554,7 @@ export function CreateTaskModal({
                   </div>
                 )}
 
-                {/* Root Epic (for subtasks/stories/tasks) */}
+                {/* Root Epic (for stories/tasks) */}
                 {showParentEpicFields && (
                   <div>
                     <label className="text-xs text-muted-foreground block mb-1.5">Root Epic</label>

@@ -1,17 +1,33 @@
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Plus, X } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import type { TicketDetailResponse } from './types'
 import { getTaskTypeIcon } from '../index'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+import type { Ticket } from '@/types/board'
 
 type TaskRelatedTicketsSectionProps = {
   relatedTickets: TicketDetailResponse['relatedTickets'] | null
+  ticketDetails: TicketDetailResponse | null
+  availableTickets: Ticket[]
   onNavigateToTask?: (ticketKey: string) => void
+  onAddRelatedTicket?: (ticketId: string) => void
+  onRemoveRelatedTicket?: (ticketId: string) => void
 }
 
 export function TaskRelatedTicketsSection({
   relatedTickets,
+  ticketDetails,
+  availableTickets,
   onNavigateToTask,
+  onAddRelatedTicket,
+  onRemoveRelatedTicket,
 }: TaskRelatedTicketsSectionProps) {
   const [expanded, setExpanded] = useState(true)
 
@@ -19,13 +35,35 @@ export function TaskRelatedTicketsSection({
 
   // Filter out subtasks from children - subtasks should only appear in Subtasks section
   const nonSubtaskChildren = relatedTickets.children.filter((child) => child.ticketType !== 'subtask')
+  
+  // Get manually related tickets (exclude epics and subtasks)
+  const manualRelated = (relatedTickets.manualRelated || []).filter(
+    (t) => t.ticketType !== 'epic' && t.ticketType !== 'subtask'
+  )
+  
   const hasRelatedTickets = 
     relatedTickets.parent || 
     nonSubtaskChildren.length > 0 || 
     relatedTickets.siblings.length > 0 || 
-    relatedTickets.epicTickets.length > 0
+    relatedTickets.epicTickets.length > 0 ||
+    manualRelated.length > 0
 
-  if (!hasRelatedTickets) return null
+  if (!hasRelatedTickets && !onAddRelatedTicket) return null
+
+  // Filter available tickets for related ticket selection
+  // Exclude: epics, subtasks, self, already related tickets
+  const currentTicketId = ticketDetails?.ticket.id
+  const alreadyRelatedIds = new Set([
+    ...(relatedTickets.manualRelated || []).map((t) => t.id),
+    currentTicketId,
+  ])
+  
+  const availableForRelation = availableTickets.filter(
+    (t) =>
+      t.ticketType !== 'epic' &&
+      t.ticketType !== 'subtask' &&
+      !alreadyRelatedIds.has(t.id)
+  )
 
   const handleTicketClick = (ticketKey: string) => {
     if (onNavigateToTask) {
@@ -35,18 +73,45 @@ export function TaskRelatedTicketsSection({
 
   return (
     <div>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2"
-      >
-        <ChevronRight
-          className={cn(
-            'h-4 w-4 transition-transform',
-            expanded && 'rotate-90'
-          )}
-        />
-        Related Tickets
-      </button>
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-2 text-sm font-semibold text-foreground"
+        >
+          <ChevronRight
+            className={cn(
+              'h-4 w-4 transition-transform',
+              expanded && 'rotate-90'
+            )}
+          />
+          Related Tickets
+        </button>
+        {onAddRelatedTicket && expanded && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 max-h-96 overflow-y-auto">
+              {availableForRelation.length === 0 ? (
+                <DropdownMenuItem disabled>No tickets available</DropdownMenuItem>
+              ) : (
+                availableForRelation.map((ticket) => (
+                  <DropdownMenuItem
+                    key={ticket.id}
+                    onClick={() => onAddRelatedTicket(ticket.id)}
+                    className="cursor-pointer"
+                  >
+                    {getTaskTypeIcon(ticket.ticketType)}
+                    <span className="ml-2">{ticket.ticketKey}: {ticket.title}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
       {expanded && (
         <div className="ml-6 space-y-3">
           {/* Parent */}
@@ -121,12 +186,48 @@ export function TaskRelatedTicketsSection({
                     onClick={() => handleTicketClick(epicTicket.ticketKey)}
                     className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors w-full text-left"
                   >
-                    {getTaskTypeIcon('epic')}
+                    {getTaskTypeIcon(epicTicket.ticketType)}
                     <span className="text-sm font-medium text-primary hover:underline">
                       {epicTicket.ticketKey}
                     </span>
                     <span className="text-sm text-foreground">{epicTicket.title}</span>
                   </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Manually Related Tickets */}
+          {manualRelated.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Related ({manualRelated.length})</p>
+              <div className="space-y-1">
+                {manualRelated.map((ticket) => (
+                  <div
+                    key={ticket.id}
+                    className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors group"
+                  >
+                    <button
+                      onClick={() => handleTicketClick(ticket.ticketKey)}
+                      className="flex items-center gap-2 flex-1 text-left"
+                    >
+                      {getTaskTypeIcon(ticket.ticketType)}
+                      <span className="text-sm font-medium text-primary hover:underline">
+                        {ticket.ticketKey}
+                      </span>
+                      <span className="text-sm text-foreground">{ticket.title}</span>
+                    </button>
+                    {onRemoveRelatedTicket && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onRemoveRelatedTicket(ticket.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

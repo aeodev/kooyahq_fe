@@ -8,7 +8,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DraggableFieldConfigItem } from './DraggableFieldConfigItem'
 import axiosInstance from '@/utils/axios.instance'
-import { UPDATE_TICKET_DETAILS_SETTINGS, RESET_TICKET_DETAILS_SETTINGS } from '@/utils/api.routes'
+import { UPDATE_BOARD } from '@/utils/api.routes'
+import { toast } from 'sonner'
 
 type FieldConfig = {
   fieldName: string
@@ -22,12 +23,14 @@ type DetailsSettingsDropdownProps = {
   } | null
   setDetailsSettings: (settings: { fieldConfigs: FieldConfig[] } | null) => void
   boardId: string | undefined
+  onBoardUpdate?: (boardId: string, settings: any) => void
 }
 
 export function DetailsSettingsDropdown({
   detailsSettings,
   setDetailsSettings,
   boardId,
+  onBoardUpdate,
 }: DetailsSettingsDropdownProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -84,47 +87,81 @@ export function DetailsSettingsDropdown({
   }
 
   const handleReset = async () => {
-    if (boardId) {
-      try {
-        setIsSaving(true)
-        const response = await axiosInstance.post<{
-          success: boolean
-          data: { fieldConfigs: FieldConfig[] }
-        }>(RESET_TICKET_DETAILS_SETTINGS(boardId))
-        if (response.data.success && response.data.data) {
-          setDetailsSettings(response.data.data)
+    if (!boardId) return
+    
+    const defaultSettings = {
+      fieldConfigs: [
+        { fieldName: 'priority', isVisible: true, order: 0 },
+        { fieldName: 'assignee', isVisible: true, order: 1 },
+        { fieldName: 'tags', isVisible: true, order: 2 },
+        { fieldName: 'parent', isVisible: true, order: 3 },
+        { fieldName: 'dueDate', isVisible: true, order: 4 },
+        { fieldName: 'startDate', isVisible: true, order: 5 },
+        { fieldName: 'endDate', isVisible: true, order: 6 },
+      ],
+    }
+    
+    try {
+      setIsSaving(true)
+      const response = await axiosInstance.put<{
+        success: boolean
+        data: any
+      }>(UPDATE_BOARD(boardId), {
+        timestamp: new Date().toISOString(),
+        data: {
+          settings: {
+            ticketDetailsSettings: defaultSettings,
+          },
+        },
+      })
+      
+      if (response.data.success) {
+        setDetailsSettings(defaultSettings)
+        if (onBoardUpdate) {
+          onBoardUpdate(boardId, response.data.data.settings)
         }
-      } catch (error) {
-        console.error('Error resetting settings:', error)
-      } finally {
-        setIsSaving(false)
+        toast.success('Settings reset to defaults')
       }
+    } catch (error) {
+      console.error('Error resetting settings:', error)
+      toast.error('Failed to reset settings')
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const handleSave = async () => {
-    if (detailsSettings && boardId) {
-      try {
-        setIsSaving(true)
-        const response = await axiosInstance.put<{
-          success: boolean
-          data: { fieldConfigs: FieldConfig[] }
-        }>(UPDATE_TICKET_DETAILS_SETTINGS(), {
-          boardId,
-          fieldConfigs: detailsSettings.fieldConfigs,
-        })
-        
-        if (response.data.success && response.data.data) {
-          // Update local state with saved settings
-          setDetailsSettings(response.data.data)
-          // Close dropdown after successful save
-          setIsOpen(false)
+    if (!detailsSettings || !boardId) return
+    
+    try {
+      setIsSaving(true)
+      const response = await axiosInstance.put<{
+        success: boolean
+        data: any
+      }>(UPDATE_BOARD(boardId), {
+        timestamp: new Date().toISOString(),
+        data: {
+          settings: {
+            ticketDetailsSettings: detailsSettings,
+          },
+        },
+      })
+      
+      if (response.data.success) {
+        // Update local state with saved settings
+        setDetailsSettings(detailsSettings)
+        if (onBoardUpdate) {
+          onBoardUpdate(boardId, response.data.data.settings)
         }
-      } catch (error) {
-        console.error('Error saving settings:', error)
-      } finally {
-        setIsSaving(false)
+        // Close dropdown after successful save
+        setIsOpen(false)
+        toast.success('Settings saved')
       }
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      toast.error('Failed to save settings')
+    } finally {
+      setIsSaving(false)
     }
   }
 

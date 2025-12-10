@@ -6,10 +6,10 @@ import type { Board as ApiBoardType, Ticket } from '@/types/board'
 import type { Board as BoardViewBoard, Column as BoardViewColumn } from './types'
 import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
-import { TicketSocketEvents } from '@/hooks/socket/ticket.socket'
 import { useUpdateTicket, useMoveTicket } from '@/hooks/board.hooks'
 import { useAuthStore } from '@/stores/auth.store'
 import { BULK_UPDATE_RANKS } from '@/utils/api.routes'
+import { toast } from 'sonner'
 
 // Type guard to ensure we're using the correct type
 function isApiBoardType(board: any): board is ApiBoardType {
@@ -62,6 +62,7 @@ import { ConfigureBoardModal } from './ConfigureBoardModal'
 import { TaskDetailModal } from './TaskDetailModal'
 import { CreateTaskModal } from './CreateTaskModal'
 import { FilterDropdown } from './FilterDropdown'
+import { Skeleton } from '@/components/ui/skeleton'
 import type {
   TaskType,
   GroupBy,
@@ -290,6 +291,34 @@ export function getPriorityIcon(priority: Priority) {
 
 export function getPriorityLabel(priority: Priority) {
   return priority.charAt(0).toUpperCase() + priority.slice(1)
+}
+
+// Helper function to extract hex color from Tailwind class or return the color as-is
+const getHexColor = (colorClass: string): string | undefined => {
+  if (colorClass.startsWith('#')) {
+    return colorClass
+  }
+  if (colorClass.startsWith('bg-[')) {
+    const match = colorClass.match(/bg-\[([^\]]+)\]/)
+    return match?.[1] || undefined
+  }
+  // Map common Tailwind colors to hex (fallback for standard classes)
+  const tailwindColorMap: Record<string, string> = {
+    'bg-blue-500': '#3b82f6',
+    'bg-green-500': '#22c55e',
+    'bg-red-500': '#ef4444',
+    'bg-yellow-500': '#eab308',
+    'bg-purple-500': '#a855f7',
+    'bg-pink-500': '#ec4899',
+    'bg-indigo-500': '#6366f1',
+    'bg-cyan-500': '#06b6d4',
+    'bg-teal-500': '#14b8a6',
+    'bg-orange-500': '#f97316',
+    'bg-amber-500': '#f59e0b',
+    'bg-slate-400': '#94a3b8',
+    'bg-slate-500': '#64748b',
+  }
+  return tailwindColorMap[colorClass] || undefined
 }
 
 const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
@@ -549,103 +578,6 @@ export function BoardView() {
       socket.off(BoardSocketEvents.UPDATED, handleBoardUpdated)
     }
   }, [socket, connected, apiBoard?.id]) // Only depend on board ID, not entire object
-
-  // Listen for ticket socket events
-  useEffect(() => {
-    if (!socket || !connected || !apiBoard?.id || !currentUser?.id) return
-
-    const boardId = apiBoard.id
-
-    const handleTicketMoved = (data: { 
-      ticket: Ticket
-      boardId: string
-      oldColumnId: string
-      newColumnId: string
-      userId: string
-      timestamp: string 
-    }) => {
-      // Only update if it's for the current board
-      if (data.boardId !== boardId) return
-
-      // Ignore updates from current user (we already handled it optimistically)
-      if (data.userId === currentUser.id) return
-
-      // Ignore if we recently moved this ticket ourselves (within last 3 seconds)
-      // This prevents socket events from interfering with our optimistic updates
-      const moveTimestamp = recentMovesRef.current.get(data.ticket.id)
-      if (moveTimestamp && Date.now() - moveTimestamp < 3000) {
-        return
-      }
-
-      // Update the ticket in apiTickets
-      // The columns will automatically update via the useEffect that distributes tickets
-      setApiTickets((prev) => {
-        const existingIndex = prev.findIndex((t) => t.id === data.ticket.id)
-        if (existingIndex >= 0) {
-          // Update existing ticket
-          return prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
-        } else {
-          // Ticket doesn't exist yet (shouldn't happen, but handle gracefully)
-          return [...prev, data.ticket]
-        }
-      })
-    }
-
-    const handleTicketUpdated = (data: { 
-      ticket: Ticket
-      userId: string
-      timestamp: string 
-    }) => {
-      // Only update if it's for the current board
-      const ticketBoardId = data.ticket.boardId
-      if (ticketBoardId !== boardId) return
-
-      // Ignore updates from current user (we already handled it optimistically)
-      if (data.userId === currentUser.id) return
-
-      // Update the ticket in apiTickets
-      setApiTickets((prev) => {
-        const existingIndex = prev.findIndex((t) => t.id === data.ticket.id)
-        if (existingIndex >= 0) {
-          // Update existing ticket
-          return prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
-        } else {
-          // Ticket doesn't exist yet (shouldn't happen for updates, but handle gracefully)
-          return [...prev, data.ticket]
-        }
-      })
-    }
-
-    const handleTicketCreated = (data: { 
-      ticket: Ticket
-      userId: string
-      timestamp: string 
-    }) => {
-      // Only update if it's for the current board
-      const ticketBoardId = data.ticket.boardId
-      if (ticketBoardId !== boardId) return
-
-      // Ignore creates from current user (we already handled it optimistically)
-      if (data.userId === currentUser.id) return
-
-      // Add the new ticket to apiTickets
-      setApiTickets((prev) => {
-        // Avoid duplicates
-        if (prev.find((t) => t.id === data.ticket.id)) return prev
-        return [...prev, data.ticket]
-      })
-    }
-
-    socket.on(TicketSocketEvents.MOVED, handleTicketMoved)
-    socket.on(TicketSocketEvents.UPDATED, handleTicketUpdated)
-    socket.on(TicketSocketEvents.CREATED, handleTicketCreated)
-
-    return () => {
-      socket.off(TicketSocketEvents.MOVED, handleTicketMoved)
-      socket.off(TicketSocketEvents.UPDATED, handleTicketUpdated)
-      socket.off(TicketSocketEvents.CREATED, handleTicketCreated)
-    }
-  }, [socket, connected, apiBoard?.id, currentUser?.id])
 
   // Join workspace room to receive socket events
   useEffect(() => {
@@ -1099,13 +1031,78 @@ export function BoardView() {
   }
 
   const handleUpdateTask = (updatedTask: Task) => {
-    setColumns((prev) =>
-      prev.map((col) => ({
-        ...col,
-        tasks: col.tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
-      }))
-    )
+    // Find the old task to check if status changed
+    const oldTask = columns
+      .flatMap((col) => col.tasks)
+      .find((t) => t.id === updatedTask.id)
+    
+    const statusChanged = oldTask && oldTask.status !== updatedTask.status
+    
+    // Find the new column (where the task should be based on status)
+    const newColumn = columns.find((col) => col.name === updatedTask.status)
+    
+    setColumns((prev) => {
+      // Find the old column (where the task currently is)
+      const oldColumn = prev.find((col) => 
+        col.tasks.some((t) => t.id === updatedTask.id)
+      )
+      
+      // Find the new column (where the task should be based on status)
+      const targetColumn = prev.find((col) => col.name === updatedTask.status)
+      
+      // If status changed and we found both columns, move the task
+      if (oldColumn && targetColumn && oldColumn.id !== targetColumn.id) {
+        // Remove from old column
+        const updatedOldColumn = {
+          ...oldColumn,
+          tasks: oldColumn.tasks.filter((t) => t.id !== updatedTask.id),
+        }
+        
+        // Add to new column
+        const updatedNewColumn = {
+          ...targetColumn,
+          tasks: [...targetColumn.tasks, updatedTask],
+        }
+        
+        // Update columns
+        return prev.map((col) => {
+          if (col.id === oldColumn.id) return updatedOldColumn
+          if (col.id === targetColumn.id) return updatedNewColumn
+          return col
+        })
+      } else {
+        // Status didn't change or same column, just update the task in place
+        return prev.map((col) => ({
+          ...col,
+          tasks: col.tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
+        }))
+      }
+    })
+    
+    // If status changed, also update apiTickets optimistically to prevent jump-back
+    if (statusChanged && newColumn) {
+      setApiTickets((prev) =>
+        prev.map((t) => 
+          t.id === updatedTask.id 
+            ? { ...t, columnId: newColumn.id }
+            : t
+        )
+      )
+    }
+    
     setSelectedTask(updatedTask)
+  }
+
+  const handleBoardUpdate = async (boardId: string, settings: any) => {
+    if (apiBoard && apiBoard.id === boardId) {
+      setApiBoard({
+        ...apiBoard,
+        settings: {
+          ...apiBoard.settings,
+          ...settings,
+        },
+      })
+    }
   }
 
   const handleUpdateTaskAssignee = async (taskId: string, assignee: Assignee | undefined) => {
@@ -1195,6 +1192,7 @@ export function BoardView() {
       if (selectedTask && selectedTask.id === taskId) {
         setSelectedTask({ ...selectedTask, assignee: oldAssignee })
       }
+      toast.error('Failed to update assignee')
     }
   }
 
@@ -1488,7 +1486,7 @@ export function BoardView() {
     try {
       // If moving between columns, call moveTicket API
       if (sourceColumnId !== targetColumnId) {
-        const movedTicket = await moveTicketAPI(task.id, targetColumnId, boardId)
+        const movedTicket = await moveTicketAPI(task.id, targetColumnId)
         if (!movedTicket) {
           throw new Error('Failed to move ticket')
         }
@@ -1587,6 +1585,9 @@ export function BoardView() {
       setApiTickets((prev) => 
         prev.map((t) => t.id === task.id ? ticket : t)
       )
+      
+      // Show error toast
+      toast.error('Failed to move ticket')
     }
   }
 
@@ -1603,9 +1604,57 @@ export function BoardView() {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <p className="text-muted-foreground">Loading board...</p>
-      </div>
+      <section className="space-y-4">
+        {/* Board Header Skeleton */}
+        <header className="space-y-4 pb-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-24" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded" />
+              <Skeleton className="h-8 w-8 rounded" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-12 w-12 rounded" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-9 w-20 rounded-lg" />
+            ))}
+          </div>
+        </header>
+
+        {/* Board Content Skeleton */}
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {[1, 2, 3, 4].map((colIndex) => (
+            <div key={colIndex} className="min-w-[280px] space-y-3">
+              <div className="flex items-center justify-between p-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-8 rounded" />
+              </div>
+              <div className="space-y-2">
+                {[1, 2, 3].map((taskIndex) => (
+                  <div key={taskIndex} className="border border-border rounded-lg p-3 space-y-2">
+                    <Skeleton className="h-5 w-full" />
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-4 rounded" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                      <Skeleton className="h-4 w-12" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     )
   }
 
@@ -2033,9 +2082,13 @@ export function BoardView() {
                             onDragOver={(e) => handleDragOverTask(e, column.id, taskIndex)}
                             onDragEnd={handleDragEnd}
                             className={cn(
-                              'bg-card hover:bg-accent/50 border border-border/50 rounded-lg p-3 cursor-grab active:cursor-grabbing transition-all hover:shadow-md mb-2',
+                              'bg-card hover:bg-accent/50 border border-border/50 rounded-lg p-3 cursor-grab active:cursor-grabbing transition-all hover:shadow-md mb-2 relative',
                               draggedTask?.task.id === task.id && 'opacity-40 scale-[0.98]'
                             )}
+                            style={{
+                              borderLeftWidth: '4px',
+                              borderLeftColor: getHexColor(column.color),
+                            }}
                           >
                             {/* Header: Title and More Options */}
                             <div className="flex items-start justify-between gap-2 mb-2">
@@ -2371,6 +2424,7 @@ export function BoardView() {
           onUpdateAssignee={handleUpdateTaskAssignee}
           boardKey={board.key}
           boardId={apiBoard && isApiBoardType(apiBoard) ? apiBoard.id : undefined}
+          board={apiBoard && isApiBoardType(apiBoard) ? apiBoard : undefined}
           onNavigateToTask={handleNavigateToTask}
         />
       )}

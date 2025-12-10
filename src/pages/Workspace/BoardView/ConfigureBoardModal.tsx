@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, GripVertical, Plus, Trash2, LayoutGrid, List, Settings, Info, Columns, AlertTriangle } from 'lucide-react'
+import { X, GripVertical, Plus, Trash2, LayoutGrid, List, Settings, Info, Columns, AlertTriangle, ListChecks } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,6 +8,8 @@ import { cn } from '@/utils/cn'
 import type { Column } from './types'
 import type { Board as ApiBoardType } from '@/types/board'
 import { useUpdateBoard } from '@/hooks/board.hooks'
+import { DraggableFieldConfigItem } from './DetailsSettings/DraggableFieldConfigItem'
+import { toast } from 'sonner'
 
 type ConfigureBoardModalProps = {
   open: boolean
@@ -67,7 +69,13 @@ const EMOJI_CATEGORIES = {
   'Symbols': ['❤️', '💜', '💙', '💚', '🧡', '⚡', '🌟', '💫'],
 }
 
-type SettingsSection = 'general' | 'columns'
+type SettingsSection = 'general' | 'columns' | 'details'
+
+type FieldConfig = {
+  fieldName: string
+  isVisible: boolean
+  order: number
+}
 
 export function ConfigureBoardModal({
   open,
@@ -92,6 +100,8 @@ export function ConfigureBoardModal({
   const [customColorValue, setCustomColorValue] = useState<string>('#3b82f6')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [deleteColumnIndex, setDeleteColumnIndex] = useState<number | null>(null)
+  const [detailsSettings, setDetailsSettings] = useState<{ fieldConfigs: FieldConfig[] } | null>(null)
+  const [detailsDraggedIndex, setDetailsDraggedIndex] = useState<number | null>(null)
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
   const colorButtonRef = useRef<HTMLButtonElement>(null)
@@ -127,6 +137,24 @@ export function ConfigureBoardModal({
         })
       }
       setColumnMetadata(metadata)
+      
+      // Initialize details settings
+      if (board.settings?.ticketDetailsSettings) {
+        setDetailsSettings(board.settings.ticketDetailsSettings)
+      } else {
+        // Default settings
+        setDetailsSettings({
+          fieldConfigs: [
+            { fieldName: 'priority', isVisible: true, order: 0 },
+            { fieldName: 'assignee', isVisible: true, order: 1 },
+            { fieldName: 'tags', isVisible: true, order: 2 },
+            { fieldName: 'parent', isVisible: true, order: 3 },
+            { fieldName: 'dueDate', isVisible: true, order: 4 },
+            { fieldName: 'startDate', isVisible: true, order: 5 },
+            { fieldName: 'endDate', isVisible: true, order: 6 },
+          ],
+        })
+      }
       
       prevBoardIdRef.current = board.id
     }
@@ -333,6 +361,7 @@ export function ConfigureBoardModal({
         settings: {
           defaultView,
           showSwimlanes,
+          ...(detailsSettings && { ticketDetailsSettings: detailsSettings }),
         },
         columns: backendColumns,
       } as any)
@@ -385,6 +414,18 @@ export function ConfigureBoardModal({
               <Columns className="h-4 w-4" />
               Columns
             </button>
+            <button
+              onClick={() => setActiveSection('details')}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                activeSection === 'details'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+            >
+              <ListChecks className="h-4 w-4" />
+              Details
+            </button>
           </nav>
         </div>
 
@@ -394,12 +435,14 @@ export function ConfigureBoardModal({
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div>
               <h3 className="text-base font-semibold text-foreground">
-                {activeSection === 'general' ? 'General settings' : 'Column settings'}
+                {activeSection === 'general' ? 'General settings' : activeSection === 'columns' ? 'Column settings' : 'Details settings'}
               </h3>
               <p className="text-sm text-muted-foreground mt-0.5">
                 {activeSection === 'general'
                   ? 'Configure board name, icon, description, and view preferences'
-                  : 'Manage columns, their order, colors, and done column settings'}
+                  : activeSection === 'columns'
+                  ? 'Manage columns, their order, colors, and done column settings'
+                  : 'Choose which fields to display in ticket details and arrange their order'}
               </p>
             </div>
             <button
@@ -784,6 +827,89 @@ export function ConfigureBoardModal({
                   <Plus className="h-4 w-4" />
                   <span className="text-sm">Add column</span>
                 </button>
+              </div>
+            )}
+
+            {activeSection === 'details' && (
+              <div className="space-y-6 max-w-2xl">
+                <div className="space-y-3">
+                  <div className="text-sm font-semibold">Configure Details Fields</div>
+                  <div className="text-xs text-muted-foreground">
+                    Choose which fields to display and arrange their order.
+                  </div>
+                  <div className="space-y-2 max-h-96 overflow-y-auto border rounded-lg p-3">
+                    {detailsSettings?.fieldConfigs
+                      ? [...detailsSettings.fieldConfigs].sort((a, b) => a.order - b.order).map((config, index) => (
+                          <DraggableFieldConfigItem
+                            key={config.fieldName}
+                            config={config}
+                            index={index}
+                            isDragging={detailsDraggedIndex === index}
+                            onToggleVisibility={(fieldName, isVisible) => {
+                              if (detailsSettings) {
+                                const updated = {
+                                  ...detailsSettings,
+                                  fieldConfigs: detailsSettings.fieldConfigs.map((fc) =>
+                                    fc.fieldName === fieldName ? { ...fc, isVisible } : fc
+                                  ),
+                                }
+                                setDetailsSettings(updated)
+                              }
+                            }}
+                            onDragStart={(e, index) => {
+                              setDetailsDraggedIndex(index)
+                              e.dataTransfer.effectAllowed = 'move'
+                              e.dataTransfer.setData('text/html', index.toString())
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e, dropIndex) => {
+                              e.preventDefault()
+                              if (detailsDraggedIndex === null || detailsDraggedIndex === dropIndex || !detailsSettings) return
+
+                              const updated = { ...detailsSettings }
+                              const sortedConfigs = [...updated.fieldConfigs].sort((a, b) => a.order - b.order)
+                              const draggedItem = sortedConfigs[detailsDraggedIndex]
+
+                              sortedConfigs.splice(detailsDraggedIndex, 1)
+                              sortedConfigs.splice(dropIndex, 0, draggedItem)
+
+                              sortedConfigs.forEach((config, index) => {
+                                config.order = index
+                              })
+
+                              updated.fieldConfigs = sortedConfigs
+                              setDetailsSettings(updated)
+                              setDetailsDraggedIndex(null)
+                            }}
+                            onDragEnd={() => setDetailsDraggedIndex(null)}
+                          />
+                        ))
+                      : null}
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const defaultSettings = {
+                          fieldConfigs: [
+                            { fieldName: 'priority', isVisible: true, order: 0 },
+                            { fieldName: 'assignee', isVisible: true, order: 1 },
+                            { fieldName: 'tags', isVisible: true, order: 2 },
+                            { fieldName: 'parent', isVisible: true, order: 3 },
+                            { fieldName: 'dueDate', isVisible: true, order: 4 },
+                            { fieldName: 'startDate', isVisible: true, order: 5 },
+                            { fieldName: 'endDate', isVisible: true, order: 6 },
+                          ],
+                        }
+                        setDetailsSettings(defaultSettings)
+                        toast.success('Settings reset to defaults')
+                      }}
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

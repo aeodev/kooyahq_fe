@@ -5,6 +5,7 @@ import { GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
 import type { Ticket } from '@/types/board'
 import type { Board as ApiBoardType } from '@/types/board'
 import { TaskDetailModal } from './TaskDetailModal'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Task, Column } from './types'
 
 export function TicketDetailPage() {
@@ -14,6 +15,7 @@ export function TicketDetailPage() {
   const [task, setTask] = useState<Task | null>(null)
   const [columns, setColumns] = useState<Column[]>([])
   const [boardId, setBoardId] = useState<string | undefined>()
+  const [board, setBoard] = useState<ApiBoardType | null>(null)
 
   useEffect(() => {
     if (!boardKey || !ticketKey) return
@@ -34,6 +36,7 @@ export function TicketDetailPage() {
 
         const board = boardResponse.data.data
         setBoardId(board.id)
+        setBoard(board)
 
         // Get columns
         const boardColumns = Array.isArray(board.columns) && board.columns.length > 0
@@ -139,6 +142,18 @@ export function TicketDetailPage() {
     setTask(updatedTask)
   }
 
+  const handleBoardUpdate = async (boardId: string, settings: any) => {
+    if (board && board.id === boardId) {
+      setBoard({
+        ...board,
+        settings: {
+          ...board.settings,
+          ...settings,
+        },
+      })
+    }
+  }
+
   const handleNavigateToTask = (taskKey: string) => {
     navigate(`/workspace/${boardKey}/${taskKey}`)
     // Reload the page to fetch new ticket
@@ -147,8 +162,47 @@ export function TicketDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-muted-foreground">Loading ticket...</p>
+      <div className="h-screen flex flex-col bg-background">
+        <div className="bg-background border-b border-border/50 w-full overflow-hidden flex flex-col flex-1">
+          {/* Header skeleton */}
+          <div className="border-b border-border/50 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-6 w-6 rounded" />
+              <Skeleton className="h-6 w-32" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded" />
+              <Skeleton className="h-8 w-8 rounded" />
+            </div>
+          </div>
+          {/* Content skeleton */}
+          <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-3/4" />
+                <Skeleton className="h-6 w-1/2" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <Skeleton className="h-6 w-32" />
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                </div>
+              </div>
+            </div>
+            <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border p-4 space-y-4">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-32 w-full rounded-lg" />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -173,6 +227,7 @@ export function TicketDetailPage() {
           onUpdate={handleUpdate}
           boardKey={boardKey || ''}
           boardId={boardId}
+          board={board || undefined}
           onNavigateToTask={handleNavigateToTask}
           fullPage={true}
         />

@@ -11,7 +11,6 @@ import {
   GET_BOARDS,
   GET_TICKETS_BY_BOARD,
   GET_COMMENTS_BY_TICKET,
-  MOVE_TICKET,
   UPDATE_BOARD,
   UPDATE_TICKET,
   UPDATE_COMMENT,
@@ -277,14 +276,16 @@ export const useMoveTicket = () => {
   const [error, setError] = useState<Errors | null>(null)
 
   const moveTicket = useCallback(
-    async (ticketId: string, columnId: string, boardId: string): Promise<Ticket | null> => {
+    async (ticketId: string, columnId: string): Promise<Ticket | null> => {
       setError(null)
       setLoading(true)
 
       try {
         const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
-          MOVE_TICKET(ticketId),
-          { columnId, boardId },
+          UPDATE_TICKET(ticketId),
+          {
+            data: { columnId },
+          },
         )
         return response.data.data
       } catch (err) {
@@ -381,7 +382,6 @@ export const useUpdateTicket = () => {
         const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
           UPDATE_TICKET(ticketId),
           {
-            timestamp: new Date().toISOString(),
             data: updates,
           },
         )

@@ -6,20 +6,18 @@ import { cn } from '@/utils/cn'
 import axiosInstance from '@/utils/axios.instance'
 import { UPDATE_TICKET, GET_TICKET_BY_ID } from '@/utils/api.routes'
 import type { TicketDetailResponse } from './types'
-import { toastManager } from '@/components/ui/toast'
+import { toast } from 'sonner'
 
 type AcceptanceCriteriaSectionProps = {
   ticketDetails: TicketDetailResponse | null
   acceptanceCriteriaExpanded: boolean
   onToggleAcceptanceCriteria: () => void
-  onRefreshTicket: () => void
 }
 
 export function AcceptanceCriteriaSection({
   ticketDetails,
   acceptanceCriteriaExpanded,
   onToggleAcceptanceCriteria,
-  onRefreshTicket,
 }: AcceptanceCriteriaSectionProps) {
   const [newCriteria, setNewCriteria] = useState('')
   const [isAdding, setIsAdding] = useState(false)
@@ -50,21 +48,17 @@ export function AcceptanceCriteriaSection({
 
     try {
       const response = await axiosInstance.put<{ success: boolean }>(UPDATE_TICKET(ticketDetails.ticket.id), {
-        timestamp: new Date().toISOString(),
         data: { acceptanceCriteria: updatedCriteria },
       })
       if (!response.data.success) {
         // Revert on error
         setLocalCriteria(oldCriteria)
-        toastManager.error('Failed to update acceptance criteria')
-      } else {
-        // Refresh to get server state
-        onRefreshTicket()
+        toast.error('Failed to update acceptance criteria')
       }
     } catch (error) {
       // Revert on error
       setLocalCriteria(oldCriteria)
-      toastManager.error('Failed to update acceptance criteria')
+      toast.error('Failed to update acceptance criteria')
     } finally {
       setTogglingId(null)
     }
@@ -89,7 +83,6 @@ export function AcceptanceCriteriaSection({
 
     try {
       const response = await axiosInstance.put<{ success: boolean }>(UPDATE_TICKET(ticketDetails.ticket.id), {
-        timestamp: new Date().toISOString(),
         data: { acceptanceCriteria: updatedCriteria },
       })
       if (!response.data.success) {
@@ -97,17 +90,14 @@ export function AcceptanceCriteriaSection({
         setLocalCriteria(acceptanceCriteria)
         setNewCriteria(criteriaText)
         setIsAdding(true)
-        toastManager.error('Failed to add acceptance criteria')
-      } else {
-        // Refresh to get server state
-        onRefreshTicket()
+        toast.error('Failed to add acceptance criteria')
       }
     } catch (error) {
       // Revert on error
       setLocalCriteria(acceptanceCriteria)
       setNewCriteria(criteriaText)
       setIsAdding(true)
-      toastManager.error('Failed to add acceptance criteria')
+      toast.error('Failed to add acceptance criteria')
     } finally {
       setLoading(false)
     }
@@ -124,21 +114,17 @@ export function AcceptanceCriteriaSection({
 
     try {
       const response = await axiosInstance.put<{ success: boolean }>(UPDATE_TICKET(ticketDetails.ticket.id), {
-        timestamp: new Date().toISOString(),
         data: { acceptanceCriteria: updatedCriteria },
       })
       if (!response.data.success) {
         // Revert on error
         setLocalCriteria(oldCriteria)
-        toastManager.error('Failed to remove acceptance criteria')
-      } else {
-        // Refresh to get server state
-        onRefreshTicket()
+        toast.error('Failed to remove acceptance criteria')
       }
     } catch (error) {
       // Revert on error
       setLocalCriteria(oldCriteria)
-      toastManager.error('Failed to remove acceptance criteria')
+      toast.error('Failed to remove acceptance criteria')
     } finally {
       setRemovingId(null)
     }

@@ -12,13 +12,12 @@ import { cn } from '@/utils/cn'
 import axiosInstance from '@/utils/axios.instance'
 import { UPDATE_TICKET } from '@/utils/api.routes'
 import type { TicketDetailResponse } from './types'
-import { toastManager } from '@/components/ui/toast'
+import { toast } from 'sonner'
 
 type DocumentsSectionProps = {
   ticketDetails: TicketDetailResponse | null
   documentsExpanded: boolean
   onToggleDocuments: () => void
-  onRefreshTicket: () => void
 }
 
 const getDocumentIcon = (type: 'doc' | 'sheet' | 'slide' | 'figma' | 'other') => {
@@ -59,7 +58,6 @@ export function DocumentsSection({
   ticketDetails,
   documentsExpanded,
   onToggleDocuments,
-  onRefreshTicket,
 }: DocumentsSectionProps) {
   const [newDocumentName, setNewDocumentName] = useState('')
   const [newDocumentUrl, setNewDocumentUrl] = useState('')
@@ -101,7 +99,6 @@ export function DocumentsSection({
 
     try {
       const response = await axiosInstance.put<{ success: boolean }>(UPDATE_TICKET(ticketDetails.ticket.id), {
-        timestamp: new Date().toISOString(),
         data: { documents: updatedDocuments },
       })
       if (!response.data.success) {
@@ -111,10 +108,7 @@ export function DocumentsSection({
         setNewDocumentUrl(documentUrl)
         setNewDocumentType(documentType)
         setIsAdding(true)
-        toastManager.error('Failed to add document')
-      } else {
-        // Refresh to get server state
-        onRefreshTicket()
+        toast.error('Failed to add document')
       }
     } catch (error) {
       // Revert on error
@@ -123,7 +117,7 @@ export function DocumentsSection({
       setNewDocumentUrl(documentUrl)
       setNewDocumentType(documentType)
       setIsAdding(true)
-      toastManager.error('Failed to add document')
+      toast.error('Failed to add document')
     } finally {
       setLoading(false)
     }
@@ -140,21 +134,17 @@ export function DocumentsSection({
 
     try {
       const response = await axiosInstance.put<{ success: boolean }>(UPDATE_TICKET(ticketDetails.ticket.id), {
-        timestamp: new Date().toISOString(),
         data: { documents: updatedDocuments },
       })
       if (!response.data.success) {
         // Revert on error
         setLocalDocuments(oldDocuments)
-        toastManager.error('Failed to remove document')
-      } else {
-        // Refresh to get server state
-        onRefreshTicket()
+        toast.error('Failed to remove document')
       }
     } catch (error) {
       // Revert on error
       setLocalDocuments(oldDocuments)
-      toastManager.error('Failed to remove document')
+      toast.error('Failed to remove document')
     } finally {
       setRemovingIndex(null)
     }

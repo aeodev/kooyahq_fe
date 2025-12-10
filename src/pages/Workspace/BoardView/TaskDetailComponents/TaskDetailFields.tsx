@@ -12,11 +12,13 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import { cn } from '@/utils/cn'
 import type { Task, Assignee, Priority } from '../types'
 import { getPriorityIcon, getPriorityLabel, getTaskTypeIcon } from '../index'
+import type { TicketDetailResponse } from './types'
 
 const PRIORITY_OPTIONS: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 
 type TaskDetailFieldsProps = {
   editedTask: Task
+  ticketDetails: TicketDetailResponse | null
   users: Array<{ id: string; name: string; profilePic?: string }>
   detailsSettings: {
     fieldConfigs: Array<{ fieldName: string; isVisible: boolean; order: number }>
@@ -26,7 +28,6 @@ type TaskDetailFieldsProps = {
   datePickerOpen: 'dueDate' | 'startDate' | 'endDate' | null
   setDatePickerOpen: (date: 'dueDate' | 'startDate' | 'endDate' | null) => void
   availableTicketsForParent: Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
-  ticketDetailsParentKey?: string
   onUpdatePriority: (priority: Priority) => void
   onUpdateField: <K extends keyof Task>(field: K, value: Task[K]) => void
   onUpdateDate: (field: 'dueDate' | 'startDate' | 'endDate', date: Date | null) => void
@@ -34,10 +35,12 @@ type TaskDetailFieldsProps = {
   onRemoveTag: (tag: string) => void
   onUpdateParent: (parentId: string | null) => void
   getAvailableParents: () => Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
+  onNavigateToTask?: (taskKey: string) => void
 }
 
 export function TaskDetailFields({
   editedTask,
+  ticketDetails,
   users,
   detailsSettings,
   newTag,
@@ -45,7 +48,6 @@ export function TaskDetailFields({
   datePickerOpen,
   setDatePickerOpen,
   availableTicketsForParent,
-  ticketDetailsParentKey,
   onUpdatePriority,
   onUpdateField,
   onUpdateDate,
@@ -53,23 +55,52 @@ export function TaskDetailFields({
   onRemoveTag,
   onUpdateParent,
   getAvailableParents,
+  onNavigateToTask,
 }: TaskDetailFieldsProps) {
+  // Use ticketDetails.ticket as source of truth for parent
+  // parentTicketId rules:
+  // - For task/bug/story: parentTicketId can be epic OR bug
+  // - For subtask: parentTicketId can be task/bug/story/epic
+  const ticketType = ticketDetails?.ticket.ticketType
+  const canHaveParent = ticketType === 'task' || ticketType === 'bug' || ticketType === 'story' || ticketType === 'subtask'
+  const parentTicketId = ticketDetails?.ticket.parentTicketId
+  const parentTicket = ticketDetails?.relatedTickets.parent
+
   // Get visible fields sorted by order
   const getVisibleFields = () => {
     if (!detailsSettings?.fieldConfigs) {
       // Default: show all fields in default order
-      return [
+      // Parent field shows for task/bug/story/subtask
+      const defaultFields = [
         { fieldName: 'priority', isVisible: true, order: 0 },
         { fieldName: 'assignee', isVisible: true, order: 1 },
         { fieldName: 'tags', isVisible: true, order: 2 },
-        { fieldName: 'parent', isVisible: true, order: 3 },
-        { fieldName: 'dueDate', isVisible: true, order: 4 },
-        { fieldName: 'startDate', isVisible: true, order: 5 },
-        { fieldName: 'endDate', isVisible: true, order: 6 },
+        { fieldName: 'dueDate', isVisible: true, order: 3 },
+        { fieldName: 'startDate', isVisible: true, order: 4 },
+        { fieldName: 'endDate', isVisible: true, order: 5 },
       ]
+      
+      // Add parent field if ticket can have parent
+      if (canHaveParent) {
+        defaultFields.splice(3, 0, { fieldName: 'parent', isVisible: true, order: 3 })
+        // Adjust order of date fields
+        defaultFields[4].order = 4
+        defaultFields[5].order = 5
+        defaultFields[6].order = 6
+      }
+      
+      return defaultFields
     }
+    
+    // Filter fields based on ticket type
     return [...detailsSettings.fieldConfigs]
-      .filter((config) => config.isVisible)
+      .filter((config) => {
+        // Only show parent field for tickets that can have parent
+        if (config.fieldName === 'parent' && !canHaveParent) {
+          return false
+        }
+        return config.isVisible
+      })
       .sort((a, b) => a.order - b.order)
   }
 
@@ -222,55 +253,77 @@ export function TaskDetailFields({
       </div>
     ),
     parent: (
-      <div key="parent">
-        <label className="text-xs text-muted-foreground block mb-1">Parent</label>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full text-left">
-              {editedTask.parent ? (
-                <span className="text-sm">
-                  {availableTicketsForParent.find((t) => t.id === editedTask.parent)?.ticketKey || 
-                   ticketDetailsParentKey || 
-                   'Parent'}
-                </span>
-              ) : (
-                <span className="text-sm text-muted-foreground">Add parent</span>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-64 max-h-96 overflow-y-auto" align="start">
-            <div className="space-y-1">
-              <DropdownMenuItem
-                onClick={() => onUpdateParent(null)}
-                className="cursor-pointer"
-              >
-                <span className="text-sm text-muted-foreground">Clear parent</span>
-              </DropdownMenuItem>
-              {getAvailableParents().length > 0 ? (
-                getAvailableParents().map((parentTicket) => (
+      // Parent field shows for task/bug/story/subtask
+      // For task/bug/story: parentTicketId can be epic OR bug
+      // For subtask: parentTicketId can be task/bug/story/epic
+      canHaveParent ? (
+        <div key="parent">
+          <label className="text-xs text-muted-foreground block mb-1">Parent</label>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full text-left">
+                {parentTicket ? (
+                  <span className="text-sm flex items-center gap-1.5">
+                    {getTaskTypeIcon(parentTicket.ticketType)}
+                    <span 
+                      className="font-medium hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (onNavigateToTask && parentTicket.ticketKey) {
+                          onNavigateToTask(parentTicket.ticketKey)
+                        }
+                      }}
+                    >
+                      {parentTicket.ticketKey}
+                    </span>
+                  </span>
+                ) : parentTicketId ? (
+                  <span className="text-sm">
+                    {availableTicketsForParent.find((t) => t.id === parentTicketId)?.ticketKey || 'Parent'}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Add parent</span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-64 max-h-96 overflow-y-auto" align="start">
+              <div className="space-y-1">
+                {parentTicketId && ticketType !== 'subtask' && (
+                  // Task/Bug/Story can clear parent (optional)
+                  // Subtasks cannot clear parent (required)
                   <DropdownMenuItem
-                    key={parentTicket.id}
-                    onClick={() => onUpdateParent(parentTicket.id)}
+                    onClick={() => onUpdateParent(null)}
                     className="cursor-pointer"
                   >
-                    <div className="flex items-center gap-2 w-full">
-                      {getTaskTypeIcon(parentTicket.ticketType)}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{parentTicket.ticketKey}</div>
-                        <p className="text-xs text-muted-foreground truncate">{parentTicket.title}</p>
-                      </div>
-                    </div>
+                    <span className="text-sm text-muted-foreground">Clear parent</span>
                   </DropdownMenuItem>
-                ))
-              ) : (
-                <div className="px-2 py-4 text-center">
-                  <p className="text-xs text-muted-foreground">No available parents</p>
-                </div>
-              )}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                )}
+                {getAvailableParents().length > 0 ? (
+                  getAvailableParents().map((parentTicket) => (
+                    <DropdownMenuItem
+                      key={parentTicket.id}
+                      onClick={() => onUpdateParent(parentTicket.id)}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        {getTaskTypeIcon(parentTicket.ticketType)}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{parentTicket.ticketKey}</div>
+                          <p className="text-xs text-muted-foreground truncate">{parentTicket.title}</p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <div className="px-2 py-4 text-center">
+                    <p className="text-xs text-muted-foreground">No available parents</p>
+                  </div>
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null
     ),
     dueDate: (
       <div key="dueDate">

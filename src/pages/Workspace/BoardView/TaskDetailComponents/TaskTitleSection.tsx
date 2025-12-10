@@ -5,9 +5,23 @@ import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { RichTextDisplay } from '@/components/ui/rich-text-display'
 import { cn } from '@/utils/cn'
 import type { Task } from '../types'
+import type { TicketDetailResponse } from './types'
+
+type TaskTitleSectionProps = {
+  editedTask: Task
+  ticketDetails: TicketDetailResponse | null
+  descriptionExpanded: boolean
+  isEditingDescription: boolean
+  onToggleDescription: () => void
+  onStartEditingDescription: () => void
+  onUpdateDescription: (description: string | Record<string, any>) => void
+  onCancelEditingDescription: () => void
+  onDescriptionChange: (description: string | Record<string, any>) => void
+}
 
 export function TaskTitleSection({
   editedTask,
+  ticketDetails,
   descriptionExpanded,
   isEditingDescription,
   onToggleDescription,
@@ -17,17 +31,12 @@ export function TaskTitleSection({
   onDescriptionChange,
 }: TaskTitleSectionProps) {
   const [isUploading, setIsUploading] = useState(false)
-
-type TaskTitleSectionProps = {
-  editedTask: Task
-  descriptionExpanded: boolean
-  isEditingDescription: boolean
-  onToggleDescription: () => void
-  onStartEditingDescription: () => void
-  onUpdateDescription: (description: string) => void
-  onCancelEditingDescription: () => void
-  onDescriptionChange: (description: string) => void
-}
+  
+  // Use ticketDetails.ticket.description as source of truth (RichTextDoc)
+  const description = ticketDetails?.ticket.description || editedTask.description || {}
+  
+  // Check if description has content (RichTextDoc is an object)
+  const hasDescription = description && typeof description === 'object' && Object.keys(description).length > 0
 
   return (
     <>
@@ -57,7 +66,7 @@ type TaskTitleSectionProps = {
             {isEditingDescription ? (
               <div className="space-y-2">
                 <RichTextEditor
-                  value={editedTask.description}
+                  value={description}
                   onChange={onDescriptionChange}
                   placeholder="Add a description..."
                   onUploadingChange={setIsUploading}
@@ -66,7 +75,7 @@ type TaskTitleSectionProps = {
                   <Button
                     size="sm"
                     onClick={() => {
-                      onUpdateDescription(editedTask.description)
+                      onUpdateDescription(description)
                     }}
                     disabled={isUploading}
                   >
@@ -87,9 +96,9 @@ type TaskTitleSectionProps = {
                   </p>
                 )}
               </div>
-            ) : editedTask.description && editedTask.description.trim() !== '' ? (
+            ) : hasDescription ? (
               <RichTextDisplay
-                content={editedTask.description}
+                content={description}
                 className="prose prose-sm max-w-none text-foreground cursor-pointer hover:opacity-80 transition-opacity"
                 onDoubleClick={onStartEditingDescription}
               />

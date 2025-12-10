@@ -9,6 +9,7 @@ import { CREATE_TICKET } from '@/utils/api.routes'
 import type { Task, Column } from '../types'
 import type { TicketDetailResponse } from './types'
 import { getTaskTypeIcon, getPriorityIcon, getPriorityLabel } from '../index'
+import { toast } from 'sonner'
 
 type TaskSubtasksSectionProps = {
   editedTask: Task
@@ -18,8 +19,8 @@ type TaskSubtasksSectionProps = {
   boardId?: string
   columns: Column[]
   onToggleSubtasks: () => void
-  onRefreshTicket: () => void
   onNavigateToTask?: (taskKey: string) => void
+  onRefreshTicket?: () => void
 }
 
 export function TaskSubtasksSection({
@@ -30,8 +31,8 @@ export function TaskSubtasksSection({
   boardId,
   columns,
   onToggleSubtasks,
-  onRefreshTicket,
   onNavigateToTask,
+  onRefreshTicket,
 }: TaskSubtasksSectionProps) {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [isAddingSubtask, setIsAddingSubtask] = useState(false)
@@ -54,9 +55,14 @@ export function TaskSubtasksSection({
       await axiosInstance.post(CREATE_TICKET(boardId), payload)
       setNewSubtaskTitle('')
       setIsAddingSubtask(false)
-      onRefreshTicket()
+      
+      // Refresh ticket details to get the new subtask
+      if (onRefreshTicket) {
+        onRefreshTicket()
+      }
     } catch (error) {
       console.error('Error creating subtask:', error)
+      toast.error('Failed to create subtask')
     } finally {
       setIsCreating(false)
     }

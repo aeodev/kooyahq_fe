@@ -9,24 +9,21 @@ import {
 import { cn } from '@/utils/cn'
 import type { Task, Column, Assignee, Priority } from '../types'
 import { getPriorityIcon, getPriorityLabel } from '../index'
-import { DetailsSettingsDropdown } from '../DetailsSettings/DetailsSettingsDropdown'
 import { TaskDetailFields } from './TaskDetailFields'
 import { GitHubBranches } from './GitHubBranches'
+import type { TicketDetailResponse } from './types'
 
 const PRIORITY_OPTIONS: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 
 type TaskSidebarProps = {
   editedTask: Task
+  ticketDetails: TicketDetailResponse | null
   columns: Column[]
   currentColumn: Column | undefined
   users: Array<{ id: string; name: string; profilePic?: string }>
   detailsSettings: {
     fieldConfigs: Array<{ fieldName: string; isVisible: boolean; order: number }>
   } | null
-  setDetailsSettings: (settings: {
-    fieldConfigs: Array<{ fieldName: string; isVisible: boolean; order: number }>
-  } | null) => void
-  boardId?: string
   newTag: string
   setNewTag: (tag: string) => void
   datePickerOpen: 'dueDate' | 'startDate' | 'endDate' | null
@@ -34,29 +31,24 @@ type TaskSidebarProps = {
   githubBranches: Array<{ name: string; status: 'merged' | 'open' | 'closed'; pullRequestUrl?: string }>
   newBranchName: string
   setNewBranchName: (name: string) => void
-  availableTicketsForParent: Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
-  ticketDetailsParentKey?: string
   onStatusChange: (columnId: string) => void
   onUpdatePriority: (priority: Priority) => void
   onUpdateField: <K extends keyof Task>(field: K, value: Task[K]) => void
   onUpdateDate: (field: 'dueDate' | 'startDate' | 'endDate', date: Date | null) => void
   onAddTag: () => void
   onRemoveTag: (tag: string) => void
-  onUpdateParent: (parentId: string | null) => void
   onAddBranch: () => void
   onUpdateBranchStatus: (branchName: string, status: 'merged' | 'open' | 'closed') => void
   onUpdatePullRequestUrl?: (branchName: string, pullRequestUrl: string) => void
-  getAvailableParents: () => Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
 }
 
 export function TaskSidebar({
   editedTask,
+  ticketDetails,
   columns,
   currentColumn,
   users,
   detailsSettings,
-  setDetailsSettings,
-  boardId,
   newTag,
   setNewTag,
   datePickerOpen,
@@ -65,7 +57,6 @@ export function TaskSidebar({
   newBranchName,
   setNewBranchName,
   availableTicketsForParent,
-  ticketDetailsParentKey,
   onStatusChange,
   onUpdatePriority,
   onUpdateField,
@@ -73,10 +64,11 @@ export function TaskSidebar({
   onAddTag,
   onRemoveTag,
   onUpdateParent,
+  getAvailableParents,
+  onNavigateToTask,
   onAddBranch,
   onUpdateBranchStatus,
   onUpdatePullRequestUrl,
-  getAvailableParents,
 }: TaskSidebarProps) {
   return (
     <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border/50 bg-muted/20 overflow-y-auto">
@@ -89,34 +81,97 @@ export function TaskSidebar({
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                style={{
-                  backgroundColor: currentColumn?.color.replace('bg-', '').includes('slate')
-                    ? 'hsl(var(--muted))'
-                    : undefined,
-                }}
               >
+                {currentColumn && (() => {
+                  // Extract hex color from Tailwind class or use as-is
+                  const getHexColor = (colorClass: string): string | undefined => {
+                    if (colorClass.startsWith('#')) {
+                      return colorClass
+                    }
+                    if (colorClass.startsWith('bg-[')) {
+                      const match = colorClass.match(/bg-\[([^\]]+)\]/)
+                      return match?.[1] || undefined
+                    }
+                    // Map common Tailwind colors to hex
+                    const tailwindColorMap: Record<string, string> = {
+                      'bg-blue-500': '#3b82f6',
+                      'bg-green-500': '#22c55e',
+                      'bg-red-500': '#ef4444',
+                      'bg-yellow-500': '#eab308',
+                      'bg-purple-500': '#a855f7',
+                      'bg-pink-500': '#ec4899',
+                      'bg-indigo-500': '#6366f1',
+                      'bg-cyan-500': '#06b6d4',
+                      'bg-teal-500': '#14b8a6',
+                      'bg-orange-500': '#f97316',
+                      'bg-amber-500': '#f59e0b',
+                      'bg-slate-400': '#94a3b8',
+                      'bg-slate-500': '#64748b',
+                    }
+                    return tailwindColorMap[colorClass] || undefined
+                  }
+                  
+                  const hexColor = getHexColor(currentColumn.color)
+                  
+                  return (
+                    <div 
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                      style={hexColor ? { backgroundColor: hexColor } : undefined}
+                    />
+                  )
+                })()}
                 {currentColumn?.name || 'To Do'}
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              {columns.map((col) => (
-                <DropdownMenuItem
-                  key={col.id}
-                  onClick={() => onStatusChange(col.id)}
-                  className="cursor-pointer"
-                >
-                  <div className={cn('w-3 h-3 rounded-sm mr-2', col.color)} />
-                  {col.name}
-                </DropdownMenuItem>
-              ))}
+              {columns.map((col) => {
+                // Extract hex color from Tailwind class or use as-is
+                const getHexColor = (colorClass: string): string | undefined => {
+                  if (colorClass.startsWith('#')) {
+                    return colorClass
+                  }
+                  if (colorClass.startsWith('bg-[')) {
+                    const match = colorClass.match(/bg-\[([^\]]+)\]/)
+                    return match?.[1] || undefined
+                  }
+                  // Map common Tailwind colors to hex
+                  const tailwindColorMap: Record<string, string> = {
+                    'bg-blue-500': '#3b82f6',
+                    'bg-green-500': '#22c55e',
+                    'bg-red-500': '#ef4444',
+                    'bg-yellow-500': '#eab308',
+                    'bg-purple-500': '#a855f7',
+                    'bg-pink-500': '#ec4899',
+                    'bg-indigo-500': '#6366f1',
+                    'bg-cyan-500': '#06b6d4',
+                    'bg-teal-500': '#14b8a6',
+                    'bg-orange-500': '#f97316',
+                    'bg-amber-500': '#f59e0b',
+                    'bg-slate-400': '#94a3b8',
+                    'bg-slate-500': '#64748b',
+                  }
+                  return tailwindColorMap[colorClass] || undefined
+                }
+                
+                const hexColor = getHexColor(col.color)
+                
+                return (
+                  <DropdownMenuItem
+                    key={col.id}
+                    onClick={() => onStatusChange(col.id)}
+                    className="cursor-pointer"
+                  >
+                    <div 
+                      className="w-3 h-3 rounded-sm mr-2 flex-shrink-0"
+                      style={hexColor ? { backgroundColor: hexColor } : undefined}
+                    />
+                    {col.name}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <DetailsSettingsDropdown
-            detailsSettings={detailsSettings}
-            setDetailsSettings={setDetailsSettings}
-            boardId={boardId}
-          />
         </div>
 
         <Button variant="outline" className="w-full justify-start gap-2">
@@ -127,6 +182,7 @@ export function TaskSidebar({
         {/* Details fields */}
         <TaskDetailFields
           editedTask={editedTask}
+          ticketDetails={ticketDetails}
           users={users}
           detailsSettings={detailsSettings}
           newTag={newTag}
@@ -134,7 +190,6 @@ export function TaskSidebar({
           datePickerOpen={datePickerOpen}
           setDatePickerOpen={setDatePickerOpen}
           availableTicketsForParent={availableTicketsForParent}
-          ticketDetailsParentKey={ticketDetailsParentKey}
           onUpdatePriority={onUpdatePriority}
           onUpdateField={onUpdateField}
           onUpdateDate={onUpdateDate}
@@ -142,6 +197,7 @@ export function TaskSidebar({
           onRemoveTag={onRemoveTag}
           onUpdateParent={onUpdateParent}
           getAvailableParents={getAvailableParents}
+          onNavigateToTask={onNavigateToTask}
         />
 
         {/* GitHub Branches - Separate section like Jira */}

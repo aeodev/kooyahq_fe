@@ -27,6 +27,7 @@ export type TicketDetailResponse = {
     children: Ticket[]
     siblings: Ticket[]
     epicTickets: Ticket[]
+    manualRelated: Ticket[]
   }
 }
 

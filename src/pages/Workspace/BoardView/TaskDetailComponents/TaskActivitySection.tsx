@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { RichTextDisplay } from '@/components/ui/rich-text-display'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/utils/cn'
 import type { TicketDetailResponse } from './types'
 import { MOCK_ASSIGNEES } from '../index'
@@ -85,8 +86,22 @@ export function TaskActivitySection({
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center py-8">
-          <p className="text-sm text-muted-foreground">Loading activity...</p>
+        <div className="space-y-4">
+          <div className="flex gap-3">
+            <Skeleton className="h-8 w-8 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-8 w-8 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          </div>
         </div>
       )}
 

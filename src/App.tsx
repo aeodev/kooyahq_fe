@@ -37,8 +37,8 @@ function App() {
           {/* Dashboard routes */}
           <Route path="/" element={<PrivateRoute fallback={null}><DashboardLayout><Home /></DashboardLayout></PrivateRoute>} />
           <Route path="/workspace" element={<PrivateRoute fallback={null}><DashboardLayout><Workspace /></DashboardLayout></PrivateRoute>} />
-          <Route path="/workspace/:boardId" element={<PrivateRoute fallback={null}><DashboardLayout><BoardView /></DashboardLayout></PrivateRoute>} />
-          <Route path="/workspace/:boardId/:ticketId" element={<PrivateRoute fallback={null}><DashboardLayout><TicketDetailPage /></DashboardLayout></PrivateRoute>} />
+          <Route path="/workspace/:boardKey" element={<PrivateRoute fallback={null}><DashboardLayout><BoardView /></DashboardLayout></PrivateRoute>} />
+          <Route path="/workspace/:boardKey/:ticketKey" element={<PrivateRoute fallback={null}><DashboardLayout><TicketDetailPage /></DashboardLayout></PrivateRoute>} />
           <Route path="/time-tracker" element={<PrivateRoute fallback={null}><DashboardLayout><TimeTracker /></DashboardLayout></PrivateRoute>} />
           <Route path="/gallery" element={<PrivateRoute fallback={null}><DashboardLayout><Gallery /></DashboardLayout></PrivateRoute>} />
           <Route path="/ai-news" element={<PrivateRoute fallback={null}><DashboardLayout><AINews /></DashboardLayout></PrivateRoute>} />

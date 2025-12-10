@@ -20,6 +20,13 @@ export type Board = {
   settings: {
     defaultView: 'board' | 'list' | 'timeline'
     showSwimlanes: boolean
+    ticketDetailsSettings?: {
+      fieldConfigs: Array<{
+        fieldName: 'priority' | 'assignee' | 'tags' | 'parent' | 'dueDate' | 'startDate' | 'endDate'
+        isVisible: boolean
+        order: number
+      }>
+    }
   }
   columns: Array<{
     id: string
@@ -108,7 +115,9 @@ export type Ticket = {
   viewedBy?: Array<{
     userId: string
     viewedAt: string
+    viewedAgainAt?: string
   }>
+  relatedTickets?: string[]
 }
 
 export type Comment = {
@@ -224,7 +233,7 @@ export type CreateTicketInput = {
 }
 
 export type UpdateTicketInput = {
-  timestamp: string
+  timestamp?: string
   data: {
     title?: string
     description?: any

@@ -1,4 +1,4 @@
-import { X, Eye, Share2, Maximize2, Link2, ArrowLeft } from 'lucide-react'
+import { X, Eye, Share2, Maximize2, ArrowLeft, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,11 +9,13 @@ import {
 import { cn } from '@/utils/cn'
 import type { Task, Assignee, Ticket } from '../types'
 import { MOCK_ASSIGNEES, getTaskTypeIcon } from '../index'
+import type { TicketDetailResponse } from './types'
 
 type TaskDetailHeaderProps = {
   editedTask: Task
   epicTicket: Ticket | null
-  viewers: Assignee[]
+  ticketDetails: TicketDetailResponse | null
+  viewers: (Assignee & { viewedAgainAt?: string })[]
   linkCopied: boolean
   fullPage: boolean
   availableEpics: Ticket[]
@@ -33,6 +35,7 @@ type TaskDetailHeaderProps = {
 export function TaskDetailHeader({
   editedTask,
   epicTicket,
+  ticketDetails,
   viewers,
   linkCopied,
   fullPage,
@@ -50,6 +53,9 @@ export function TaskDetailHeader({
   onSelectEpic,
 }: TaskDetailHeaderProps) {
   const handleBackToBoard = onBackToBoard || onClose
+  
+  // Check if ticket has rootEpicId (even if epicTicket hasn't loaded yet)
+  const hasRootEpicId = ticketDetails?.ticket.rootEpicId
 
   return (
     <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-border/50 bg-muted/30">
@@ -75,8 +81,8 @@ export function TaskDetailHeader({
           </>
         )}
 
-        {/* Epic */}
-        {epicTicket ? (
+        {/* Epic - show epic if exists (clickable), show "Add epic" if doesn't exist */}
+        {epicTicket && !isEpic ? (
           <>
             <button
               onClick={() => {
@@ -85,13 +91,24 @@ export function TaskDetailHeader({
                 }
               }}
               className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              title={`Go to ${epicTicket.ticketKey}`}
             >
               {getTaskTypeIcon('epic')}
               <span className="font-medium">{epicTicket.ticketKey}</span>
             </button>
             <span className="text-muted-foreground">/</span>
           </>
+        ) : hasRootEpicId && !isEpic ? (
+          // Ticket has rootEpicId but epicTicket hasn't loaded yet - show loading state
+          <>
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              {getTaskTypeIcon('epic')}
+              <span className="font-medium">Loading epic...</span>
+            </div>
+            <span className="text-muted-foreground">/</span>
+          </>
         ) : !isEpic ? (
+          // No epic - show "Add epic" button
           <>
             <DropdownMenu onOpenChange={(open) => { if (open) onLoadEpics() }}>
               <DropdownMenuTrigger asChild>
@@ -166,7 +183,14 @@ export function TaskDetailHeader({
                     >
                       {viewer.initials}
                     </div>
-                    <span className="text-sm">{viewer.name}</span>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="text-sm">{viewer.name}</span>
+                      {viewer.viewedAgainAt && (
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(viewer.viewedAgainAt).toLocaleDateString()} {new Date(viewer.viewedAgainAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </DropdownMenuItem>
               ))

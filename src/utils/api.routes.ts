@@ -63,19 +63,12 @@ export const TOGGLE_BOARD_FAVORITE = (boardId: string) => `/boards/${boardId}/fa
 export const CREATE_TICKET = (boardId: string) => `/boards/${boardId}/tickets`
 export const GET_TICKETS_BY_BOARD = (boardId: string) => `/boards/${boardId}/tickets`
 export const GET_TICKET_BY_ID = (ticketId: string) => `/tickets/${ticketId}`
-export const MOVE_TICKET = (ticketId: string) => `/tickets/${ticketId}/move`
 export const UPDATE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
 export const DELETE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
 export const BULK_UPDATE_RANKS = (boardId: string) => `/boards/${boardId}/tickets/bulk-rank`
-export const UPLOAD_TICKET_ATTACHMENT = (ticketId: string) => `/tickets/${ticketId}/attachments`
-export const DELETE_TICKET_ATTACHMENT = (ticketId: string, attachmentId: string) => `/tickets/${ticketId}/attachments/${attachmentId}`
+export const ADD_RELATED_TICKET = (ticketId: string) => `/tickets/${ticketId}/related-tickets`
+export const REMOVE_RELATED_TICKET = (ticketId: string, relatedTicketId: string) => `/tickets/${ticketId}/related-tickets/${relatedTicketId}`
 
-// Ticket details settings routes
-export const GET_TICKET_DETAILS_SETTINGS = (boardId?: string) => 
-  `/ticket-details-settings${boardId ? `?boardId=${boardId}` : ''}`
-export const UPDATE_TICKET_DETAILS_SETTINGS = () => `/ticket-details-settings`
-export const RESET_TICKET_DETAILS_SETTINGS = (boardId?: string) => 
-  `/ticket-details-settings/reset${boardId ? `?boardId=${boardId}` : ''}`
 
 // Comment routes
 export const CREATE_COMMENT = (ticketId: string) => `/tickets/${ticketId}/comments`

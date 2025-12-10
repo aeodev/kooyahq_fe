@@ -21,6 +21,7 @@ import type { Board as ApiBoard } from '@/types/board'
 import type { User } from '@/types/user'
 import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Types for Board Display
 type BoardType = 'kanban' | 'sprint'
@@ -305,8 +306,78 @@ export function Workspace() {
   if (loading) {
     return (
       <section className="space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-center py-20">
-          <p className="text-muted-foreground">Loading workspace...</p>
+        {/* Header skeleton */}
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-9 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </header>
+
+        {/* Search skeleton */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Skeleton className="h-10 w-full max-w-md" />
+        </div>
+
+        {/* Desktop Table View skeleton */}
+        <div className="hidden lg:block border border-border rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted/50 border-b border-border">
+                <tr>
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-4 w-20" /></th>
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-4 w-24" /></th>
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-4 w-32" /></th>
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-4 w-20" /></th>
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-4 w-24" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-4 w-16" /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="border-b border-border hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-6 rounded" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-full max-w-xs" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
+                    <td className="px-4 py-4"><Skeleton className="h-6 w-6 rounded-full" /></td>
+                    <td className="px-4 py-4 text-right"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Grid View skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:hidden gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="border border-border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-6 w-6 rounded" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-6 w-full" />
+              </div>
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-6 w-6 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Pagination skeleton */}
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-4 w-32" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-9 rounded" />
+            <Skeleton className="h-9 w-9 rounded" />
+            <Skeleton className="h-9 w-9 rounded" />
+          </div>
         </div>
       </section>
     )
