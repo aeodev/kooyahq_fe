@@ -4,6 +4,7 @@ import { SOCKET_TIME_ENTRIES } from '@/utils/api.routes'
 import { useAuthStore } from './auth.store'
 import { registerTimeEntryHandlers } from '@/hooks/socket/time-entry.socket'
 import { registerNotificationHandlers } from '@/hooks/socket/notification.socket'
+import { registerTicketHandlers } from '@/hooks/socket/ticket.socket'
 
 type SocketState = {
   socket: Socket | null
@@ -100,6 +101,7 @@ export const useSocketStore = create<SocketStore>((set) => {
     // Register module-specific socket handlers
     registerTimeEntryHandlers(socketInstance, eventHandlers)
     registerNotificationHandlers(socketInstance, eventHandlers)
+    registerTicketHandlers(socketInstance, eventHandlers, {})
 
     set({ socket: socketInstance })
   }

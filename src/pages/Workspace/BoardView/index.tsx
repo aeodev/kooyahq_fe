@@ -6,6 +6,7 @@ import type { Board as ApiBoardType, Ticket } from '@/types/board'
 import type { Board as BoardViewBoard, Column as BoardViewColumn } from './types'
 import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
+import { TicketSocketEvents } from '@/hooks/socket/ticket.socket'
 import { useUpdateTicket, useMoveTicket } from '@/hooks/board.hooks'
 import { useAuthStore } from '@/stores/auth.store'
 import { BULK_UPDATE_RANKS } from '@/utils/api.routes'
@@ -591,6 +592,57 @@ export function BoardView() {
       }
     }
   }, [socket, connected, apiBoard?.workspaceId])
+
+  // Listen for ticket socket events
+  useEffect(() => {
+    if (!socket || !connected || !apiBoard?.id || !currentUser?.id) return
+
+    const boardId = apiBoard.id
+
+    const handleTicketCreated = (data: { ticket: Ticket; userId: string; timestamp: string }) => {
+      // Only process if ticket belongs to current board and not from current user
+      if (data.ticket.boardId === boardId && data.userId !== currentUser.id) {
+        setApiTickets((prev) => {
+          // Check if ticket already exists (avoid duplicates)
+          if (prev.some((t) => t.id === data.ticket.id)) {
+            return prev
+          }
+          return [...prev, data.ticket]
+        })
+      }
+    }
+
+    const handleTicketUpdated = (data: { ticket: Ticket; userId: string; timestamp: string }) => {
+      // Only process if ticket belongs to current board and not from current user
+      if (data.ticket.boardId === boardId && data.userId !== currentUser.id) {
+        // Skip if this ticket has a pending optimistic update
+        if (optimisticUpdatesRef.current.has(data.ticket.id)) {
+          return
+        }
+        
+        setApiTickets((prev) =>
+          prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
+        )
+      }
+    }
+
+    const handleTicketDeleted = (data: { ticketId: string; boardId: string; userId: string; timestamp: string }) => {
+      // Only process if ticket belongs to current board and not from current user
+      if (data.boardId === boardId && data.userId !== currentUser.id) {
+        setApiTickets((prev) => prev.filter((t) => t.id !== data.ticketId))
+      }
+    }
+
+    socket.on(TicketSocketEvents.CREATED, handleTicketCreated)
+    socket.on(TicketSocketEvents.UPDATED, handleTicketUpdated)
+    socket.on(TicketSocketEvents.DELETED, handleTicketDeleted)
+
+    return () => {
+      socket.off(TicketSocketEvents.CREATED, handleTicketCreated)
+      socket.off(TicketSocketEvents.UPDATED, handleTicketUpdated)
+      socket.off(TicketSocketEvents.DELETED, handleTicketDeleted)
+    }
+  }, [socket, connected, apiBoard?.id, currentUser?.id])
 
   // Get board data - prefer API board, fallback to mock
   const board: BoardViewBoard | null = apiBoard && isApiBoardType(apiBoard)

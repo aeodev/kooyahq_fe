@@ -67,7 +67,7 @@ export interface ReactionCounts {
 export interface Notification {
   id: string
   userId: string
-  type: 'post_created' | 'comment' | 'reaction' | 'mention' | 'system' | 'card_assigned' | 'card_comment' | 'board_member_added' | 'game_invitation'
+  type: 'post_created' | 'comment' | 'reaction' | 'mention' | 'system' | 'card_assigned' | 'card_comment' | 'card_moved' | 'board_member_added' | 'game_invitation'
   postId?: string
   commentId?: string
   reactionId?: string
@@ -75,6 +75,7 @@ export interface Notification {
   cardId?: string
   boardId?: string
   title?: string
+  url?: string
   read: boolean
   createdAt: string
   updatedAt: string

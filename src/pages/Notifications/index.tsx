@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Loader2, Bell, CheckCheck } from 'lucide-react'
 import { useNotifications } from '@/hooks/notification.hooks'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import type { Notification as NotificationType } from '@/types/post'
 
 function formatDate(dateString: string): string {
@@ -38,6 +38,8 @@ function getNotificationMessage(notification: NotificationType): string {
       return notification.actor ? `${notification.actor.name} assigned you to a card` : 'You were assigned to a card'
     case 'card_comment':
       return notification.actor ? `${notification.actor.name} commented on your card` : 'Someone commented on your card'
+    case 'card_moved':
+      return notification.actor ? `${notification.actor.name} moved a card` : 'A card was moved'
     case 'board_member_added':
       return notification.actor ? `${notification.actor.name} added you to a board` : 'You were added to a board'
     case 'game_invitation':
@@ -49,6 +51,7 @@ function getNotificationMessage(notification: NotificationType): string {
 
 export function Notifications() {
   const user = useAuthStore((state) => state.user)
+  const navigate = useNavigate()
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const {
     notifications,
@@ -133,35 +136,31 @@ export function Notifications() {
               {notifications.map((notification: NotificationType) => (
                 <div
                   key={notification.id}
-                  className={`p-4 rounded-xl hover:bg-accent/50 transition-all duration-300 ${
+                  className={`p-4 rounded-xl transition-all duration-300 ${
                     !notification.read ? 'bg-primary/5 backdrop-blur-sm border-l-4 border-l-primary' : ''
-                  }`}
+                  } ${notification.url ? 'hover:bg-accent/50 cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (notification.url) {
+                      navigate(notification.url)
+                    }
+                  }}
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-1">
                       <p className="text-sm">{getNotificationMessage(notification)}</p>
                       <p className="text-xs text-muted-foreground mt-1">{formatDate(notification.createdAt)}</p>
-                      {notification.postId && (
-                        <Link to="/profile" className="text-xs text-primary mt-2 block">
-                          View post →
-                        </Link>
-                      )}
-                      {notification.cardId && (
-                        <Link to="/workspace" className="text-xs text-primary mt-2 block">
-                          View card →
-                        </Link>
-                      )}
-                      {notification.boardId && (
-                        <Link to="/workspace" className="text-xs text-primary mt-2 block">
-                          View board →
-                        </Link>
+                      {notification.url && (
+                        <p className="text-xs text-primary mt-2">View details →</p>
                       )}
                     </div>
                     {!notification.read && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleMarkAsRead(notification.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkAsRead(notification.id)
+                        }}
                       >
                         Mark read
                       </Button>

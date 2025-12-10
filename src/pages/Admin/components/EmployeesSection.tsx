@@ -3,8 +3,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Edit2, Save, X, Loader2, Trash2, Search, Download, ChevronLeft, ChevronRight, Filter, X as XIcon } from 'lucide-react'
-import { useEmployees, useUpdateEmployee, useDeleteEmployee } from '@/hooks/admin.hooks'
+import { Edit2, Save, X, Loader2, Trash2, Search, Download, ChevronLeft, ChevronRight, Filter, X as XIcon, UserPlus } from 'lucide-react'
+import { useEmployees, useUpdateEmployee, useDeleteEmployee, useCreateClient } from '@/hooks/admin.hooks'
 import type { User } from '@/types/user'
 import { toast } from 'sonner'
 import axiosInstance from '@/utils/axios.instance'
@@ -14,6 +14,7 @@ export function EmployeesSection() {
   const { data: employees, pagination, loading, error, fetchEmployees } = useEmployees()
   const { updateEmployee, loading: updating } = useUpdateEmployee()
   const { deleteEmployee, loading: deleting } = useDeleteEmployee()
+  const { createClient, loading: creatingClient } = useCreateClient()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editData, setEditData] = useState<{ name: string; email: string; position: string; birthday: string; isAdmin: boolean }>({
@@ -36,6 +37,14 @@ export function EmployeesSection() {
   const [dateToFilter, setDateToFilter] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
+  const [showCreateClient, setShowCreateClient] = useState(false)
+  const [clientForm, setClientForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    clientCompanyId: '',
+  })
+  const [clientFormErrors, setClientFormErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
@@ -289,6 +298,55 @@ export function EmployeesSection() {
     setDateToFilter('')
   }
 
+  const validateClientForm = (): boolean => {
+    const errors: Record<string, string> = {}
+
+    if (!clientForm.name.trim()) {
+      errors.name = 'Name is required'
+    }
+
+    if (!clientForm.email.trim()) {
+      errors.email = 'Email is required'
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(clientForm.email)) {
+        errors.email = 'Invalid email format'
+      }
+    }
+
+    if (!clientForm.password) {
+      errors.password = 'Password is required'
+    } else if (clientForm.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters long'
+    }
+
+    setClientFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handleCreateClient = async () => {
+    if (!validateClientForm()) {
+      return
+    }
+
+    const result = await createClient({
+      name: clientForm.name.trim(),
+      email: clientForm.email.trim(),
+      password: clientForm.password,
+      clientCompanyId: clientForm.clientCompanyId.trim() || undefined,
+    })
+
+    if (result) {
+      toast.success('Client created successfully')
+      setShowCreateClient(false)
+      setClientForm({ name: '', email: '', password: '', clientCompanyId: '' })
+      setClientFormErrors({})
+      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
+    } else {
+      toast.error('Failed to create client')
+    }
+  }
+
   const saving = updating || deletingUserId !== null
   const totalPages = pagination?.totalPages || 1
 
@@ -301,6 +359,11 @@ export function EmployeesSection() {
           <p className="text-sm text-muted-foreground mt-1">Manage employee details and positions</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setShowCreateClient(true)} variant="default" size="sm">
+            <UserPlus className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Create Client</span>
+            <span className="sm:hidden">Client</span>
+          </Button>
           <Button onClick={() => handleExport('csv')} variant="outline" size="sm">
             <Download className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Export CSV</span>
@@ -313,6 +376,120 @@ export function EmployeesSection() {
           </Button>
         </div>
       </div>
+
+      {/* Create Client Modal */}
+      {showCreateClient && (
+        <Card className="border-primary">
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Create Client</h3>
+                <Button onClick={() => {
+                  setShowCreateClient(false)
+                  setClientForm({ name: '', email: '', password: '', clientCompanyId: '' })
+                  setClientFormErrors({})
+                }} variant="ghost" size="sm">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="client-name">Name *</Label>
+                  <Input
+                    id="client-name"
+                    value={clientForm.name}
+                    onChange={(e) => {
+                      setClientForm({ ...clientForm, name: e.target.value })
+                      if (clientFormErrors.name) {
+                        setClientFormErrors({ ...clientFormErrors, name: '' })
+                      }
+                    }}
+                    placeholder="Client name"
+                    className={clientFormErrors.name ? 'border-destructive' : ''}
+                  />
+                  {clientFormErrors.name && (
+                    <p className="text-xs text-destructive">{clientFormErrors.name}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="client-email">Email *</Label>
+                  <Input
+                    id="client-email"
+                    type="email"
+                    value={clientForm.email}
+                    onChange={(e) => {
+                      setClientForm({ ...clientForm, email: e.target.value })
+                      if (clientFormErrors.email) {
+                        setClientFormErrors({ ...clientFormErrors, email: '' })
+                      }
+                    }}
+                    placeholder="client@example.com"
+                    className={clientFormErrors.email ? 'border-destructive' : ''}
+                  />
+                  {clientFormErrors.email && (
+                    <p className="text-xs text-destructive">{clientFormErrors.email}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="client-password">Password *</Label>
+                  <Input
+                    id="client-password"
+                    type="password"
+                    value={clientForm.password}
+                    onChange={(e) => {
+                      setClientForm({ ...clientForm, password: e.target.value })
+                      if (clientFormErrors.password) {
+                        setClientFormErrors({ ...clientFormErrors, password: '' })
+                      }
+                    }}
+                    placeholder="Minimum 8 characters"
+                    className={clientFormErrors.password ? 'border-destructive' : ''}
+                  />
+                  {clientFormErrors.password && (
+                    <p className="text-xs text-destructive">{clientFormErrors.password}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="client-company">Company ID (Optional)</Label>
+                  <Input
+                    id="client-company"
+                    value={clientForm.clientCompanyId}
+                    onChange={(e) => setClientForm({ ...clientForm, clientCompanyId: e.target.value })}
+                    placeholder="Company identifier"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleCreateClient} disabled={creatingClient} size="sm">
+                    {creatingClient ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Create Client
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowCreateClient(false)
+                      setClientForm({ name: '', email: '', password: '', clientCompanyId: '' })
+                      setClientFormErrors({})
+                    }}
+                    variant="outline"
+                    size="sm"
+                    disabled={creatingClient}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search Bar */}
       <div className="relative">

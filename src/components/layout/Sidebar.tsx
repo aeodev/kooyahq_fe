@@ -68,7 +68,15 @@ export function Sidebar() {
     .join('') ?? ''
   const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
   
-  const navigation = NAVIGATION.filter((item) => !item.adminOnly || user?.isAdmin)
+  // Filter navigation based on user type
+  const navigation = NAVIGATION.filter((item) => {
+    // Clients can only see Workspace
+    if (user?.userType === 'client') {
+      return item.to === '/workspace'
+    }
+    // Employees see all (with admin checks)
+    return !item.adminOnly || user?.isAdmin
+  })
 
   useEffect(() => {
     setImageError(false)

@@ -3,12 +3,14 @@ export type User = {
   email: string
   name: string
   isAdmin: boolean
+  userType: 'employee' | 'client'
   position?: string
   birthday?: string
   profilePic?: string
   banner?: string
   bio?: string
   status?: 'online' | 'busy' | 'away' | 'offline'
+  clientCompanyId?: string
   deletedAt?: string
   createdAt: string
   updatedAt: string
