@@ -173,3 +173,19 @@ export const UPLOAD_MEDIA = () => `/media/upload`
 export const GET_ADMIN_STATS = () => `/admin/stats`
 export const GET_ADMIN_ACTIVITY = () => `/admin/activity`
 export const EXPORT_USERS = (format: 'csv' | 'json') => `/admin/export/users?format=${format}`
+
+// Wiki Hub routes
+export const GET_PAGES = (workspaceId: string) => `/wiki-hub/pages?workspaceId=${workspaceId}`
+export const GET_PAGE = (pageId: string) => `/wiki-hub/pages/${pageId}`
+export const CREATE_PAGE = () => `/wiki-hub/pages`
+export const UPDATE_PAGE = (pageId: string) => `/wiki-hub/pages/${pageId}`
+export const DELETE_PAGE = (pageId: string) => `/wiki-hub/pages/${pageId}`
+export const SEARCH_PAGES = (workspaceId: string, query: string) => `/wiki-hub/pages/search?workspaceId=${workspaceId}&q=${encodeURIComponent(query)}`
+export const PIN_PAGE = (pageId: string) => `/wiki-hub/pages/${pageId}/pin`
+export const UNPIN_PAGE = (pageId: string) => `/wiki-hub/pages/${pageId}/unpin`
+export const FAVORITE_PAGE = (pageId: string) => `/wiki-hub/pages/${pageId}/favorite`
+export const UNFAVORITE_PAGE = (pageId: string) => `/wiki-hub/pages/${pageId}/unfavorite`
+export const GET_FAVORITES = (workspaceId: string) => `/wiki-hub/pages/favorites?workspaceId=${workspaceId}`
+export const GET_TEMPLATES = (workspaceId?: string) => workspaceId ? `/wiki-hub/templates?workspaceId=${workspaceId}` : `/wiki-hub/templates`
+export const GET_TEMPLATE = (templateId: string) => `/wiki-hub/templates/${templateId}`
+export const CREATE_PAGE_FROM_TEMPLATE = (templateId: string) => `/wiki-hub/templates/${templateId}/pages`

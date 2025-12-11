@@ -19,6 +19,7 @@ import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
 import { PreJoin } from '@/pages/Meet/PreJoin'
+import { WikiHub } from '@/pages/WikiHub'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
 import { AdminRoute } from '@/routes/AdminRoute'
@@ -53,6 +54,8 @@ function App() {
           <Route path="/meet" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><MeetLanding /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
           <Route path="/meet/:meetId/join" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Meet /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
           <Route path="/meet/:meetId" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><PreJoin /></PrivateRoute></WorkspaceOnlyRoute>} />
+          <Route path="/wiki-hub" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><WikiHub /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
+          <Route path="/wiki-hub/:pageId" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><WikiHub /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
         </Routes>
       </BrowserRouter>
       <Toaster />

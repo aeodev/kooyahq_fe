@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, BookOpen } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -17,6 +17,7 @@ type NavItem = {
 const NAVIGATION: NavItem[] = [
   { name: 'Dashboard', to: '/', icon: Home },
   { name: 'Workspace', to: '/workspace', icon: LayoutGrid },
+  { name: 'Wiki Hub', to: '/wiki-hub', icon: BookOpen },
   { name: 'Presence', to: '/presence', icon: Globe },
   { name: 'Time Tracker', to: '/time-tracker', icon: Clock4 },
   { name: 'Gallery', to: '/gallery', icon: Images, adminOnly: true },
@@ -172,7 +173,9 @@ export function Sidebar() {
         <div className="space-y-0.5">
           {navigation.map((item) => {
             const Icon = item.icon
-            const isActive = location.pathname === item.to
+            // Check if route is active (handle sub-routes like /wiki-hub/:pageId)
+            const isActive = location.pathname === item.to || 
+              (item.to === '/wiki-hub' && location.pathname.startsWith('/wiki-hub'))
             return (
               <Link
                 key={item.to}
