@@ -6,24 +6,68 @@ import { cn } from '@/utils/cn'
 import { useTheme } from '@/composables/useTheme'
 import { useUnreadCount } from '@/hooks/notification.hooks'
 import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS, type Permission } from '@/constants/permissions'
 
 type NavItem = {
   name: string
   to: string
   icon: LucideIcon
   adminOnly?: boolean
+  requiredPermissions?: Permission[]
+  requireAllPermissions?: boolean
 }
 
 const NAVIGATION: NavItem[] = [
   { name: 'Dashboard', to: '/', icon: Home },
-  { name: 'Workspace', to: '/workspace', icon: LayoutGrid },
-  { name: 'Presence', to: '/presence', icon: Globe },
-  { name: 'Time Tracker', to: '/time-tracker', icon: Clock4 },
-  { name: 'Gallery', to: '/gallery', icon: Images, adminOnly: true },
-  { name: 'AI News', to: '/ai-news', icon: Sparkles },
-  { name: 'Feed', to: '/feed', icon: MessageSquare },
-  { name: 'Games', to: '/games', icon: Gamepad2 },
-  { name: 'Meet', to: '/meet', icon: Video },
+  {
+    name: 'Workspace',
+    to: '/workspace',
+    icon: LayoutGrid,
+    requiredPermissions: [PERMISSIONS.WORKSPACE_READ, PERMISSIONS.BOARD_READ],
+    requireAllPermissions: true,
+  },
+  {
+    name: 'Presence',
+    to: '/presence',
+    icon: Globe,
+    requiredPermissions: [PERMISSIONS.PRESENCE_READ],
+  },
+  {
+    name: 'Time Tracker',
+    to: '/time-tracker',
+    icon: Clock4,
+    requiredPermissions: [PERMISSIONS.TIME_ENTRY_READ],
+  },
+  {
+    name: 'Gallery',
+    to: '/gallery',
+    icon: Images,
+    requiredPermissions: [PERMISSIONS.GALLERY_READ],
+  },
+  {
+    name: 'AI News',
+    to: '/ai-news',
+    icon: Sparkles,
+    requiredPermissions: [PERMISSIONS.AI_NEWS_READ],
+  },
+  {
+    name: 'Feed',
+    to: '/feed',
+    icon: MessageSquare,
+    requiredPermissions: [PERMISSIONS.POST_READ],
+  },
+  {
+    name: 'Games',
+    to: '/games',
+    icon: Gamepad2,
+    requiredPermissions: [PERMISSIONS.GAME_READ],
+  },
+  {
+    name: 'Meet',
+    to: '/meet',
+    icon: Video,
+    requiredPermissions: [PERMISSIONS.MEET_TOKEN],
+  },
   { name: 'Admin', to: '/admin', icon: Users, adminOnly: true },
 ]
 
@@ -52,6 +96,12 @@ export function Sidebar() {
   
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+  const can = useAuthStore((s) => s.can)
+  const canViewNotifications =
+    can(PERMISSIONS.NOTIFICATION_READ) ||
+    can(PERMISSIONS.NOTIFICATION_FULL_ACCESS) ||
+    can(PERMISSIONS.NOTIFICATION_COUNT)
+  const hasAnyPermission = Array.isArray(user?.permissions) && user.permissions.length > 0
   
   const collapsed = useSidebarStore((s) => s.collapsed)
   const mobileOpen = useSidebarStore((s) => s.mobileOpen)
@@ -68,14 +118,17 @@ export function Sidebar() {
     .join('') ?? ''
   const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
   
-  // Filter navigation based on user type
   const navigation = NAVIGATION.filter((item) => {
-    // Clients can only see Workspace
-    if (user?.userType === 'client') {
-      return item.to === '/workspace'
+    if (item.adminOnly) {
+      return can(PERMISSIONS.ADMIN_READ) || can(PERMISSIONS.ADMIN_FULL_ACCESS)
     }
-    // Employees see all (with admin checks)
-    return !item.adminOnly || user?.isAdmin
+    if (item.requiredPermissions?.length) {
+      return item.requireAllPermissions
+        ? item.requiredPermissions.every((permission) => can(permission))
+        : item.requiredPermissions.some((permission) => can(permission))
+    }
+    // Items without explicit permissions should still be hidden if the user has zero permissions overall
+    return hasAnyPermission
   })
 
   useEffect(() => {
@@ -271,24 +324,26 @@ export function Sidebar() {
 
           <div className={cn('flex items-center gap-1 transition-all duration-300 ease-out', collapsed && 'flex-col w-full')}>
             {/* Notifications */}
-            <button
-              type="button"
-              className={cn(
-                'relative flex h-8 items-center justify-center rounded-lg',
-                'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
-                'transition-all duration-150 ease-out hover:scale-105 active:scale-95',
-                collapsed ? 'w-full' : 'w-8'
-              )}
-              onClick={handleNotificationClick}
-              aria-label="Notifications"
-            >
-              <Bell className="h-5 w-5 stroke-[1.5]" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
+            {canViewNotifications && (
+              <button
+                type="button"
+                className={cn(
+                  'relative flex h-8 items-center justify-center rounded-lg',
+                  'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
+                  'transition-all duration-150 ease-out hover:scale-105 active:scale-95',
+                  collapsed ? 'w-full' : 'w-8'
+                )}
+                onClick={handleNotificationClick}
+                aria-label="Notifications"
+              >
+                <Bell className="h-5 w-5 stroke-[1.5]" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Log Out */}
             <button

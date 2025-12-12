@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Globe, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { usePresenceStore } from '@/stores/presence.store'
 import { usePresenceChannel, useLiveLocationSharing } from '@/hooks/presence.hooks'
 import { useUsers } from '@/hooks/user.hooks'
@@ -84,4 +84,3 @@ export function Presence() {
     </section>
   )
 }
-

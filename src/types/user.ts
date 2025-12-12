@@ -2,8 +2,8 @@ export type User = {
   id: string
   email: string
   name: string
-  isAdmin: boolean
-  userType: 'employee' | 'client'
+  permissions: string[]
+  userType?: 'employee' | 'client'
   position?: string
   birthday?: string
   profilePic?: string

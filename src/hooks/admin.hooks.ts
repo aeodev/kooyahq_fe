@@ -47,7 +47,6 @@ type UseEmployeesParams = {
   page?: number
   limit?: number
   search?: string
-  role?: 'admin' | 'user'
 }
 
 export const useEmployees = (params?: UseEmployeesParams) => {
@@ -67,7 +66,6 @@ export const useEmployees = (params?: UseEmployeesParams) => {
       if (finalParams?.page) queryParams.append('page', finalParams.page.toString())
       if (finalParams?.limit) queryParams.append('limit', finalParams.limit.toString())
       if (finalParams?.search) queryParams.append('search', finalParams.search)
-      if (finalParams?.role) queryParams.append('role', finalParams.role)
 
       const url = `${GET_USERS()}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
       const response = await axiosInstance.get<{ status: string; data: EmployeesResponse | User[] }>(url)
@@ -239,7 +237,6 @@ export const useCreateClient = () => {
     createClient,
   }
 }
-
 
 
 

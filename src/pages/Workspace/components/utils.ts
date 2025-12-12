@@ -7,13 +7,21 @@ export type EmojiCategories = typeof EMOJI_CATEGORIES
  * @param searchQuery - The search query string
  * @returns Filtered emoji categories
  */
-export function filterEmojis(searchQuery: string): Partial<EmojiCategories> {
+export function filterEmojis(searchQuery: string): Record<string, string[]> {
+  const toMutableCopy = () => {
+    const copy: Record<string, string[]> = {}
+    Object.entries(EMOJI_CATEGORIES).forEach(([category, emojis]) => {
+      copy[category] = [...emojis]
+    })
+    return copy
+  }
+
   if (!searchQuery.trim()) {
-    return EMOJI_CATEGORIES
+    return toMutableCopy()
   }
 
   const searchLower = searchQuery.toLowerCase()
-  const filtered: Partial<EmojiCategories> = {}
+  const filtered: Record<string, string[]> = {}
 
   Object.entries(EMOJI_CATEGORIES).forEach(([category, emojis]) => {
     const matchingEmojis = emojis.filter((emoji) => {
@@ -26,7 +34,7 @@ export function filterEmojis(searchQuery: string): Partial<EmojiCategories> {
     })
 
     if (matchingEmojis.length > 0) {
-      filtered[category as keyof EmojiCategories] = matchingEmojis
+      filtered[category] = [...matchingEmojis]
     }
   })
 

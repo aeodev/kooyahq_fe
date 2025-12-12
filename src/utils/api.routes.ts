@@ -114,6 +114,9 @@ export const GET_AI_NEWS = () => `/ai-news`
 // Presence routes
 export const GET_PRESENCE = () => `/presence`
 
+// Cesium routes
+export const GET_CESIUM_TOKEN = () => `/cesium/token`
+
 // Profile routes
 export const GET_PROFILE = () => `/users/profile`
 export const UPDATE_PROFILE = () => `/users/profile`

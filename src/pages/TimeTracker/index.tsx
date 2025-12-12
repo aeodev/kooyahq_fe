@@ -17,6 +17,8 @@ import { EndDayModal } from './components/EndDayModal'
 import { OvertimeConfirmationModal } from './components/OvertimeConfirmationModal'
 import { formatDuration, formatTimeRange } from './components/utils'
 import { transformEntriesToTeamMembers } from './components/team-utils'
+import { PERMISSIONS } from '@/constants/permissions'
+import { Card, CardContent } from '@/components/ui/card'
 
 type TabType = 'you' | 'all' | 'analytics'
 
@@ -31,6 +33,24 @@ export function TimeTracker() {
   const [dayEndedToday, setDayEndedToday] = useState(false)
   const [pendingTimerStart, setPendingTimerStart] = useState<(() => void) | null>(null)
   const [pendingManualEntryData, setPendingManualEntryData] = useState<{ projects: string[]; task: string; hours: number; minutes: number } | null>(null)
+  const can = useAuthStore((state) => state.can)
+  const canReadEntries = can(PERMISSIONS.TIME_ENTRY_READ) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
+  const canCreateEntries = can(PERMISSIONS.TIME_ENTRY_CREATE) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
+  const canUpdateEntries = can(PERMISSIONS.TIME_ENTRY_UPDATE) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
+  const canViewAnalytics = can(PERMISSIONS.TIME_ENTRY_ANALYTICS) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
+  const canReadProjects = can(PERMISSIONS.PROJECT_READ) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
+  const canControlTimer = canCreateEntries || canUpdateEntries
+  const availableTabs: TabType[] = useMemo(() => {
+    const tabs: TabType[] = ['you']
+    if (canReadEntries) tabs.push('all')
+    if (canViewAnalytics) tabs.push('analytics')
+    return tabs
+  }, [canReadEntries, canViewAnalytics])
+  useEffect(() => {
+    if (!availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0])
+    }
+  }, [activeTab, availableTabs])
 
   const {
     projectTasks,
@@ -51,8 +71,10 @@ export function TimeTracker() {
 
   // Fetch projects on mount
   useEffect(() => {
-    fetchProjects()
-  }, [fetchProjects])
+    if (canReadProjects) {
+      fetchProjects()
+    }
+  }, [fetchProjects, canReadProjects])
   const myEntries = useTimeEntryStore((state) => state.entries)
   const fetchMyEntries = useTimeEntryStore((state) => state.fetchEntries)
   const activeTimer = useTimeEntryStore((state) => state.activeTimer)
@@ -75,33 +97,34 @@ export function TimeTracker() {
   
   // Initial fetch - only when user is authenticated and auth is ready
   useEffect(() => {
-    if (user && !isLoading) {
+    if (user && !isLoading && canReadEntries) {
       fetchMyEntries()
       fetchActiveTimer()
       checkDayEndedStatus().then((status) => {
         setDayEndedToday(status.dayEnded)
       })
     }
-  }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus])
+  }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus, canReadEntries])
 
 
   // Fetch users for position and profile data
   useEffect(() => {
-    if (user && !isLoading && activeTab === 'all') {
+    if (user && !isLoading && activeTab === 'all' && canReadEntries) {
       fetchUsers()
     }
-  }, [user, isLoading, activeTab, fetchUsers])
+  }, [user, isLoading, activeTab, fetchUsers, canReadEntries])
 
   // Fetch immediately when switching to "All" tab
   useEffect(() => {
-    if (activeTab === 'all' && user && !isLoading) {
+    if (activeTab === 'all' && user && !isLoading && canReadEntries) {
       fetchAllEntries()
     }
-  }, [activeTab, user, isLoading, fetchAllEntries])
+  }, [activeTab, user, isLoading, fetchAllEntries, canReadEntries])
 
   // Socket handles real-time updates, no need for polling
 
   const handleProjectSelection = (projects: string[]) => {
+    if (!canControlTimer) return
     setSelectedProjects(projects)
     if (projects.length > 0) {
       setActiveProject(projects[0])
@@ -116,6 +139,7 @@ export function TimeTracker() {
   }
 
   const handleStart = async () => {
+    if (!canCreateEntries) return
     if (selectedProjects.length === 0) return
     if (activeTimer) return // Don't start if already running
     const projectToStart = activeProject || selectedProjects[0]
@@ -154,6 +178,7 @@ export function TimeTracker() {
   }
 
   const handleSwitchProject = async (newProject: string) => {
+    if (!canControlTimer) return
     if (!activeTimer || !selectedProjects.includes(newProject)) return
     
     // Don't switch if already on this project
@@ -183,6 +208,7 @@ export function TimeTracker() {
   }
 
   const handleQuickAddTask = async (task: string) => {
+    if (!canUpdateEntries) return
     if (!activeTimer || !task.trim()) return
     // Use the new backend endpoint to add task with timestamp
     await addTaskToTimer(task.trim())
@@ -191,6 +217,7 @@ export function TimeTracker() {
   }
 
   const handleStop = async () => {
+    if (!canUpdateEntries) return
     await stopTimer()
     setSelectedProjects([])
     setActiveProject(null)
@@ -199,6 +226,7 @@ export function TimeTracker() {
   }
 
   const handlePause = async () => {
+    if (!canUpdateEntries) return
     if (activeTimer && !activeTimer.isPaused) {
       await pauseTimer()
       // Timer is automatically updated in store
@@ -206,16 +234,19 @@ export function TimeTracker() {
   }
 
   const handleResume = async () => {
+    if (!canUpdateEntries) return
     if (activeTimer && activeTimer.isPaused) {
       await resumeTimer()
     }
   }
 
   const handleEndDay = () => {
+    if (!canUpdateEntries) return
     setShowEndDayModal(true)
   }
 
   const handleEndDaySubmit = async () => {
+    if (!canUpdateEntries) return
     await endDay()
     setShowEndDayModal(false)
     setDayEndedToday(true)
@@ -224,6 +255,7 @@ export function TimeTracker() {
   }
 
   const handleAddManualEntry = async (data: { projects: string[]; task: string; hours: number; minutes: number }) => {
+    if (!canCreateEntries) return
     // Check if day was ended
     if (dayEndedToday) {
       setPendingManualEntryData(data)
@@ -359,26 +391,30 @@ export function TimeTracker() {
         >
           You
         </button>
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 whitespace-nowrap ${
-            activeTab === 'all'
-              ? 'bg-primary/10 text-primary border border-primary/50 shadow-sm'
-              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
-          }`}
-        >
-          All
-        </button>
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 whitespace-nowrap ${
-            activeTab === 'analytics'
-              ? 'bg-primary/10 text-primary border border-primary/50 shadow-sm'
-              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
-          }`}
-        >
-          Analytics
-        </button>
+        {canReadEntries && (
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 whitespace-nowrap ${
+              activeTab === 'all'
+                ? 'bg-primary/10 text-primary border border-primary/50 shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
+            }`}
+          >
+            All
+          </button>
+        )}
+        {canViewAnalytics && (
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 whitespace-nowrap ${
+              activeTab === 'analytics'
+                ? 'bg-primary/10 text-primary border border-primary/50 shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
+            }`}
+          >
+            Analytics
+          </button>
+        )}
       </div>
 
       {/* Tab Content */}
@@ -396,34 +432,51 @@ export function TimeTracker() {
               activeProject={activeProject || activeTimer.projects[0]}
               onSwitchProject={handleSwitchProject}
               onQuickAddTask={handleQuickAddTask}
+              controlsDisabled={!canUpdateEntries}
             />
           )}
 
           {/* Start Timer Section */}
           {!activeTimer && (
             <div className="space-y-6">
-              <StartTimerForm
-                projects={projects}
-                selectedProjects={selectedProjects}
-                taskDescription={taskDescription}
-                onSelectionChange={handleProjectSelection}
-                onTaskChange={setTaskDescription}
-                onStart={handleStart}
-                projectTasks={projectTasks}
-                onSetProjectTask={setProjectTask}
-                activeProject={activeProject}
-              />
+              {canControlTimer ? (
+                <>
+                  <StartTimerForm
+                    projects={projects}
+                    selectedProjects={selectedProjects}
+                    taskDescription={taskDescription}
+                    onSelectionChange={handleProjectSelection}
+                    onTaskChange={setTaskDescription}
+                    onStart={handleStart}
+                    projectTasks={projectTasks}
+                    onSetProjectTask={setProjectTask}
+                    activeProject={activeProject}
+                    disabled={!canCreateEntries}
+                  />
 
-              {/* Quick Actions */}
-              <QuickActions
-                isTimerRunning={false}
-                isPaused={false}
-                onPause={handlePause}
-                onResume={handleResume}
-                onAdd={() => setShowManualModal(true)}
-                onEndDay={handleEndDay}
-                showEndDay={showEndDayButton}
-              />
+                  {/* Quick Actions */}
+                  <QuickActions
+                    isTimerRunning={false}
+                    isPaused={false}
+                    onPause={handlePause}
+                    onResume={handleResume}
+                    onAdd={() => canCreateEntries && setShowManualModal(true)}
+                    onEndDay={handleEndDay}
+                    showEndDay={showEndDayButton}
+                    disabled={!canUpdateEntries}
+                    disableAdd={!canCreateEntries}
+                    disableEndDay={!canUpdateEntries}
+                  />
+                </>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">
+                      You can view time entries but do not have permission to start or manage timers.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
@@ -434,29 +487,36 @@ export function TimeTracker() {
               isPaused={activeTimer?.isPaused || false}
               onPause={handlePause}
               onResume={handleResume}
-              onAdd={() => setShowManualModal(true)}
+              onAdd={() => canCreateEntries && setShowManualModal(true)}
               onEndDay={handleEndDay}
               showEndDay={showEndDayButton}
+              disabled={!canUpdateEntries}
+              disableAdd={!canCreateEntries}
+              disableEndDay={!canUpdateEntries}
             />
           )}
 
           {/* Manual Entry Modal */}
-          <ManualEntryModal
-            projects={projects}
-            open={showManualModal}
-            onClose={() => setShowManualModal(false)}
-            onSubmit={handleAddManualEntry}
-            loading={loggingManual}
-          />
+          {canCreateEntries && (
+            <ManualEntryModal
+              projects={projects}
+              open={showManualModal}
+              onClose={() => setShowManualModal(false)}
+              onSubmit={handleAddManualEntry}
+              loading={loggingManual}
+            />
+          )}
 
           {/* End Day Modal */}
-          <EndDayModal
-            open={showEndDayModal}
-            onClose={() => setShowEndDayModal(false)}
-            onSubmit={handleEndDaySubmit}
-            entries={todayMyEntries}
-            loading={false}
-          />
+          {canUpdateEntries && (
+            <EndDayModal
+              open={showEndDayModal}
+              onClose={() => setShowEndDayModal(false)}
+              onSubmit={handleEndDaySubmit}
+              entries={todayMyEntries}
+              loading={false}
+            />
+          )}
 
           {/* Overtime Confirmation Modal */}
           <OvertimeConfirmationModal
@@ -473,7 +533,7 @@ export function TimeTracker() {
         </div>
       )}
 
-      {activeTab === 'all' && (
+      {activeTab === 'all' && canReadEntries && (
         <AllTeamView
           members={teamMembers}
           totalTeamHours={formatDuration(
@@ -494,7 +554,7 @@ export function TimeTracker() {
         />
       )}
 
-      {activeTab === 'analytics' && (
+      {activeTab === 'analytics' && canViewAnalytics && (
         <AnalyticsView />
       )}
     </section>

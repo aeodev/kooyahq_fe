@@ -4,27 +4,34 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/utils/cn'
 import axiosInstance from '@/utils/axios.instance'
-import { UPDATE_TICKET, GET_TICKET_BY_ID } from '@/utils/api.routes'
+import { UPDATE_TICKET } from '@/utils/api.routes'
 import type { TicketDetailResponse } from './types'
 import { toast } from 'sonner'
+import type { Ticket } from '@/types/board'
+
+type AcceptanceCriteriaItem = Ticket['acceptanceCriteria'][number]
 
 type AcceptanceCriteriaSectionProps = {
   ticketDetails: TicketDetailResponse | null
   acceptanceCriteriaExpanded: boolean
   onToggleAcceptanceCriteria: () => void
+  canUpdate: boolean
 }
 
 export function AcceptanceCriteriaSection({
   ticketDetails,
   acceptanceCriteriaExpanded,
   onToggleAcceptanceCriteria,
+  canUpdate,
 }: AcceptanceCriteriaSectionProps) {
   const [newCriteria, setNewCriteria] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [loading, setLoading] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
-  const [localCriteria, setLocalCriteria] = useState(ticketDetails?.ticket.acceptanceCriteria || [])
+  const [localCriteria, setLocalCriteria] = useState<AcceptanceCriteriaItem[]>(
+    ticketDetails?.ticket.acceptanceCriteria || []
+  )
 
   // Sync local criteria when ticketDetails changes
   useEffect(() => {
@@ -35,16 +42,16 @@ export function AcceptanceCriteriaSection({
 
   const acceptanceCriteria = localCriteria
 
-  const handleToggleCriteria = async (criteriaId: string) => {
-    if (!ticketDetails?.ticket.id || togglingId !== null) return
+  const handleToggleCriteria = async (index: number) => {
+    if (!ticketDetails?.ticket.id || togglingId !== null || !canUpdate) return
 
     // Optimistically update UI immediately
     const oldCriteria = [...acceptanceCriteria]
-    const updatedCriteria = acceptanceCriteria.map((item) =>
-      item.id === criteriaId ? { ...item, isCompleted: !item.isCompleted } : item
+    const updatedCriteria = acceptanceCriteria.map((item, i) =>
+      i === index ? { ...item, completed: !item.completed } : item
     )
     setLocalCriteria(updatedCriteria)
-    setTogglingId(criteriaId)
+    setTogglingId(String(index))
 
     try {
       const response = await axiosInstance.put<{ success: boolean }>(UPDATE_TICKET(ticketDetails.ticket.id), {
@@ -65,12 +72,11 @@ export function AcceptanceCriteriaSection({
   }
 
   const handleAddCriteria = async () => {
-    if (!newCriteria.trim() || !ticketDetails?.ticket.id || loading) return
+    if (!newCriteria.trim() || !ticketDetails?.ticket.id || loading || !canUpdate) return
 
-    const newItem = {
-      id: `criteria-${Date.now()}`,
+    const newItem: AcceptanceCriteriaItem = {
       text: newCriteria.trim(),
-      isCompleted: false,
+      completed: false,
     }
 
     // Optimistically update UI
@@ -103,14 +109,14 @@ export function AcceptanceCriteriaSection({
     }
   }
 
-  const handleRemoveCriteria = async (criteriaId: string) => {
-    if (!ticketDetails?.ticket.id || removingId !== null) return
+  const handleRemoveCriteria = async (index: number) => {
+    if (!ticketDetails?.ticket.id || removingId !== null || !canUpdate) return
 
     // Optimistically update UI
     const oldCriteria = [...acceptanceCriteria]
-    const updatedCriteria = acceptanceCriteria.filter((item) => item.id !== criteriaId)
+    const updatedCriteria = acceptanceCriteria.filter((_, i) => i !== index)
     setLocalCriteria(updatedCriteria)
-    setRemovingId(criteriaId)
+    setRemovingId(String(index))
 
     try {
       const response = await axiosInstance.put<{ success: boolean }>(UPDATE_TICKET(ticketDetails.ticket.id), {
@@ -148,47 +154,49 @@ export function AcceptanceCriteriaSection({
         <div className="ml-6 space-y-2">
           {acceptanceCriteria.length > 0 && (
             <div className="space-y-2">
-              {acceptanceCriteria.map((criteria) => (
-                <div key={criteria.id} className="flex items-center gap-2">
+              {acceptanceCriteria.map((criteria, index) => (
+                <div key={`${criteria.text}-${index}`} className="flex items-center gap-2">
                   <button
-                    onClick={() => handleToggleCriteria(criteria.id)}
-                    disabled={togglingId !== null}
+                    onClick={() => handleToggleCriteria(index)}
+                    disabled={togglingId !== null || !canUpdate}
                     className={cn(
                       'flex-shrink-0 h-4 w-4 border rounded-sm flex items-center justify-center transition-colors',
-                      criteria.isCompleted
+                      criteria.completed
                         ? 'bg-primary border-primary text-primary-foreground'
                         : 'border-border bg-background hover:border-primary/50',
-                      togglingId === criteria.id && 'opacity-50 cursor-wait'
+                      togglingId === String(index) && 'opacity-50 cursor-wait'
                     )}
                   >
-                    {togglingId === criteria.id ? (
+                    {togglingId === String(index) ? (
                       <span className="text-xs">...</span>
-                    ) : criteria.isCompleted ? (
+                    ) : criteria.completed ? (
                       <Check className="h-3 w-3" />
                     ) : null}
                   </button>
                   <span
                     className={cn(
                       'text-sm flex-1',
-                      criteria.isCompleted && 'line-through text-muted-foreground'
+                      criteria.completed && 'line-through text-muted-foreground'
                     )}
                   >
                     {criteria.text}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveCriteria(criteria.id)}
-                    disabled={removingId === criteria.id}
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                  >
-                    {removingId === criteria.id ? '...' : '×'}
-                  </Button>
+                  {canUpdate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveCriteria(index)}
+                      disabled={removingId === String(index)}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                    >
+                      {removingId === String(index) ? '...' : '×'}
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           )}
-          {isAdding ? (
+          {canUpdate && isAdding ? (
             <div className="flex gap-2">
               <Input
                 value={newCriteria}
@@ -233,4 +241,3 @@ export function AcceptanceCriteriaSection({
     </div>
   )
 }
-

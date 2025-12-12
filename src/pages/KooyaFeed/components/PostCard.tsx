@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import type { Post } from '@/types/post'
+import { PERMISSIONS } from '@/constants/permissions'
 
 interface PostCardProps {
     post: Post
@@ -27,12 +28,15 @@ interface PostCardProps {
 export function PostCard({ post, onDelete, onUpdate, onVote }: PostCardProps) {
     const navigate = useNavigate()
     const user = useAuthStore((state) => state.user)
+    const can = useAuthStore((state) => state.can)
     const [showComments, setShowComments] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
     const [editContent, setEditContent] = useState(post.content)
 
     const isAuthor = user?.id === post.author.id
+    const canEditPost = isAuthor && (can(PERMISSIONS.POST_UPDATE) || can(PERMISSIONS.POST_FULL_ACCESS))
+    const canDeletePost = isAuthor && (can(PERMISSIONS.POST_DELETE) || can(PERMISSIONS.POST_FULL_ACCESS))
 
     const handleProfileClick = () => {
         navigate(`/profile?userId=${post.author.id}`)
@@ -118,7 +122,7 @@ export function PostCard({ post, onDelete, onUpdate, onVote }: PostCardProps) {
                         </div>
                     </div>
 
-                    {isAuthor && (
+                    {(canEditPost || canDeletePost) && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
@@ -126,14 +130,18 @@ export function PostCard({ post, onDelete, onUpdate, onVote }: PostCardProps) {
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleEdit}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete
-                                </DropdownMenuItem>
+                                {canEditPost && (
+                                    <DropdownMenuItem onClick={handleEdit}>
+                                        <Pencil className="mr-2 h-4 w-4" />
+                                        Edit
+                                    </DropdownMenuItem>
+                                )}
+                                {canDeletePost && (
+                                    <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete
+                                    </DropdownMenuItem>
+                                )}
                             </DropdownMenuContent>
                         </DropdownMenu>
                     )}

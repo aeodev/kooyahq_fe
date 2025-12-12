@@ -22,9 +22,10 @@ import { PreJoin } from '@/pages/Meet/PreJoin'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
 import { AdminRoute } from '@/routes/AdminRoute'
-import { WorkspaceOnlyRoute } from '@/routes/WorkspaceOnlyRoute'
 import { Toaster } from 'sonner'
 import { BoardView } from './pages/Workspace/BoardView'
+import { PERMISSIONS } from '@/constants/permissions'
+import { PermissionGate } from '@/components/auth/PermissionGate'
 
 function App() {
   return (
@@ -36,23 +37,213 @@ function App() {
           <Route path="/signup" element={<PublicRoute><AuthLayout><Auth /></AuthLayout></PublicRoute>} />
 
           {/* Dashboard routes */}
-          <Route path="/" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Home /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/workspace" element={<PrivateRoute fallback={null}><DashboardLayout><Workspace /></DashboardLayout></PrivateRoute>} />
-          <Route path="/workspace/:boardKey" element={<PrivateRoute fallback={null}><DashboardLayout><BoardView /></DashboardLayout></PrivateRoute>} />
-          <Route path="/workspace/:boardKey/:ticketKey" element={<PrivateRoute fallback={null}><DashboardLayout><TicketDetailPage /></DashboardLayout></PrivateRoute>} />
-          <Route path="/time-tracker" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><TimeTracker /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/gallery" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Gallery /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/ai-news" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><AINews /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/profile" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Profile /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/notifications" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Notifications /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/feed" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><KooyaFeed /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/games" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Games /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/games/play/:gameType" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><PlayGame /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/presence" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Presence /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/admin" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><AdminRoute><DashboardLayout><Admin /></DashboardLayout></AdminRoute></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/meet" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><MeetLanding /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/meet/:meetId/join" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Meet /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/meet/:meetId" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><PreJoin /></PrivateRoute></WorkspaceOnlyRoute>} />
+          <Route
+            path="/"
+            element={
+              <PrivateRoute fallback={null}>
+                <DashboardLayout>
+                  <Home />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workspace"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[PERMISSIONS.WORKSPACE_FULL_ACCESS, PERMISSIONS.BOARD_FULL_ACCESS]}
+                  allOf={[PERMISSIONS.WORKSPACE_READ, PERMISSIONS.BOARD_READ]}
+                >
+                  <DashboardLayout>
+                    <Workspace />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workspace/:boardKey"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[PERMISSIONS.BOARD_FULL_ACCESS, PERMISSIONS.TICKET_FULL_ACCESS]}
+                  allOf={[PERMISSIONS.BOARD_READ, PERMISSIONS.TICKET_READ]}
+                >
+                  <DashboardLayout>
+                    <BoardView />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workspace/:boardKey/:ticketKey"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[PERMISSIONS.TICKET_FULL_ACCESS, PERMISSIONS.BOARD_FULL_ACCESS]}
+                  allOf={[PERMISSIONS.TICKET_READ]}
+                >
+                  <DashboardLayout>
+                    <TicketDetailPage />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/time-tracker"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.TIME_ENTRY_FULL_ACCESS]} allOf={[PERMISSIONS.TIME_ENTRY_READ]}>
+                  <DashboardLayout>
+                    <TimeTracker />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/gallery"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.GALLERY_FULL_ACCESS]} allOf={[PERMISSIONS.GALLERY_READ]}>
+                  <DashboardLayout>
+                    <Gallery />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/ai-news"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.AI_NEWS_FULL_ACCESS]} allOf={[PERMISSIONS.AI_NEWS_READ]}>
+                  <DashboardLayout>
+                    <AINews />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute fallback={null}>
+                <DashboardLayout>
+                  <Profile />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.NOTIFICATION_FULL_ACCESS]} allOf={[PERMISSIONS.NOTIFICATION_READ]}>
+                  <DashboardLayout>
+                    <Notifications />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/feed"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.POST_FULL_ACCESS]} allOf={[PERMISSIONS.POST_READ]}>
+                  <DashboardLayout>
+                    <KooyaFeed />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/games"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.GAME_FULL_ACCESS]} allOf={[PERMISSIONS.GAME_READ]}>
+                  <DashboardLayout>
+                    <Games />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/games/play/:gameType"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.GAME_FULL_ACCESS]} allOf={[PERMISSIONS.GAME_PLAY]}>
+                  <DashboardLayout>
+                    <PlayGame />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/presence"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.PRESENCE_FULL_ACCESS]} allOf={[PERMISSIONS.PRESENCE_READ]}>
+                  <DashboardLayout>
+                    <Presence />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <PrivateRoute fallback={null}>
+                <AdminRoute>
+                  <DashboardLayout>
+                    <Admin />
+                  </DashboardLayout>
+                </AdminRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/meet"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.MEET_FULL_ACCESS]} allOf={[PERMISSIONS.MEET_TOKEN]}>
+                  <DashboardLayout>
+                    <MeetLanding />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/meet/:meetId/join"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.MEET_FULL_ACCESS]} allOf={[PERMISSIONS.MEET_TOKEN]}>
+                  <DashboardLayout>
+                    <Meet />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/meet/:meetId"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.MEET_FULL_ACCESS]} allOf={[PERMISSIONS.MEET_TOKEN]}>
+                  <PreJoin />
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
         </Routes>
       </BrowserRouter>
       <Toaster />

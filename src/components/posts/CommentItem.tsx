@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 import { Button } from '@/components/ui/button'
 import { Trash2, Edit2, Loader2 } from 'lucide-react'
 import { usePostComments } from '@/hooks/post.hooks'
@@ -40,6 +41,7 @@ function formatDate(dateString: string): string {
 
 export function CommentItem({ comment, onUpdate, onDelete }: CommentItemProps) {
   const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(comment.content)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -47,8 +49,13 @@ export function CommentItem({ comment, onUpdate, onDelete }: CommentItemProps) {
   const { updateComment, deleteComment } = usePostComments()
 
   const isOwner = user?.id === comment.userId
+  const canUpdate =
+    isOwner && (can(PERMISSIONS.POST_COMMENT_UPDATE) || can(PERMISSIONS.POST_FULL_ACCESS))
+  const canDelete =
+    isOwner && (can(PERMISSIONS.POST_COMMENT_DELETE) || can(PERMISSIONS.POST_FULL_ACCESS))
 
   const handleUpdate = async () => {
+    if (!canUpdate) return
     if (!editContent.trim() || editContent === comment.content) {
       setIsEditing(false)
       return
@@ -67,6 +74,7 @@ export function CommentItem({ comment, onUpdate, onDelete }: CommentItemProps) {
   }
 
   const handleDelete = async () => {
+    if (!canDelete) return
     if (!confirm('Delete this comment?')) return
 
     setIsDeleting(true)
@@ -124,38 +132,42 @@ export function CommentItem({ comment, onUpdate, onDelete }: CommentItemProps) {
           </div>
         ) : (
           <>
-            <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <span className="font-semibold text-sm mr-1.5">{comment.author.name}</span>
-                <span className="text-sm text-foreground rich-text-display">{comment.content}</span>
-              </div>
-              {isOwner && (
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
-                    onClick={() => setIsEditing(true)}
-                    title="Edit"
-                  >
-                    <Edit2 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    title="Delete"
-                  >
-                    {isDeleting ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3 w-3" />
-                    )}
-                  </Button>
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-sm mr-1.5">{comment.author.name}</span>
+                  <span className="text-sm text-foreground rich-text-display">{comment.content}</span>
                 </div>
-              )}
+              {canUpdate || canDelete ? (
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {canUpdate && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={() => setIsEditing(true)}
+                      title="Edit"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      title="Delete"
+                    >
+                      {isDeleting ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                    </Button>
+                  )}
+                </div>
+              ) : null}
             </div>
             <p className="text-xs text-muted-foreground mt-0.5 ml-0">{formatDate(comment.createdAt)}</p>
           </>
@@ -164,4 +176,3 @@ export function CommentItem({ comment, onUpdate, onDelete }: CommentItemProps) {
     </div>
   )
 }
-

@@ -7,6 +7,7 @@ import { usePostComments } from '@/hooks/post.hooks'
 import type { PostComment } from '@/types/post'
 import { getUserInitials, isValidImageUrl } from '@/utils/formatters'
 import { toast } from 'sonner'
+import { PERMISSIONS } from '@/constants/permissions'
 
 interface CommentSectionProps {
   postId: string
@@ -15,6 +16,7 @@ interface CommentSectionProps {
 
 export function CommentSection({ postId, isExpanded = true }: CommentSectionProps) {
   const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
   const [commentContent, setCommentContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const {
@@ -23,13 +25,17 @@ export function CommentSection({ postId, isExpanded = true }: CommentSectionProp
     fetchComments,
     createComment,
   } = usePostComments()
+  const canReadComments = can(PERMISSIONS.POST_COMMENT_READ) || can(PERMISSIONS.POST_FULL_ACCESS)
+  const canCreateComments = can(PERMISSIONS.POST_COMMENT_CREATE) || can(PERMISSIONS.POST_FULL_ACCESS)
 
   useEffect(() => {
-    fetchComments(postId)
-  }, [postId, fetchComments])
+    if (canReadComments) {
+      fetchComments(postId)
+    }
+  }, [postId, fetchComments, canReadComments])
 
   const handleSubmit = async () => {
-    if (!commentContent.trim() || isSubmitting) return
+    if (!commentContent.trim() || isSubmitting || !canCreateComments) return
 
     setIsSubmitting(true)
     try {
@@ -52,60 +58,62 @@ export function CommentSection({ postId, isExpanded = true }: CommentSectionProp
     // Comment deleted via hook's state management
   }
 
-  if (!user) return null
+  if (!user || !canReadComments) return null
 
   if (!isExpanded) return null
 
   return (
     <div className="space-y-3 pt-2">
-      <div className="flex items-start gap-2">
-        {isValidImageUrl(user.profilePic) ? (
-          <img
-            src={user.profilePic}
-            alt={user.name}
-            className="h-6 w-6 rounded-xl ring-1 ring-border/50 object-cover flex-shrink-0"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none'
-            }}
-          />
-        ) : (
-          <div className="h-6 w-6 rounded-xl ring-1 ring-border/50 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-[10px] font-bold text-primary-foreground flex-shrink-0">
-            {getUserInitials(user.name)}
-          </div>
-        )}
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={commentContent}
-              onChange={(e) => setCommentContent(e.target.value)}
-              placeholder={`Comment as ${user.name.split(' ')[0]}...`}
-              className="flex-1 px-2 py-1.5 text-sm border-0 border-b border-border focus:outline-none focus:border-primary bg-transparent placeholder:text-muted-foreground"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSubmit()
-                }
+      {canCreateComments && (
+        <div className="flex items-start gap-2">
+          {isValidImageUrl(user.profilePic) ? (
+            <img
+              src={user.profilePic}
+              alt={user.name}
+              className="h-6 w-6 rounded-xl ring-1 ring-border/50 object-cover flex-shrink-0"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none'
               }}
             />
-            {commentContent.trim() && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleSubmit}
-                disabled={!commentContent.trim() || isSubmitting}
-                className="h-8 px-2 text-sm"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Send className="h-3 w-3" />
-                )}
-              </Button>
-            )}
+          ) : (
+            <div className="h-6 w-6 rounded-xl ring-1 ring-border/50 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-[10px] font-bold text-primary-foreground flex-shrink-0">
+              {getUserInitials(user.name)}
+            </div>
+          )}
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={commentContent}
+                onChange={(e) => setCommentContent(e.target.value)}
+                placeholder={`Comment as ${user.name.split(' ')[0]}...`}
+                className="flex-1 px-2 py-1.5 text-sm border-0 border-b border-border focus:outline-none focus:border-primary bg-transparent placeholder:text-muted-foreground"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit()
+                  }
+                }}
+              />
+              {commentContent.trim() && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleSubmit}
+                  disabled={!commentContent.trim() || isSubmitting}
+                  className="h-8 px-2 text-sm"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Send className="h-3 w-3" />
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-2">
@@ -126,4 +134,3 @@ export function CommentSection({ postId, isExpanded = true }: CommentSectionProp
     </div>
   )
 }
-

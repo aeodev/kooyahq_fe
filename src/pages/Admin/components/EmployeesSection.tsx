@@ -9,20 +9,25 @@ import type { User } from '@/types/user'
 import { toast } from 'sonner'
 import axiosInstance from '@/utils/axios.instance'
 import { EXPORT_USERS } from '@/utils/api.routes'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 export function EmployeesSection() {
+  const can = useAuthStore((state) => state.can)
+  const canReadUsers = can(PERMISSIONS.USER_READ) || can(PERMISSIONS.USER_FULL_ACCESS)
+  const canUpdateUsers = can(PERMISSIONS.USER_UPDATE) || can(PERMISSIONS.USER_FULL_ACCESS)
+  const canDeleteUsers = can(PERMISSIONS.USER_DELETE) || can(PERMISSIONS.USER_FULL_ACCESS)
+  const canExportUsers = can(PERMISSIONS.ADMIN_EXPORT) || can(PERMISSIONS.ADMIN_FULL_ACCESS)
   const { data: employees, pagination, loading, error, fetchEmployees } = useEmployees()
   const { updateEmployee, loading: updating } = useUpdateEmployee()
-  const { deleteEmployee, loading: deleting } = useDeleteEmployee()
-  const { createClient, loading: creatingClient } = useCreateClient()
+  const { deleteEmployee } = useDeleteEmployee()
 
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editData, setEditData] = useState<{ name: string; email: string; position: string; birthday: string; isAdmin: boolean }>({
+  const [editData, setEditData] = useState<{ name: string; email: string; position: string; birthday: string }>({
     name: '',
     email: '',
     position: '',
     birthday: '',
-    isAdmin: false,
   })
   const [editingEmployee, setEditingEmployee] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -30,7 +35,6 @@ export function EmployeesSection() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
   const [positionFilter, setPositionFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'busy' | 'away' | 'offline'>('all')
   const [dateFromFilter, setDateFromFilter] = useState('')
@@ -47,8 +51,9 @@ export function EmployeesSection() {
   const [clientFormErrors, setClientFormErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
-  }, [currentPage, searchQuery, roleFilter, fetchEmployees])
+    if (!canReadUsers) return
+    fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
+  }, [currentPage, searchQuery, fetchEmployees, canReadUsers])
 
   // Filter employees based on filters
   const filteredEmployees = useMemo(() => {
@@ -112,6 +117,7 @@ export function EmployeesSection() {
   }
 
   const startEdit = (employee: User) => {
+    if (!canUpdateUsers) return
     setEditingId(employee.id)
     setEditingEmployee(employee)
     setEditData({
@@ -119,7 +125,6 @@ export function EmployeesSection() {
       email: employee.email,
       position: employee.position || '',
       birthday: employee.birthday ? employee.birthday.split('T')[0] : '',
-      isAdmin: employee.isAdmin,
     })
     setValidationErrors({})
   }
@@ -127,18 +132,19 @@ export function EmployeesSection() {
   const cancelEdit = () => {
     setEditingId(null)
     setEditingEmployee(null)
-    setEditData({ name: '', email: '', position: '', birthday: '', isAdmin: false })
+    setEditData({ name: '', email: '', position: '', birthday: '' })
     setValidationErrors({})
   }
 
   const handleSave = async (employeeId: string) => {
+    if (!canUpdateUsers) return
     if (!validateForm()) {
       return
     }
 
     if (!editingEmployee) return
 
-    const updates: { name?: string; email?: string; position?: string; birthday?: string; isAdmin?: boolean } = {}
+    const updates: { name?: string; email?: string; position?: string; birthday?: string } = {}
 
     if (editData.name.trim() !== editingEmployee.name) {
       updates.name = editData.name.trim()
@@ -154,10 +160,6 @@ export function EmployeesSection() {
     if (editData.birthday !== currentBirthdayDate) {
       updates.birthday = editData.birthday ? editData.birthday : undefined
     }
-    if (editData.isAdmin !== editingEmployee.isAdmin) {
-      updates.isAdmin = editData.isAdmin
-    }
-
     if (Object.keys(updates).length === 0) {
       cancelEdit()
       return
@@ -168,13 +170,14 @@ export function EmployeesSection() {
     if (result) {
       toast.success('Employee updated successfully')
       cancelEdit()
-      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
+      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
     } else {
       toast.error('Failed to update employee')
     }
   }
 
   const handleDelete = async (employeeId: string) => {
+    if (!canDeleteUsers) return
     if (!confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
       return
     }
@@ -188,7 +191,7 @@ export function EmployeesSection() {
         if (editingId === employeeId) {
           cancelEdit()
         }
-        fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
+        fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
       } else {
         toast.error('Failed to delete employee')
       }
@@ -198,6 +201,7 @@ export function EmployeesSection() {
   }
 
   const handleSelectAll = () => {
+    if (!canDeleteUsers) return
     if (selectedIds.size === filteredEmployees.length) {
       setSelectedIds(new Set())
     } else {
@@ -206,6 +210,7 @@ export function EmployeesSection() {
   }
 
   const handleSelectOne = (id: string) => {
+    if (!canDeleteUsers) return
     const newSelected = new Set(selectedIds)
     if (newSelected.has(id)) {
       newSelected.delete(id)
@@ -216,6 +221,7 @@ export function EmployeesSection() {
   }
 
   const handleBulkDelete = async () => {
+    if (!canDeleteUsers) return
     if (selectedIds.size === 0) return
 
     if (!confirm(`Are you sure you want to delete ${selectedIds.size} employee(s)? This action cannot be undone.`)) {
@@ -231,7 +237,7 @@ export function EmployeesSection() {
       if (successCount > 0) {
         toast.success(`${successCount} employee(s) deleted successfully`)
         setSelectedIds(new Set())
-        fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
+        fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
       } else {
         toast.error('Failed to delete employees')
       }
@@ -240,23 +246,8 @@ export function EmployeesSection() {
     }
   }
 
-  const handleBulkRoleChange = async (isAdmin: boolean) => {
-    if (selectedIds.size === 0) return
-
-    const promises = Array.from(selectedIds).map((id) => updateEmployee(id, { isAdmin }))
-    const results = await Promise.all(promises)
-    const successCount = results.filter((r) => r !== null).length
-
-    if (successCount > 0) {
-      toast.success(`${successCount} employee(s) updated successfully`)
-      setSelectedIds(new Set())
-      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
-    } else {
-      toast.error('Failed to update employees')
-    }
-  }
-
   const handleExport = async (format: 'csv' | 'json') => {
+    if (!canExportUsers) return
     try {
       const response = await axiosInstance.get(EXPORT_USERS(format), {
         responseType: format === 'csv' ? 'blob' : 'json',
@@ -291,7 +282,6 @@ export function EmployeesSection() {
   }
 
   const clearFilters = () => {
-    setRoleFilter('all')
     setPositionFilter('')
     setStatusFilter('all')
     setDateFromFilter('')
@@ -350,6 +340,16 @@ export function EmployeesSection() {
   const saving = updating || deletingUserId !== null
   const totalPages = pagination?.totalPages || 1
 
+  if (!canReadUsers) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">You do not have permission to view employees.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header with Export */}
@@ -358,23 +358,20 @@ export function EmployeesSection() {
           <h2 className="text-lg sm:text-xl font-semibold">Employees</h2>
           <p className="text-sm text-muted-foreground mt-1">Manage employee details and positions</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setShowCreateClient(true)} variant="default" size="sm">
-            <UserPlus className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">Create Client</span>
-            <span className="sm:hidden">Client</span>
-          </Button>
-          <Button onClick={() => handleExport('csv')} variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">Export CSV</span>
-            <span className="sm:hidden">CSV</span>
-          </Button>
-          <Button onClick={() => handleExport('json')} variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">Export JSON</span>
-            <span className="sm:hidden">JSON</span>
-          </Button>
-        </div>
+        {canExportUsers && (
+          <div className="flex gap-2">
+            <Button onClick={() => handleExport('csv')} variant="outline" size="sm">
+              <Download className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </Button>
+            <Button onClick={() => handleExport('json')} variant="outline" size="sm">
+              <Download className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Export JSON</span>
+              <span className="sm:hidden">JSON</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Create Client Modal */}
@@ -516,7 +513,7 @@ export function EmployeesSection() {
           <Filter className="mr-2 h-4 w-4" />
           Filters
         </Button>
-        {(roleFilter !== 'all' || positionFilter || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
+        {(positionFilter || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
           <Button onClick={clearFilters} variant="ghost" size="sm">
             <XIcon className="mr-2 h-4 w-4" />
             Clear Filters
@@ -528,22 +525,6 @@ export function EmployeesSection() {
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="role-filter">Role</Label>
-                <select
-                  id="role-filter"
-                  value={roleFilter}
-                  onChange={(e) => {
-                    setRoleFilter(e.target.value as 'all' | 'admin' | 'user')
-                    setCurrentPage(1)
-                  }}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="all">All Roles</option>
-                  <option value="admin">Admin</option>
-                  <option value="user">User</option>
-                </select>
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="position-filter">Position</Label>
                 <Input
@@ -601,27 +582,11 @@ export function EmployeesSection() {
               </p>
               <div className="flex gap-2 flex-wrap">
                 <Button
-                  onClick={() => handleBulkRoleChange(true)}
-                  variant="outline"
-                  size="sm"
-                  disabled={saving}
-                >
-                  Make Admin
-                </Button>
-                <Button
-                  onClick={() => handleBulkRoleChange(false)}
-                  variant="outline"
-                  size="sm"
-                  disabled={saving}
-                >
-                  Remove Admin
-                </Button>
-                <Button
                   onClick={handleBulkDelete}
                   variant="outline"
                   size="sm"
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  disabled={saving || deletingUserId !== null}
+                  disabled={saving || deletingUserId !== null || !canDeleteUsers}
                 >
                   {deletingUserId !== null ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -654,7 +619,7 @@ export function EmployeesSection() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground text-center py-8">
-              {searchQuery || roleFilter !== 'all' || positionFilter || statusFilter !== 'all' || dateFromFilter || dateToFilter
+              {searchQuery || positionFilter || statusFilter !== 'all' || dateFromFilter || dateToFilter
                 ? 'No employees found matching your filters.'
                 : 'No employees yet.'}
             </p>
@@ -732,18 +697,6 @@ export function EmployeesSection() {
                           <p className="text-xs text-destructive">{validationErrors.birthday}</p>
                         )}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`admin-${employee.id}`}
-                          checked={editData.isAdmin}
-                          onChange={(e) => setEditData({ ...editData, isAdmin: e.target.checked })}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                        <Label htmlFor={`admin-${employee.id}`} className="cursor-pointer">
-                          Admin Access
-                        </Label>
-                      </div>
                       <div className="flex gap-2">
                         <Button onClick={() => handleSave(employee.id)} disabled={saving} size="sm">
                           {saving ? (
@@ -771,16 +724,12 @@ export function EmployeesSection() {
                         checked={selectedIds.has(employee.id)}
                         onChange={() => handleSelectOne(employee.id)}
                         className="mt-1 h-4 w-4 rounded border-gray-300"
+                        disabled={!canDeleteUsers}
                       />
                       <div className="flex-1 flex items-start justify-between gap-4">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-semibold text-base sm:text-lg">{employee.name}</h3>
-                            {employee.isAdmin && (
-                              <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
-                                Admin
-                              </span>
-                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">{employee.email}</p>
                           {employee.position && (
@@ -788,7 +737,7 @@ export function EmployeesSection() {
                           )}
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
-                          <Button onClick={() => startEdit(employee)} variant="outline" size="sm">
+                          <Button onClick={() => startEdit(employee)} variant="outline" size="sm" disabled={!canUpdateUsers}>
                             <Edit2 className="mr-2 h-4 w-4" />
                             <span className="hidden sm:inline">Edit</span>
                           </Button>
@@ -797,7 +746,7 @@ export function EmployeesSection() {
                             variant="outline"
                             size="sm"
                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            disabled={deletingUserId === employee.id}
+                            disabled={deletingUserId === employee.id || !canDeleteUsers}
                           >
                             {deletingUserId === employee.id ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

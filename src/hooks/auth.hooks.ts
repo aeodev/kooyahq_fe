@@ -93,7 +93,7 @@ export const useAuthRegister = () => {
   const [error, setError] = useState<AuthError | null>(null)
 
   const sendRequest = useCallback(
-    async (payload: { name: string; email: string; password: string }) => {
+    async (payload: { name: string; email: string; password: string; permissions: string[] }) => {
       setLoading(true)
       setError(null)
       setData(null)

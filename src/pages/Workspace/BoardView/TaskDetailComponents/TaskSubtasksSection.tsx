@@ -21,6 +21,7 @@ type TaskSubtasksSectionProps = {
   onToggleSubtasks: () => void
   onNavigateToTask?: (taskKey: string) => void
   onRefreshTicket?: () => void
+  canCreateSubtask: boolean
 }
 
 export function TaskSubtasksSection({
@@ -33,13 +34,14 @@ export function TaskSubtasksSection({
   onToggleSubtasks,
   onNavigateToTask,
   onRefreshTicket,
+  canCreateSubtask,
 }: TaskSubtasksSectionProps) {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [isAddingSubtask, setIsAddingSubtask] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
 
   const handleAddSubtask = async () => {
-    if (!newSubtaskTitle.trim() || !boardId || !ticketDetails?.ticket.id) return
+    if (!newSubtaskTitle.trim() || !boardId || !ticketDetails?.ticket.id || !canCreateSubtask) return
 
     setIsCreating(true)
     try {
@@ -81,19 +83,21 @@ export function TaskSubtasksSection({
           )}
         />
         Subtasks
-        <div className="flex items-center gap-2 ml-auto" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsAddingSubtask(true)
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        {canCreateSubtask && (
+          <div className="flex items-center gap-2 ml-auto" onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsAddingSubtask(true)
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </button>
       {subtasksExpanded && (
         <div className="ml-6">
@@ -266,7 +270,7 @@ export function TaskSubtasksSection({
             
             return null
           })()}
-          {isAddingSubtask ? (
+          {isAddingSubtask && canCreateSubtask ? (
             <div className="flex gap-2">
               <Input
                 value={newSubtaskTitle}
@@ -299,7 +303,7 @@ export function TaskSubtasksSection({
                 Cancel
               </Button>
             </div>
-          ) : !isAddingSubtask && (ticketDetails?.relatedTickets.children.filter(c => c.ticketType === 'subtask').length || 0) === 0 && editedTask.subtasks.length === 0 ? (
+          ) : !isAddingSubtask && canCreateSubtask && (ticketDetails?.relatedTickets.children.filter(c => c.ticketType === 'subtask').length || 0) === 0 && editedTask.subtasks.length === 0 ? (
             <button
               onClick={() => setIsAddingSubtask(true)}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -312,4 +316,3 @@ export function TaskSubtasksSection({
     </div>
   )
 }
-

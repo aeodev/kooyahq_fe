@@ -6,6 +6,7 @@ import { Loader2, Bell, CheckCheck } from 'lucide-react'
 import { useNotifications } from '@/hooks/notification.hooks'
 import { useNavigate } from 'react-router-dom'
 import type { Notification as NotificationType } from '@/types/post'
+import { PERMISSIONS } from '@/constants/permissions'
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
@@ -51,7 +52,7 @@ function getNotificationMessage(notification: NotificationType): string {
 
 export function Notifications() {
   const user = useAuthStore((state) => state.user)
-  const navigate = useNavigate()
+  const can = useAuthStore((state) => state.can)
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const {
     notifications,
@@ -61,14 +62,17 @@ export function Notifications() {
     markAsRead,
     markAllAsRead,
   } = useNotifications()
+  const canViewNotifications = can(PERMISSIONS.NOTIFICATION_READ) || can(PERMISSIONS.NOTIFICATION_FULL_ACCESS)
+  const canUpdateNotifications = can(PERMISSIONS.NOTIFICATION_UPDATE) || can(PERMISSIONS.NOTIFICATION_FULL_ACCESS)
 
   useEffect(() => {
-    if (user) {
+    if (user && canViewNotifications) {
       fetchNotifications(showUnreadOnly)
     }
-  }, [user, showUnreadOnly, fetchNotifications])
+  }, [user, showUnreadOnly, fetchNotifications, canViewNotifications])
 
   const handleMarkAsRead = async (id: string) => {
+    if (!canUpdateNotifications) return
     await markAsRead(id)
     // Refresh notifications if showing unread only to update the list
     if (showUnreadOnly) {
@@ -77,6 +81,7 @@ export function Notifications() {
   }
 
   const handleMarkAllAsRead = async () => {
+    if (!canUpdateNotifications) return
     await markAllAsRead()
     // Refresh notifications if showing unread only to update the list
     if (showUnreadOnly) {
@@ -84,7 +89,7 @@ export function Notifications() {
     }
   }
 
-  if (!user) return null
+  if (!user || !canViewNotifications) return null
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-8">
@@ -102,10 +107,11 @@ export function Notifications() {
               size="default"
               onClick={() => setShowUnreadOnly(!showUnreadOnly)}
               className="h-10 px-4 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
+              disabled={!canViewNotifications}
             >
               {showUnreadOnly ? 'Show All' : 'Unread Only'}
             </Button>
-            {unreadCount > 0 && (
+            {unreadCount > 0 && canUpdateNotifications && (
               <Button 
                 size="default" 
                 variant="outline" 
@@ -153,7 +159,7 @@ export function Notifications() {
                         <p className="text-xs text-primary mt-2">View details →</p>
                       )}
                     </div>
-                    {!notification.read && (
+                    {!notification.read && canUpdateNotifications && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -175,4 +181,3 @@ export function Notifications() {
     </div>
   )
 }
-

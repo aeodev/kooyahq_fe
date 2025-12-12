@@ -1,7 +1,6 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/utils/cn'
 import { useDeleteBoard } from '@/hooks/board.hooks'
 import { useState } from 'react'
 
@@ -31,7 +30,8 @@ export function DeleteConfirmationModal({
       onConfirm(boardId)
       onClose()
     } else {
-      setDeleteError(error?.message || 'Failed to delete board')
+      const errorMessage = Array.isArray(error?.message) ? error?.message.join(', ') : error?.message
+      setDeleteError(errorMessage || 'Failed to delete board')
     }
   }
 

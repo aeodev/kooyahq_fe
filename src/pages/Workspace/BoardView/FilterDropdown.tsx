@@ -1,14 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Search, Check, X } from 'lucide-react'
+import { Search, Check } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
 import type { Task, TaskType, Priority, Assignee } from './types'

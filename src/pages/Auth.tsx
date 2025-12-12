@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/stores/auth.store'
 import { cn } from '@/utils/cn'
+import { PERMISSION_LIST, PERMISSIONS } from '@/constants/permissions'
 
 type AuthMode = 'signin' | 'signup'
 
@@ -20,7 +21,7 @@ export function Auth() {
   const register = useAuthStore((state) => state.register)
   
   const [mode, setMode] = useState<AuthMode>('signin')
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' })
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', permissions: [] as string[] })
   const [uiState, setUIState] = useState({
     showPassword: false,
     emailTouched: false,
@@ -38,12 +39,12 @@ export function Auth() {
   
   const isFormValid = mode === 'signin'
     ? formData.email && formData.password && emailValid
-    : formData.name && formData.email && formData.password && emailValid && passwordValid
+    : formData.name && formData.email && formData.password && emailValid && passwordValid && formData.permissions.length > 0
   
   const isDisabled = !isFormValid || uiState.isSubmitting
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', password: '' })
+    setFormData({ name: '', email: '', password: '', permissions: [] })
     setUIState(prev => ({ ...prev, showPassword: false, emailTouched: false, error: null }))
   }
 
@@ -54,9 +55,25 @@ export function Auth() {
     }
   }
 
-  const updateField = (field: keyof typeof formData, value: string) => {
+  const updateField = (field: Exclude<keyof typeof formData, 'permissions'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     if (uiState.error) setUIState(prev => ({ ...prev, error: null }))
+  }
+
+  const togglePermission = (value: string) => {
+    setFormData((prev) => {
+      const existing = new Set(prev.permissions)
+      if (existing.has(value)) {
+        existing.delete(value)
+      } else {
+        existing.add(value)
+      }
+      // If full access selected, replace with only full access
+      if (existing.has(PERMISSIONS.SYSTEM_FULL_ACCESS)) {
+        return { ...prev, permissions: [PERMISSIONS.SYSTEM_FULL_ACCESS] }
+      }
+      return { ...prev, permissions: Array.from(existing) }
+    })
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -67,7 +84,7 @@ export function Auth() {
       if (mode === 'signin') {
         await login({ email: formData.email, password: formData.password })
       } else {
-        await register({ name: formData.name, email: formData.email, password: formData.password })
+        await register({ name: formData.name, email: formData.email, password: formData.password, permissions: formData.permissions })
       }
       navigate('/')
     } catch (err) {
@@ -264,6 +281,48 @@ export function Auth() {
                     </p>
                   )}
                 </div>
+
+                {mode === 'signup' && (
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold text-foreground">
+                      Permissions (testing)
+                    </Label>
+                    <div className="rounded-xl border border-border/70 bg-muted/30 p-3 max-h-64 overflow-y-auto space-y-2">
+                      {PERMISSION_LIST.map((perm) => {
+                        const checked = formData.permissions.includes(perm.value)
+                        const isFullAccess = perm.value === PERMISSIONS.SYSTEM_FULL_ACCESS
+                        const fullSelected = formData.permissions.includes(PERMISSIONS.SYSTEM_FULL_ACCESS)
+                        const disabled = fullSelected && !checked && !isFullAccess
+                        return (
+                          <label
+                            key={perm.value}
+                            className={cn(
+                              'flex items-start gap-3 rounded-lg border border-transparent px-2 py-1.5 cursor-pointer transition-colors',
+                              checked ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted/50'
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4"
+                              checked={checked}
+                              disabled={disabled || uiState.isSubmitting}
+                              onChange={() => togglePermission(perm.value)}
+                            />
+                            <div className="space-y-0.5">
+                              <div className="text-sm font-semibold text-foreground">{perm.label}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {perm.description ?? perm.value}
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Select one or more permissions. Choosing “Full Access” overrides and grants all actions.
+                    </p>
+                  </div>
+                )}
 
                 {uiState.error && (
                   <motion.div

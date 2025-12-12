@@ -2,7 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { EMOJI_CATEGORIES } from './constants'
 
 type UseEmojiPickerReturn = {
-  emojiPickerRef: RefObject<HTMLDivElement>
+  emojiPickerRef: RefObject<HTMLDivElement | null>
   emojiCategories: typeof EMOJI_CATEGORIES
 }
 

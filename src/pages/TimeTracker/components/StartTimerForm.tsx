@@ -14,6 +14,7 @@ type StartTimerFormProps = {
   projectTasks: Map<string, string>
   onSetProjectTask: (project: string, task: string) => void
   activeProject: string | null
+  disabled?: boolean
 }
 
 export function StartTimerForm({
@@ -26,10 +27,11 @@ export function StartTimerForm({
   projectTasks,
   onSetProjectTask,
   activeProject,
+  disabled = false,
 }: StartTimerFormProps) {
   const firstProject = selectedProjects[0]
   const firstProjectTask = firstProject ? projectTasks.get(firstProject) || taskDescription : taskDescription
-  const canStart = selectedProjects.length > 0 && firstProjectTask.trim().length > 0
+  const canStart = !disabled && selectedProjects.length > 0 && firstProjectTask.trim().length > 0
 
   return (
     <Card className="border-border/60 min-h-[400px]">
@@ -55,6 +57,7 @@ export function StartTimerForm({
             onSelectionChange={onSelectionChange}
             placeholder="Select projects..."
             showRecentFirst={true}
+            className={disabled ? 'pointer-events-none opacity-60' : undefined}
           />
         </div>
 
@@ -69,6 +72,7 @@ export function StartTimerForm({
               value={taskDescription}
               onChange={(e) => onTaskChange(e.target.value)}
               className="h-12 text-base font-normal border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
+              disabled={disabled}
             />
           </div>
         ) : selectedProjects.length === 1 ? (
@@ -90,6 +94,7 @@ export function StartTimerForm({
                 }
               }}
               className="h-12 text-base font-normal border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
+              disabled={disabled}
             />
           </div>
         ) : (
@@ -121,6 +126,7 @@ export function StartTimerForm({
                       }
                     }}
                     className="h-12 text-base font-normal border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
+                    disabled={disabled}
                   />
                 </div>
               )
@@ -143,6 +149,5 @@ export function StartTimerForm({
     </Card>
   )
 }
-
 
 

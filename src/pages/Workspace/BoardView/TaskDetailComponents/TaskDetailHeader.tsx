@@ -7,9 +7,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
-import type { Task, Assignee, Ticket } from '../types'
+import type { Task, Assignee } from '../types'
 import { MOCK_ASSIGNEES, getTaskTypeIcon } from '../index'
-import type { TicketDetailResponse } from './types'
+import type { TicketDetailResponse, Ticket } from './types'
 
 type TaskDetailHeaderProps = {
   editedTask: Task
@@ -241,4 +241,3 @@ export function TaskDetailHeader({
     </div>
   )
 }
-

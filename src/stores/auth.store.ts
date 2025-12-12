@@ -76,16 +76,25 @@ type AuthState = {
 
 type AuthActions = {
   login: (payload: { email: string; password: string }) => Promise<User>
-  register: (payload: { name: string; email: string; password: string }) => Promise<User>
+  register: (payload: { name: string; email: string; password: string; permissions: string[] }) => Promise<User>
   logout: () => void
   refreshProfile: () => Promise<void>
   updateStatus: (status: 'online' | 'busy' | 'away' | 'offline') => Promise<void>
   setLoading: (loading: boolean) => void
+  can: (permission: string) => boolean
 }
 
 type AuthStore = AuthState & AuthActions
 
 const STORAGE_KEY = AUTH_STORAGE_KEY
+
+function prepareUser(user: User): User {
+  const permissions = Array.isArray(user.permissions) ? user.permissions : []
+  return {
+    ...user,
+    permissions,
+  }
+}
 
 export const useAuthStore = create<AuthStore>()(
   persist(
@@ -101,8 +110,9 @@ export const useAuthStore = create<AuthStore>()(
           const response = await axiosInstance.post<ApiEnvelope<AuthResponse>>(SIGN_IN(), payload)
           const { user, token } = response.data.data
 
-          set({ user, token, isLoading: false })
-          return user
+          const prepared = prepareUser(user)
+          set({ user: prepared, token, isLoading: false })
+          return prepared
         } catch (error) {
           set({ isLoading: false })
           throw new Error(resolveErrorMessage(error, 'Unable to sign in'))
@@ -114,8 +124,9 @@ export const useAuthStore = create<AuthStore>()(
           const response = await axiosInstance.post<ApiEnvelope<AuthResponse>>(SIGN_UP(), payload)
           const { user, token } = response.data.data
 
-          set({ user, token, isLoading: false })
-          return user
+          const prepared = prepareUser(user)
+          set({ user: prepared, token, isLoading: false })
+          return prepared
         } catch (error) {
           set({ isLoading: false })
           throw new Error(resolveErrorMessage(error, 'Unable to create account'))
@@ -135,7 +146,7 @@ export const useAuthStore = create<AuthStore>()(
 
         try {
           const response = await axiosInstance.get<ApiEnvelope<{ user: User | null }>>(PROFILE())
-          const user = response.data.data?.user ?? null
+          const user = response.data.data?.user ? prepareUser(response.data.data.user) : null
 
           if (user) {
             set({ user, isLoading: false })
@@ -162,6 +173,17 @@ export const useAuthStore = create<AuthStore>()(
           console.error('Failed to update status', error)
         }
       },
+
+      can: (permission: string) => {
+        const { user } = get()
+        if (!user) return false
+        const perms = Array.isArray(user.permissions) ? user.permissions : []
+        if (perms.includes('system:fullAccess') || perms.includes('admin:fullAccess')) return true
+        if (perms.includes(permission)) return true
+        const targetPrefix = permission.split(':')[0]
+        const prefixFull = `${targetPrefix}:fullAccess`
+        return perms.includes(prefixFull)
+      },
     }),
     {
       name: STORAGE_KEY,
@@ -181,4 +203,3 @@ export const useAuthStore = create<AuthStore>()(
     }
   )
 )
-

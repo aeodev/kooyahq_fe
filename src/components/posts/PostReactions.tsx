@@ -6,6 +6,7 @@ import type { ReactionType, ReactionCounts } from '@/types/post'
 import { useAuthStore } from '@/stores/auth.store'
 import { toast } from 'sonner'
 import { cn } from '@/utils/formatters'
+import { PERMISSIONS } from '@/constants/permissions'
 
 interface PostReactionsProps {
   postId: string
@@ -14,14 +15,19 @@ interface PostReactionsProps {
 
 export function PostReactions({ postId, onCommentClick }: PostReactionsProps) {
   const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
   const { reactions: fetchedReactions, fetchReactions, toggleReaction } = usePostReactions()
   const { comments, fetchComments } = usePostComments()
   const [_, startTransition] = useTransition()
+  const canReact = can(PERMISSIONS.POST_REACT) || can(PERMISSIONS.POST_FULL_ACCESS)
+  const canReadComments = can(PERMISSIONS.POST_COMMENT_READ) || can(PERMISSIONS.POST_FULL_ACCESS)
 
   useEffect(() => {
     fetchReactions(postId)
-    fetchComments(postId)
-  }, [postId, fetchReactions, fetchComments])
+    if (canReadComments) {
+      fetchComments(postId)
+    }
+  }, [postId, fetchReactions, fetchComments, canReadComments])
 
   // React 19 useOptimistic
   const [optimisticReactions, addOptimisticReaction] = useOptimistic(
@@ -69,7 +75,7 @@ export function PostReactions({ postId, onCommentClick }: PostReactionsProps) {
   }, [optimisticReactions, user])
 
   const handleToggle = (type: ReactionType) => {
-    if (!user) return
+    if (!user || !canReact) return
 
     startTransition(async () => {
       addOptimisticReaction({ type, userId: user.id })
@@ -108,10 +114,12 @@ export function PostReactions({ postId, onCommentClick }: PostReactionsProps) {
               key={type}
               variant="ghost"
               size="sm"
-              onClick={() => handleToggle(type)}
+              onClick={canReact ? () => handleToggle(type) : undefined}
+              disabled={!canReact}
               className={cn(
                 "h-8 px-2 rounded-full transition-all hover:scale-110",
-                isActive ? getReactionColor(type) : "hover:bg-muted text-muted-foreground"
+                isActive ? getReactionColor(type) : "hover:bg-muted text-muted-foreground",
+                !canReact && "pointer-events-none opacity-60"
               )}
             >
               {getReactionIcon(type)}
@@ -121,17 +129,19 @@ export function PostReactions({ postId, onCommentClick }: PostReactionsProps) {
         })}
       </div>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 px-3 text-muted-foreground hover:text-foreground rounded-full"
-        onClick={onCommentClick}
-      >
-        <MessageCircle className="h-4 w-4 mr-2" />
-        <span className="text-xs font-medium">
-          {comments.length > 0 ? `${comments.length} Comments` : 'Comment'}
-        </span>
-      </Button>
+      {canReadComments && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-3 text-muted-foreground hover:text-foreground rounded-full"
+          onClick={onCommentClick}
+        >
+          <MessageCircle className="h-4 w-4 mr-2" />
+          <span className="text-xs font-medium">
+            {comments.length > 0 ? `${comments.length} Comments` : 'Comment'}
+          </span>
+        </Button>
+      )}
     </div>
   )
 }

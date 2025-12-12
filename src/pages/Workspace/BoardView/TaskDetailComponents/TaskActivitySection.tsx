@@ -37,6 +37,7 @@ type TaskActivitySectionProps = {
   onTabChange: (tab: 'all' | 'comments' | 'history') => void
   onCommentChange: (comment: string) => void
   onAddComment: () => void
+  canComment: boolean
 }
 
 export function TaskActivitySection({
@@ -47,6 +48,7 @@ export function TaskActivitySection({
   onTabChange,
   onCommentChange,
   onAddComment,
+  canComment,
 }: TaskActivitySectionProps) {
   const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -106,6 +108,7 @@ export function TaskActivitySection({
       )}
 
       {/* Comment input */}
+      {canComment && (
       <div className="flex gap-3 mb-4">
         <div className="h-8 w-8 rounded-full bg-cyan-500 flex items-center justify-center text-xs text-white font-medium flex-shrink-0">
           SL
@@ -162,6 +165,7 @@ export function TaskActivitySection({
           )}
         </div>
       </div>
+      )}
 
       {/* Activity content based on tab */}
       {activityTab === 'comments' && (
@@ -349,4 +353,3 @@ export function TaskActivitySection({
     </div>
   )
 }
-

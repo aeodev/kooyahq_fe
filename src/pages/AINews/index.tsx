@@ -7,7 +7,7 @@ import { LazyNewsCard } from './LazyNewsCard'
 import { useAINews } from '@/hooks/ai-news.hooks'
 import type { NewsFilter } from '@/types/ai-news'
 
-const FILTERS: { value: NewsFilter; label: string; icon?: typeof Filter }[] = [
+const FILTERS: { value: NewsFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'news', label: 'News' },
   { value: 'openai', label: 'OpenAI' },
@@ -34,7 +34,6 @@ export function AINews() {
     hasPendingItems,
     pendingItems,
     setFilter,
-    fetchNews,
     loadMore,
     showPendingItems,
   } = useAINews()
@@ -140,7 +139,7 @@ export function AINews() {
           />
         )}
         
-        {FILTERS.map(({ value, label, icon: Icon }) => (
+        {FILTERS.map(({ value, label }) => (
           <Button
             key={value}
             ref={(el) => {
@@ -156,7 +155,6 @@ export function AINews() {
                 : 'text-muted-foreground hover:text-foreground hover:scale-[1.02]'
             )}
           >
-            {Icon && <Icon className="h-4 w-4" />}
             {label}
           </Button>
         ))}

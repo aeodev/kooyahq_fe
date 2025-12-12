@@ -6,14 +6,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { cn } from '@/utils/cn'
-import type { Task, Column, Assignee, Priority } from '../types'
-import { getPriorityIcon, getPriorityLabel } from '../index'
+import type { Task, Column } from '../types'
 import { TaskDetailFields } from './TaskDetailFields'
 import { GitHubBranches } from './GitHubBranches'
 import type { TicketDetailResponse } from './types'
-
-const PRIORITY_OPTIONS: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 
 type TaskSidebarProps = {
   editedTask: Task
@@ -31,12 +27,16 @@ type TaskSidebarProps = {
   githubBranches: Array<{ name: string; status: 'merged' | 'open' | 'closed'; pullRequestUrl?: string }>
   newBranchName: string
   setNewBranchName: (name: string) => void
+  availableTicketsForParent: Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
   onStatusChange: (columnId: string) => void
-  onUpdatePriority: (priority: Priority) => void
+  onUpdatePriority: (priority: Task['priority']) => void
   onUpdateField: <K extends keyof Task>(field: K, value: Task[K]) => void
   onUpdateDate: (field: 'dueDate' | 'startDate' | 'endDate', date: Date | null) => void
   onAddTag: () => void
   onRemoveTag: (tag: string) => void
+  onUpdateParent: (parentId: string | null) => void
+  getAvailableParents: () => Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
+  onNavigateToTask?: (taskKey: string) => void
   onAddBranch: () => void
   onUpdateBranchStatus: (branchName: string, status: 'merged' | 'open' | 'closed') => void
   onUpdatePullRequestUrl?: (branchName: string, pullRequestUrl: string) => void
@@ -213,4 +213,3 @@ export function TaskSidebar({
     </div>
   )
 }
-

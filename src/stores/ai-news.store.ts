@@ -89,7 +89,6 @@ export const useAINewsStore = create<AINewsState & AINewsActions>((set, get) => 
         // Check if items were already updated (race condition protection)
         if (state.items.length !== currentOffset) {
           // Items changed during fetch, recalculate offset
-          const newOffset = state.items.length
           return { loadingMore: false }
         }
         
@@ -170,4 +169,3 @@ export const useAINewsStore = create<AINewsState & AINewsActions>((set, get) => 
 
   reset: () => set(initialState),
 }))
-

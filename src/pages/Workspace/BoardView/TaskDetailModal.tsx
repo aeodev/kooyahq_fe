@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_TICKET_BY_ID, GET_TICKETS_BY_BOARD, UPDATE_TICKET, GET_USERS, CREATE_COMMENT, ADD_RELATED_TICKET, REMOVE_RELATED_TICKET } from '@/utils/api.routes'
 import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 import type { Task, Column, Assignee, Priority } from './types'
 import type { Ticket } from '@/types/board'
 import {
@@ -135,6 +136,11 @@ export function TaskDetailModal({
   
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
+  const canUpdateTicket = can(PERMISSIONS.TICKET_UPDATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const canCreateTicket = can(PERMISSIONS.TICKET_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const canRelateTicket = can(PERMISSIONS.TICKET_RELATION) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const canComment = can(PERMISSIONS.TICKET_COMMENT_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
 
   // Function to fetch ticket details (non-blocking)
   const fetchTicketDetails = async (force = false): Promise<TicketDetailResponse | null> => {
@@ -311,60 +317,8 @@ export function TaskDetailModal({
     }
   }
 
-  // Individual field handlers - each field has its own handler
-  const handleUpdateTitle = async (title: string) => {
-    if (!ticketDetails?.ticket.id) return
-
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      toast.error('Title cannot be empty')
-      return
-    }
-
-    const oldTitle = ticketDetails.ticket.title
-    const newTitle = title.trim()
-
-    // Optimistic update
-    setTicketDetails((prev) => prev ? {
-      ...prev,
-      ticket: {
-        ...prev.ticket,
-        title: newTitle,
-      },
-    } : null)
-
-    try {
-      const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
-        UPDATE_TICKET(ticketDetails.ticket.id),
-        {
-          data: { title: newTitle },
-        }
-      )
-
-      if (!response.data.success) {
-        // Revert on error
-        setTicketDetails((prev) => prev ? {
-          ...prev,
-          ticket: {
-            ...prev.ticket,
-            title: oldTitle,
-          },
-        } : null)
-        toast.error('Failed to update title')
-      }
-    } catch (error) {
-      // Revert on error
-      setTicketDetails((prev) => prev ? {
-        ...prev,
-        ticket: {
-          ...prev.ticket,
-          title: oldTitle,
-        },
-      } : null)
-      toast.error('Failed to update title')
-    }
-  }
-
   const handleUpdateDescription = async (description: string | Record<string, any>) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldDescription = ticketDetails.ticket.description
@@ -415,6 +369,7 @@ export function TaskDetailModal({
   }
 
   const handleUpdatePriority = async (priority: Priority) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldPriority = ticketDetails.ticket.priority
@@ -461,6 +416,7 @@ export function TaskDetailModal({
   }
 
   const handleUpdateTags = async (tags: string[]) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldTags = ticketDetails.ticket.tags || []
@@ -507,6 +463,7 @@ export function TaskDetailModal({
   }
 
   const handleUpdateAssignee = async (assigneeId: string | null) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldAssigneeId = ticketDetails.ticket.assigneeId
@@ -552,54 +509,8 @@ export function TaskDetailModal({
     }
   }
 
-
-  const handleUpdatePoints = async (points: number | null) => {
-    if (!ticketDetails?.ticket.id) return
-
-    const oldPoints = ticketDetails.ticket.points
-
-    // Optimistic update
-    setTicketDetails((prev) => prev ? {
-      ...prev,
-      ticket: {
-        ...prev.ticket,
-        points: points !== null && points !== undefined ? Number(points) : undefined,
-      },
-    } : null)
-
-    try {
-      const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
-        UPDATE_TICKET(ticketDetails.ticket.id),
-        {
-          data: { points: points !== null && points !== undefined ? Number(points) : null },
-        }
-      )
-
-      if (!response.data.success) {
-        // Revert on error
-        setTicketDetails((prev) => prev ? {
-          ...prev,
-          ticket: {
-            ...prev.ticket,
-            points: oldPoints,
-          },
-        } : null)
-        toast.error('Failed to update points')
-      }
-    } catch (error) {
-      // Revert on error
-      setTicketDetails((prev) => prev ? {
-        ...prev,
-        ticket: {
-          ...prev.ticket,
-          points: oldPoints,
-        },
-      } : null)
-      toast.error('Failed to update points')
-    }
-  }
-
   const handleUpdateDueDate = async (date: Date | null) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldDueDate = ticketDetails.ticket.dueDate
@@ -647,6 +558,7 @@ export function TaskDetailModal({
   }
 
   const handleUpdateStartDate = async (date: Date | null) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldStartDate = ticketDetails.ticket.startDate
@@ -715,6 +627,7 @@ export function TaskDetailModal({
   }
 
   const handleSelectEpic = async (epicId: string) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     setUpdatingEpic(true)
@@ -797,6 +710,7 @@ export function TaskDetailModal({
   // - For task/bug/story: parentTicketId MUST be an epic
   // - For subtask: parentTicketId can be task/bug/story/epic
   const handleUpdateParent = async (parentTicketId: string | null) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
     
     const ticketType = ticketDetails.ticket.ticketType
@@ -939,6 +853,7 @@ export function TaskDetailModal({
   }
 
   const handleUpdateEndDate = async (date: Date | null) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldEndDate = ticketDetails.ticket.endDate
@@ -987,6 +902,7 @@ export function TaskDetailModal({
 
   // Wrapper for date updates to maintain compatibility with TaskDetailFields
   const handleUpdateDate = async (field: 'dueDate' | 'startDate' | 'endDate', date: Date | null) => {
+    if (!canUpdateTicket) return
     if (field === 'dueDate') {
       await handleUpdateDueDate(date)
     } else if (field === 'startDate') {
@@ -997,6 +913,7 @@ export function TaskDetailModal({
   }
 
   const handleAddTag = () => {
+    if (!canUpdateTicket) return
     if (!newTag.trim()) return
     const updatedTags = [...(ticketDetails?.ticket.tags || []), newTag.trim()]
     handleUpdateTags(updatedTags)
@@ -1004,12 +921,13 @@ export function TaskDetailModal({
   }
 
   const handleRemoveTag = (tagToRemove: string) => {
+    if (!canUpdateTicket) return
     const updatedTags = (ticketDetails?.ticket.tags || []).filter((tag) => tag !== tagToRemove)
     handleUpdateTags(updatedTags)
   }
 
   const handleAddBranch = async () => {
-    if (!newBranchName.trim() || !ticketDetails?.ticket.id) return
+    if (!newBranchName.trim() || !ticketDetails?.ticket.id || !canUpdateTicket) return
     
     const branchNameToAdd = newBranchName.trim()
     const oldGithub = ticketDetails.ticket.github
@@ -1068,7 +986,7 @@ export function TaskDetailModal({
   }
 
   const handleUpdateBranchStatus = async (branchName: string, status: 'merged' | 'open' | 'closed') => {
-    if (!ticketDetails?.ticket.id) return
+    if (!ticketDetails?.ticket.id || !canUpdateTicket) return
     
     const oldGithub = ticketDetails.ticket.github
     
@@ -1124,7 +1042,7 @@ export function TaskDetailModal({
   }
 
   const handleUpdatePullRequestUrl = async (branchName: string, pullRequestUrl: string) => {
-    if (!ticketDetails?.ticket.id) return
+    if (!ticketDetails?.ticket.id || !canUpdateTicket) return
     
     const oldGithub = ticketDetails.ticket.github
     
@@ -1181,6 +1099,7 @@ export function TaskDetailModal({
 
 
   const handleUpdateField = <K extends keyof Task>(field: K, value: Task[K]) => {
+    if (!canUpdateTicket) return
     const updated = { ...editedTask, [field]: value, updatedAt: new Date() }
     onUpdate(updated)
     
@@ -1197,6 +1116,7 @@ export function TaskDetailModal({
   }
 
   const handleAddComment = async () => {
+    if (!canComment) return
     if (!newComment.trim() || !ticketDetails?.ticket.id) return
 
     const commentContent = {
@@ -1240,6 +1160,7 @@ export function TaskDetailModal({
   }
 
   const handleAddRelatedTicket = async (relatedTicketId: string) => {
+    if (!canRelateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldRelatedTickets = (ticketDetails.ticket.relatedTickets || []) as string[]
@@ -1311,6 +1232,7 @@ export function TaskDetailModal({
   }
 
   const handleRemoveRelatedTicket = async (relatedTicketId: string) => {
+    if (!canRelateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldRelatedTickets = (ticketDetails.ticket.relatedTickets || []) as string[]
@@ -1378,12 +1300,10 @@ export function TaskDetailModal({
   }
 
   const handleUpdateStatus = async (columnId: string) => {
+    if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
     
     const oldColumnId = ticketDetails.ticket.columnId
-    const column = columns.find((col) => col.id === columnId)
-    const columnName = column?.name || columnId
-    
     // Track pending update to prevent refetching stale data
     pendingUpdateRef.current = { columnId, timestamp: Date.now() }
     
@@ -1605,12 +1525,14 @@ export function TaskDetailModal({
                     ticketDetails={ticketDetails}
                     acceptanceCriteriaExpanded={acceptanceCriteriaExpanded}
                     onToggleAcceptanceCriteria={() => setAcceptanceCriteriaExpanded(!acceptanceCriteriaExpanded)}
+                    canUpdate={canUpdateTicket}
                   />
 
                   <DocumentsSection
                     ticketDetails={ticketDetails}
                     documentsExpanded={documentsExpanded}
                     onToggleDocuments={() => setDocumentsExpanded(!documentsExpanded)}
+                    canUpdate={canUpdateTicket}
                   />
 
                   <TaskRelatedTicketsSection
@@ -1632,6 +1554,7 @@ export function TaskDetailModal({
                     onToggleSubtasks={() => setSubtasksExpanded(!subtasksExpanded)}
                     onNavigateToTask={onNavigateToTask}
                     onRefreshTicket={fetchTicketDetails}
+                    canCreateSubtask={canCreateTicket}
                   />
 
                   <TaskActivitySection
@@ -1642,6 +1565,7 @@ export function TaskDetailModal({
                     onTabChange={setActivityTab}
                     onCommentChange={setNewComment}
                     onAddComment={handleAddComment}
+                    canComment={canComment}
                   />
                 </>
               )}
@@ -1793,12 +1717,14 @@ export function TaskDetailModal({
                 ticketDetails={ticketDetails}
                 acceptanceCriteriaExpanded={acceptanceCriteriaExpanded}
                 onToggleAcceptanceCriteria={() => setAcceptanceCriteriaExpanded(!acceptanceCriteriaExpanded)}
+                canUpdate={canUpdateTicket}
               />
 
               <DocumentsSection
                 ticketDetails={ticketDetails}
                 documentsExpanded={documentsExpanded}
                 onToggleDocuments={() => setDocumentsExpanded(!documentsExpanded)}
+                canUpdate={canUpdateTicket}
               />
 
               <TaskRelatedTicketsSection
@@ -1820,6 +1746,7 @@ export function TaskDetailModal({
                 onToggleSubtasks={() => setSubtasksExpanded(!subtasksExpanded)}
                 onNavigateToTask={onNavigateToTask}
                 onRefreshTicket={fetchTicketDetails}
+                canCreateSubtask={canCreateTicket}
               />
 
               <TaskActivitySection
@@ -1830,6 +1757,7 @@ export function TaskDetailModal({
                 onTabChange={setActivityTab}
                 onCommentChange={setNewComment}
                 onAddComment={handleAddComment}
+                canComment={canComment}
               />
                 </>
               )}
@@ -1876,5 +1804,3 @@ export function TaskDetailModal({
     </>
   )
 }
-
-

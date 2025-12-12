@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, ChevronDown, Plus, Trash2, Calendar, CheckSquare, Link2 } from 'lucide-react'
+import { X, ChevronDown, Plus, Trash2, CheckSquare, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
@@ -15,6 +15,8 @@ import { getTaskTypeIcon, getPriorityIcon, getPriorityLabel } from './index'
 import axiosInstance from '@/utils/axios.instance'
 import { CREATE_TICKET, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
 import type { Ticket } from '@/types/board'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 type CreateTaskModalProps = {
   open: boolean
@@ -22,7 +24,6 @@ type CreateTaskModalProps = {
   columns: Column[]
   selectedColumnId: string | null
   boardId: string
-  boardKey: string
   assignees: Array<{ id: string; name: string; initials: string; color: string }>
   onSuccess?: () => void
 }
@@ -49,10 +50,12 @@ export function CreateTaskModal({
   columns,
   selectedColumnId,
   boardId,
-  boardKey,
   assignees,
   onSuccess,
 }: CreateTaskModalProps) {
+  const can = useAuthStore((state) => state.can)
+  const canCreateTicket = can(PERMISSIONS.TICKET_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const canReadTickets = can(PERMISSIONS.TICKET_READ) || can(PERMISSIONS.TICKET_FULL_ACCESS)
   // Form state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -78,7 +81,7 @@ export function CreateTaskModal({
 
   // Fetch tickets for parent/epic selection
   useEffect(() => {
-    if (open && boardId) {
+    if (open && boardId && canReadTickets) {
       axiosInstance.get<{ success: boolean; data: Ticket[] }>(GET_TICKETS_BY_BOARD(boardId))
         .then((response) => {
           if (response.data.success && response.data.data) {
@@ -89,7 +92,7 @@ export function CreateTaskModal({
           console.error('Error fetching tickets:', error)
         })
     }
-  }, [open, boardId])
+  }, [open, boardId, canReadTickets])
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -168,7 +171,7 @@ export function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !boardId) return
+    if (!title.trim() || !boardId || !canCreateTicket) return
 
     setLoading(true)
     try {
@@ -703,7 +706,7 @@ export function CreateTaskModal({
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" onClick={handleSubmit} disabled={!title.trim() || loading}>
+            <Button type="submit" onClick={handleSubmit} disabled={!title.trim() || loading || !canCreateTicket}>
               {loading ? 'Creating...' : 'Create'}
             </Button>
           </div>

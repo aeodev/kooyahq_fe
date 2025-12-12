@@ -8,7 +8,6 @@ import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
 import { TicketSocketEvents } from '@/hooks/socket/ticket.socket'
 import { useUpdateTicket, useMoveTicket } from '@/hooks/board.hooks'
-import { useAuthStore } from '@/stores/auth.store'
 import { BULK_UPDATE_RANKS } from '@/utils/api.routes'
 import { toast } from 'sonner'
 
@@ -64,6 +63,8 @@ import { TaskDetailModal } from './TaskDetailModal'
 import { CreateTaskModal } from './CreateTaskModal'
 import { FilterDropdown } from './FilterDropdown'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 import type {
   TaskType,
   GroupBy,
@@ -336,6 +337,10 @@ export function BoardView() {
   const { boardKey } = useParams<{ boardKey: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  const can = useAuthStore((state) => state.can)
+  const canBoardUpdate = can(PERMISSIONS.BOARD_UPDATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const canTicketCreate = can(PERMISSIONS.TICKET_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const canTicketRank = can(PERMISSIONS.TICKET_RANK) || can(PERMISSIONS.TICKET_FULL_ACCESS)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
@@ -343,7 +348,6 @@ export function BoardView() {
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false)
   const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
   const [columns, setColumns] = useState<Column[]>([])
-  const [nextTaskNumber, setNextTaskNumber] = useState(1)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [draggedTask, setDraggedTask] = useState<{ task: Task; columnId: string; taskIndex: number } | null>(null)
@@ -357,31 +361,6 @@ export function BoardView() {
   
   // Header state
   type ViewTab = 'summary' | 'board' | 'list' | 'timeline' | 'archived'
-  
-  // Get initial view from board settings or localStorage
-  const getInitialView = (boardData?: ApiBoardType | null): ViewTab => {
-    // First check board's defaultView setting if available
-    if (boardData && isApiBoardType(boardData)) {
-      const typedBoard = boardData as ApiBoardType & { settings?: { defaultView?: 'board' | 'list' | 'timeline' } }
-      if (typedBoard.settings?.defaultView) {
-        const boardDefaultView = typedBoard.settings.defaultView
-        if (['board', 'list', 'timeline'].includes(boardDefaultView)) {
-          return boardDefaultView as ViewTab
-        }
-      }
-    }
-    
-    // Fallback to localStorage preference
-    if (boardKey) {
-      const savedView = localStorage.getItem(`board-view-${boardKey}`)
-      if (savedView && ['summary', 'board', 'list', 'timeline', 'archived'].includes(savedView)) {
-        return savedView as ViewTab
-      }
-    }
-    
-    // Default to 'board' if no preference found
-    return 'board'
-  }
   
   const [activeTab, setActiveTab] = useState<ViewTab>('board')
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -536,7 +515,6 @@ export function BoardView() {
   // Socket connection for real-time updates
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
-  const currentUser = useAuthStore((state) => state.user)
 
   // Listen for board socket events
   useEffect(() => {
@@ -701,7 +679,6 @@ export function BoardView() {
       if (boardColumns.length > 0 && (columns.length === 0 || columns[0]?.id !== boardColumns[0]?.id)) {
         setColumns(boardColumns)
       }
-      setNextTaskNumber(1) // Will need to fetch from cards
     }
   }, [apiBoard?.id]) // Only depend on board ID, not the entire board object
 
@@ -1145,18 +1122,6 @@ export function BoardView() {
     setSelectedTask(updatedTask)
   }
 
-  const handleBoardUpdate = async (boardId: string, settings: any) => {
-    if (apiBoard && apiBoard.id === boardId) {
-      setApiBoard({
-        ...apiBoard,
-        settings: {
-          ...apiBoard.settings,
-          ...settings,
-        },
-      })
-    }
-  }
-
   const handleUpdateTaskAssignee = async (taskId: string, assignee: Assignee | undefined) => {
     const assigneeId = assignee?.id || null
     
@@ -1364,6 +1329,7 @@ export function BoardView() {
   }, [])
 
   const handleOpenCreateTask = (columnId?: string) => {
+    if (!canTicketCreate) return
     setCreateTaskColumnId(columnId || columns[0]?.id || null)
     setCreateTaskModalOpen(true)
   }
@@ -1372,6 +1338,7 @@ export function BoardView() {
 
   // Drag and drop handlers - supports reordering within same column
   const handleDragStart = (e: React.DragEvent, task: Task, columnId: string, taskIndex: number) => {
+    if (!canTicketRank) return
     setDraggedTask({ task, columnId, taskIndex })
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', task.id)
@@ -1431,6 +1398,7 @@ export function BoardView() {
   }
 
   const handleDrop = async (e: React.DragEvent, targetColumnId: string) => {
+    if (!canTicketRank) return
     e.preventDefault()
     if (!draggedTask) {
       setDraggedTask(null)
@@ -1502,7 +1470,6 @@ export function BoardView() {
 
     // Store old state for rollback
     const oldColumns = columns
-    const oldApiTickets = apiTickets
 
     // Optimistically update local state - BOTH columns AND apiTickets to prevent jump-back
     setColumns(newColumns)
@@ -2009,6 +1976,7 @@ export function BoardView() {
               size="sm"
               className="h-9 gap-1.5"
               onClick={() => handleOpenCreateTask()}
+              disabled={!canTicketCreate}
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Create</span>
@@ -2019,6 +1987,7 @@ export function BoardView() {
               size="sm"
               className="h-9 gap-1.5"
               onClick={() => setConfigureModalOpen(true)}
+              disabled={!canBoardUpdate}
             >
               <Settings2 className="h-4 w-4" />
               <span className="hidden sm:inline">Settings</span>
@@ -2284,6 +2253,7 @@ export function BoardView() {
                       <button
                         onClick={() => handleOpenCreateTask(column.id)}
                         className="flex items-center gap-2 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors rounded-lg border border-dashed border-border/50 hover:border-primary/50 bg-card/50 hover:bg-card"
+                        disabled={!canTicketCreate}
                       >
                         <Plus className="h-4 w-4" />
                         <span className="text-sm">Create</span>
@@ -2308,6 +2278,7 @@ export function BoardView() {
                           <button
                             onClick={() => handleOpenCreateTask(column.id)}
                             className="flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors rounded-lg border border-dashed border-border/50 hover:border-primary/50"
+                            disabled={!canTicketCreate}
                           >
                             <Plus className="h-4 w-4" />
                             <span className="text-sm">Create</span>
@@ -2482,14 +2453,13 @@ export function BoardView() {
       )}
 
       {/* Create Task Modal */}
-      {apiBoard && isApiBoardType(apiBoard) && (
+      {apiBoard && isApiBoardType(apiBoard) && canTicketCreate && (
         <CreateTaskModal
           open={createTaskModalOpen}
           onClose={() => setCreateTaskModalOpen(false)}
           columns={columns}
           selectedColumnId={createTaskColumnId}
           boardId={apiBoard.id}
-          boardKey={(apiBoard as ApiBoardType & { prefix?: string }).prefix || board.key}
           assignees={assigneesFromApi.length > 0 ? assigneesFromApi : MOCK_ASSIGNEES}
           onSuccess={() => {
             // Refetch tickets after creation
