@@ -38,3 +38,5 @@ export function registerTicketHandlers(
   eventHandlers.set(TicketSocketEvents.UPDATED, handleTicketUpdated)
   eventHandlers.set(TicketSocketEvents.DELETED, handleTicketDeleted)
 }
+
+

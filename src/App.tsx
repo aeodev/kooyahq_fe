@@ -54,8 +54,8 @@ function App() {
           <Route path="/meet" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><MeetLanding /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
           <Route path="/meet/:meetId/join" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><Meet /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
           <Route path="/meet/:meetId" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><PreJoin /></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/wiki-hub" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><WikiHub /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
-          <Route path="/wiki-hub/:pageId" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout><WikiHub /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
+          <Route path="/wiki-hub" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout noPadding><WikiHub /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
+          <Route path="/wiki-hub/:pageId" element={<WorkspaceOnlyRoute><PrivateRoute fallback={null}><DashboardLayout noPadding><WikiHub /></DashboardLayout></PrivateRoute></WorkspaceOnlyRoute>} />
         </Routes>
       </BrowserRouter>
       <Toaster />

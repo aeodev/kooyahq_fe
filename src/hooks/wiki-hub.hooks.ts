@@ -9,6 +9,10 @@ import {
   SEARCH_PAGES,
   GET_TEMPLATES,
   GET_FAVORITES,
+  PIN_PAGE,
+  UNPIN_PAGE,
+  FAVORITE_PAGE,
+  UNFAVORITE_PAGE,
 } from '@/utils/api.routes'
 
 export interface Page {
@@ -139,14 +143,19 @@ export const usePages = (workspaceId: string | undefined) => {
   }, [])
 
   const searchPages = useCallback(async (query: string) => {
-    if (!workspaceId) return []
+    if (!workspaceId || !query.trim()) {
+      await fetchPages()
+      return []
+    }
 
     setLoading(true)
     setError(null)
 
     try {
       const response = await axiosInstance.get<ApiResponse<Page[]>>(SEARCH_PAGES(workspaceId, query))
-      return response.data.data
+      const results = response.data.data
+      setPages(results)
+      return results
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || 'Failed to search pages'
       setError(errorMsg)
@@ -154,7 +163,7 @@ export const usePages = (workspaceId: string | undefined) => {
     } finally {
       setLoading(false)
     }
-  }, [workspaceId])
+  }, [workspaceId, fetchPages])
 
   return {
     pages,
@@ -200,5 +209,99 @@ export const useTemplates = (workspaceId?: string) => {
     loading,
     error,
     fetchTemplates,
+  }
+}
+
+export const usePage = (pageId: string | undefined) => {
+  const [page, setPage] = useState<Page | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchPage = useCallback(async () => {
+    if (!pageId) {
+      setPage(null)
+      return null
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await axiosInstance.get<ApiResponse<Page>>(GET_PAGE(pageId))
+      setPage(response.data.data)
+      return response.data.data
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to fetch page'
+      setError(errorMsg)
+      console.error('Failed to fetch page:', err)
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [pageId])
+
+  useEffect(() => {
+    if (pageId) {
+      fetchPage()
+    }
+  }, [pageId, fetchPage])
+
+  const pinPage = useCallback(async () => {
+    if (!pageId) return
+    try {
+      await axiosInstance.post(PIN_PAGE(pageId))
+      await fetchPage()
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to pin page'
+      setError(errorMsg)
+      throw new Error(errorMsg)
+    }
+  }, [pageId, fetchPage])
+
+  const unpinPage = useCallback(async () => {
+    if (!pageId) return
+    try {
+      await axiosInstance.post(UNPIN_PAGE(pageId))
+      await fetchPage()
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to unpin page'
+      setError(errorMsg)
+      throw new Error(errorMsg)
+    }
+  }, [pageId, fetchPage])
+
+  const favoritePage = useCallback(async () => {
+    if (!pageId) return
+    try {
+      await axiosInstance.post(FAVORITE_PAGE(pageId))
+      await fetchPage()
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to favorite page'
+      setError(errorMsg)
+      throw new Error(errorMsg)
+    }
+  }, [pageId, fetchPage])
+
+  const unfavoritePage = useCallback(async () => {
+    if (!pageId) return
+    try {
+      await axiosInstance.post(UNFAVORITE_PAGE(pageId))
+      await fetchPage()
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error?.message || 'Failed to unfavorite page'
+      setError(errorMsg)
+      throw new Error(errorMsg)
+    }
+  }, [pageId, fetchPage])
+
+  return {
+    page,
+    loading,
+    error,
+    fetchPage,
+    pinPage,
+    unpinPage,
+    favoritePage,
+    unfavoritePage,
   }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, FileText } from 'lucide-react'
+import { X, FileText, ChevronRight } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -33,9 +33,9 @@ export function CreatePageModal({ open, onClose, workspaceId, onCreate }: Create
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!title.trim()) {
-      setError('Page title is required')
+      setError('Title is required')
       return
     }
 
@@ -48,13 +48,11 @@ export function CreatePageModal({ open, onClose, workspaceId, onCreate }: Create
 
       let response
       if (selectedTemplate) {
-        // Create from template
         response = await axiosInstance.post(CREATE_PAGE_FROM_TEMPLATE(selectedTemplate), {
           workspaceId,
           title: title.trim(),
         })
       } else {
-        // Create blank page
         response = await axiosInstance.post(CREATE_PAGE(), {
           workspaceId,
           title: title.trim(),
@@ -65,118 +63,117 @@ export function CreatePageModal({ open, onClose, workspaceId, onCreate }: Create
 
       const newPage = response.data.data
       onClose()
-      
+
       if (onCreate) {
         onCreate(newPage.id)
-      } else {
-        navigate(`/wiki-hub/${newPage.id}`)
       }
+      navigate(`/wiki-hub/${newPage.id}`)
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error?.message || 'Failed to create page'
-      setError(errorMsg)
+      setError(err.response?.data?.error?.message || 'Failed to create page')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleClose = () => {
-    setTitle('')
-    setSelectedTemplate(null)
-    setError(null)
-    onClose()
-  }
-
   return (
-    <Modal open={open} onClose={handleClose} maxWidth="md">
-      <div className="p-6">
+    <Modal open={open} onClose={onClose} maxWidth="sm">
+      <form onSubmit={handleSubmit}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-foreground">Create new page</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="font-semibold text-foreground">Create page</h2>
           <button
-            onClick={handleClose}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-            aria-label="Close modal"
+            type="button"
+            onClick={onClose}
+            className="p-1 hover:bg-muted rounded transition-colors"
           >
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Page Title */}
-          <div className="space-y-2">
-            <Label htmlFor="page-title">Page title</Label>
+        {/* Content */}
+        <div className="px-5 py-4 space-y-4">
+          {/* Title */}
+          <div className="space-y-1.5">
+            <Label htmlFor="page-title" className="text-sm font-medium">
+              Title
+            </Label>
             <Input
               id="page-title"
-              placeholder="e.g., Company Onboarding Guide"
+              placeholder="Enter page title"
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value)
                 if (error) setError(null)
               }}
-              className={cn(error && 'border-destructive focus-visible:ring-destructive')}
+              className={cn('h-9', error && 'border-destructive focus-visible:ring-destructive')}
               autoFocus
             />
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
 
           {/* Template Selection */}
           {templates.length > 0 && (
-            <div className="space-y-3">
-              <Label>Template (optional)</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Template</Label>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {/* Blank option */}
                 <button
                   type="button"
                   onClick={() => setSelectedTemplate(null)}
                   className={cn(
-                    'flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
+                    'w-full flex items-center gap-3 px-3 py-2 rounded text-left text-sm transition-colors',
                     selectedTemplate === null
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border/50 hover:border-border hover:bg-accent/30'
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-muted text-foreground'
                   )}
                 >
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium text-sm">Blank Page</p>
-                    <p className="text-xs text-muted-foreground">Start from scratch</p>
+                  <FileText className="h-4 w-4 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">Blank page</span>
                   </div>
+                  {selectedTemplate === null && (
+                    <div className="w-2 h-2 rounded-full bg-primary" />
+                  )}
                 </button>
+
+                {/* Templates */}
                 {templates.map((template) => (
                   <button
                     key={template.id}
                     type="button"
                     onClick={() => setSelectedTemplate(template.id)}
                     className={cn(
-                      'flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
+                      'w-full flex items-center gap-3 px-3 py-2 rounded text-left text-sm transition-colors',
                       selectedTemplate === template.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border/50 hover:border-border hover:bg-accent/30'
+                        ? 'bg-primary/10 text-primary'
+                        : 'hover:bg-muted text-foreground'
                     )}
                   >
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium text-sm">{template.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{template.category}</p>
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium">{template.name}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">{template.category}</span>
                     </div>
+                    {selectedTemplate === template.id && (
+                      <div className="w-2 h-2 rounded-full bg-primary" />
+                    )}
                   </button>
                 ))}
               </div>
             </div>
           )}
+        </div>
 
-          {/* Actions */}
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
-            <Button type="button" variant="ghost" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading || !title.trim()}>
-              {loading ? 'Creating...' : 'Create page'}
-            </Button>
-          </div>
-        </form>
-      </div>
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t bg-muted/30">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={loading || !title.trim()}>
+            {loading ? 'Creating...' : 'Create'}
+          </Button>
+        </div>
+      </form>
     </Modal>
   )
 }
