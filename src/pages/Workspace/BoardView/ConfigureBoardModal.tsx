@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, GripVertical, Plus, Trash2, LayoutGrid, List, Settings, Columns, AlertTriangle, ListChecks } from 'lucide-react'
+import { X, GripVertical, Plus, Trash2, LayoutGrid, List, Settings, Columns, AlertTriangle, ListChecks, Users, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +10,9 @@ import type { Board as ApiBoardType } from '@/types/board'
 import { useUpdateBoard } from '@/hooks/board.hooks'
 import { DraggableFieldConfigItem } from './DetailsSettings/DraggableFieldConfigItem'
 import { toast } from 'sonner'
+import type { User } from '@/types/user'
+import axiosInstance from '@/utils/axios.instance'
+import { GET_USERS } from '@/utils/api.routes'
 
 type ConfigureBoardModalProps = {
   open: boolean
@@ -69,7 +72,7 @@ const EMOJI_CATEGORIES = {
   'Symbols': ['❤️', '💜', '💙', '💚', '🧡', '⚡', '🌟', '💫'],
 }
 
-type SettingsSection = 'general' | 'columns' | 'details'
+type SettingsSection = 'general' | 'columns' | 'details' | 'members'
 
 type FieldConfig = {
   fieldName: string
@@ -101,6 +104,10 @@ export function ConfigureBoardModal({
   const [deleteColumnIndex, setDeleteColumnIndex] = useState<number | null>(null)
   const [detailsSettings, setDetailsSettings] = useState<{ fieldConfigs: FieldConfig[] } | null>(null)
   const [detailsDraggedIndex, setDetailsDraggedIndex] = useState<number | null>(null)
+  const [memberList, setMemberList] = useState<Array<{ userId: string; role: 'admin' | 'member' | 'viewer'; joinedAt?: string }>>([])
+  const [availableUsers, setAvailableUsers] = useState<User[]>([])
+  const [memberSearch, setMemberSearch] = useState('')
+  const [loadingUsers, setLoadingUsers] = useState(false)
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
   const colorButtonRef = useRef<HTMLButtonElement>(null)
@@ -154,6 +161,17 @@ export function ConfigureBoardModal({
           ],
         })
       }
+
+      // Initialize members (creator always present)
+      const initialMembers = board.members && board.members.length > 0
+        ? board.members.map((m) => ({
+            userId: m.userId,
+            role: m.role,
+            joinedAt: m.joinedAt,
+          }))
+        : [{ userId: board.createdBy, role: 'admin' as const, joinedAt: new Date().toISOString() }]
+      setMemberList(initialMembers)
+      setMemberSearch('')
       
       prevBoardIdRef.current = board.id
     }
@@ -163,8 +181,28 @@ export function ConfigureBoardModal({
     // Reset when modal closes
     if (!open) {
       prevBoardIdRef.current = null
+      setMemberSearch('')
     }
   }, [open, board?.id]) // Only depend on open state and board ID
+
+  // Load users for member management when the members tab is active
+  useEffect(() => {
+    if (!open || activeSection !== 'members') return
+    const loadUsers = async () => {
+      setLoadingUsers(true)
+      try {
+        const response = await axiosInstance.get<{ status: string; data: User[] }>(GET_USERS())
+        if (response.data?.data) {
+          setAvailableUsers(response.data.data)
+        }
+      } catch (error) {
+        console.error('Failed to load users for board members', error)
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
+    loadUsers()
+  }, [open, activeSection])
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -296,6 +334,37 @@ export function ConfigureBoardModal({
     return Object.keys(columnErrors).length > 0
   }, [columnErrors])
 
+  const filteredUsers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase()
+    const currentIds = new Set(memberList.map((m) => m.userId))
+    return availableUsers.filter((user) => {
+      if (currentIds.has(user.id)) return false
+      if (!query) return true
+      return user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
+    })
+  }, [availableUsers, memberList, memberSearch])
+
+  const handleAddMember = (user: User) => {
+    setMemberList((prev) => {
+      if (prev.some((m) => m.userId === user.id)) return prev
+      return [
+        ...prev,
+        { userId: user.id, role: 'member', joinedAt: new Date().toISOString() },
+      ]
+    })
+  }
+
+  const handleRemoveMember = (userId: string) => {
+    if (board?.createdBy === userId) return
+    setMemberList((prev) => prev.filter((member) => member.userId !== userId))
+  }
+
+  const handleUpdateMemberRole = (userId: string, role: 'admin' | 'member' | 'viewer') => {
+    setMemberList((prev) =>
+      prev.map((member) => (member.userId === userId ? { ...member, role } : member)),
+    )
+  }
+
   const handleSave = async () => {
     if (!board) return
 
@@ -377,6 +446,34 @@ export function ConfigureBoardModal({
     }
   }
 
+  const handleSaveMembers = async () => {
+    if (!board) return
+    try {
+      const payload = memberList.map((member) => ({
+        userId: member.userId,
+        role: member.role,
+        joinedAt: member.joinedAt,
+      }))
+      const updated = await updateBoard(board.id, { members: payload } as any)
+      if (updated) {
+        setMemberList(
+          updated.members.map((member) => ({
+            userId: member.userId,
+            role: member.role,
+            joinedAt: member.joinedAt,
+          })),
+        )
+        onSave(updated)
+        toast.success('Members updated')
+      } else {
+        toast.error('Failed to update members')
+      }
+    } catch (error) {
+      console.error('Failed to update members:', error)
+      toast.error('Failed to update members')
+    }
+  }
+
   if (!board) return null
 
   return (
@@ -424,6 +521,18 @@ export function ConfigureBoardModal({
               <ListChecks className="h-4 w-4" />
               Details
             </button>
+            <button
+              onClick={() => setActiveSection('members')}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                activeSection === 'members'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Members
+            </button>
           </nav>
         </div>
 
@@ -433,13 +542,21 @@ export function ConfigureBoardModal({
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div>
               <h3 className="text-base font-semibold text-foreground">
-                {activeSection === 'general' ? 'General settings' : activeSection === 'columns' ? 'Column settings' : 'Details settings'}
+                {activeSection === 'general'
+                  ? 'General settings'
+                  : activeSection === 'columns'
+                  ? 'Column settings'
+                  : activeSection === 'members'
+                  ? 'Members'
+                  : 'Details settings'}
               </h3>
               <p className="text-sm text-muted-foreground mt-0.5">
                 {activeSection === 'general'
                   ? 'Configure board name, icon, description, and view preferences'
                   : activeSection === 'columns'
                   ? 'Manage columns, their order, colors, and done column settings'
+                  : activeSection === 'members'
+                  ? 'Invite teammates to this board, adjust roles, or remove access'
                   : 'Choose which fields to display in ticket details and arrange their order'}
               </p>
             </div>
@@ -605,6 +722,101 @@ export function ConfigureBoardModal({
                       )}
                     />
                   </button>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'members' && (
+              <div className="space-y-6 max-w-3xl">
+                <div className="space-y-2">
+                  <Label>Current members</Label>
+                  <div className="space-y-3">
+                    {memberList.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No members yet.</p>
+                    ) : (
+                      memberList.map((member) => {
+                        const user = availableUsers.find((u) => u.id === member.userId)
+                        const isCreator = board.createdBy === member.userId
+                        const joined = member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : undefined
+                        return (
+                          <div
+                            key={member.userId}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 bg-background"
+                          >
+                            <div>
+                              <p className="text-sm font-medium">
+                                {user?.name || 'Unknown user'}
+                                {isCreator && <span className="ml-2 text-[11px] text-muted-foreground">(creator)</span>}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{user?.email || member.userId}</p>
+                              {joined && <p className="text-[11px] text-muted-foreground mt-0.5">Joined {joined}</p>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={member.role}
+                                onChange={(e) => handleUpdateMemberRole(member.userId, e.target.value as any)}
+                                disabled={loading || isCreator}
+                                className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="member">Member</option>
+                                <option value="viewer">Viewer</option>
+                              </select>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveMember(member.userId)}
+                                disabled={loading || isCreator}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Add members</Label>
+                  <Input
+                    placeholder="Search by name or email"
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                  />
+                  <div className="rounded-lg border border-border/70 max-h-60 overflow-y-auto divide-y divide-border/70 bg-muted/40">
+                    {loadingUsers ? (
+                      <div className="p-3 text-sm text-muted-foreground">Loading people…</div>
+                    ) : filteredUsers.length === 0 ? (
+                      <div className="p-3 text-sm text-muted-foreground">No people found</div>
+                    ) : (
+                      filteredUsers.slice(0, 12).map((user) => (
+                        <div key={user.id} className="flex items-center justify-between px-3 py-2">
+                          <div>
+                            <p className="text-sm font-medium">{user.name}</p>
+                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddMember(user)}
+                            disabled={loading}
+                          >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Invite
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSaveMembers} disabled={loading}>
+                    {loading ? 'Saving...' : 'Save members'}
+                  </Button>
                 </div>
               </div>
             )}

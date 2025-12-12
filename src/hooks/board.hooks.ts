@@ -69,27 +69,21 @@ function normalizeError(error: unknown): Errors {
   return { message: 'Something went wrong' }
 }
 
-export const useBoards = (workspaceId?: string, type?: 'kanban' | 'sprint') => {
+export const useBoards = (type?: 'kanban' | 'sprint') => {
   const [data, setData] = useState<Board[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const fetchBoards = useCallback(async (wsId?: string) => {
-    const id = wsId || workspaceId
-    if (!id) {
-      setData([])
-      return []
-    }
-
+  const fetchBoards = useCallback(async () => {
     setError(null)
     setLoading(true)
 
     try {
-      const response = await axiosInstance.get<{ success: boolean; data: Board[] }>(
-        GET_BOARDS(id, type)
-      )
-      setData(response.data.data)
-      return response.data.data
+      const url = GET_BOARDS(type)
+      const response = await axiosInstance.get<{ success: boolean; data: Board[] }>(url)
+      const boards = response.data.data
+      setData(boards)
+      return boards
     } catch (err) {
       const normalized = normalizeError(err)
       setError(normalized)
@@ -97,7 +91,7 @@ export const useBoards = (workspaceId?: string, type?: 'kanban' | 'sprint') => {
     } finally {
       setLoading(false)
     }
-  }, [workspaceId, type])
+  }, [type])
 
   const updateBoardFavorite = useCallback((boardId: string, isFavorite: boolean) => {
     setData((prev) =>
@@ -143,13 +137,13 @@ export const useCreateBoard = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
-  const createBoard = useCallback(async (workspaceId: string, input: CreateBoardInput): Promise<Board | null> => {
+  const createBoard = useCallback(async (input: CreateBoardInput): Promise<Board | null> => {
     setError(null)
     setLoading(true)
 
     try {
       const response = await axiosInstance.post<{ success: boolean; data: Board }>(
-        CREATE_BOARD(workspaceId),
+        CREATE_BOARD(),
         input,
       )
       return response.data.data

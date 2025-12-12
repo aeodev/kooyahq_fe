@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/utils/cn'
 import { useCreateBoard } from '@/hooks/board.hooks'
 import type { CreateBoardInput } from '@/types/board'
+import type { User } from '@/types/user'
+import axiosInstance from '@/utils/axios.instance'
+import { GET_USERS } from '@/utils/api.routes'
 import { useEmojiPicker } from './useEmojiPicker'
 
 type BoardType = 'kanban' | 'sprint'
@@ -17,11 +20,10 @@ type CreateBoardModalProps = {
   open: boolean
   onClose: () => void
   onCreate: (data: { name: string; key: string; type: BoardType; icon: string }) => void
-  workspaceId: string
   existingKeys?: string[] // For client-side validation
 }
 
-export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existingKeys = [] }: CreateBoardModalProps) {
+export function CreateBoardModal({ open, onClose, onCreate, existingKeys = [] }: CreateBoardModalProps) {
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [key, setKey] = useState('')
@@ -32,6 +34,10 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
   const [errors, setErrors] = useState<{ name?: string; key?: string }>({})
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
   const { createBoard, loading, error: createError } = useCreateBoard()
+  const [availableUsers, setAvailableUsers] = useState<User[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [memberSearch, setMemberSearch] = useState('')
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
 
   const handleCloseEmojiPicker = useCallback(() => {
     setShowEmojiPicker(false)
@@ -94,6 +100,25 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
     }
   }, [showEmojiPicker])
 
+  // Load users for invitations when modal opens
+  useEffect(() => {
+    if (!open) return
+    const loadUsers = async () => {
+      setLoadingUsers(true)
+      try {
+        const response = await axiosInstance.get<{ status: string; data: User[] }>(GET_USERS())
+        if (response.data?.data) {
+          setAvailableUsers(response.data.data)
+        }
+      } catch (err) {
+        console.error('Failed to load users for board invites', err)
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
+    loadUsers()
+  }, [open])
+
   const generateKey = (boardName: string) => {
     return boardName
       .toUpperCase()
@@ -122,9 +147,25 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
     }
   }
 
+  const toggleInvite = (userId: string) => {
+    setSelectedMemberIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+    )
+  }
+
+  const invitedUsers = selectedMemberIds
+    .map((id) => availableUsers.find((user) => user.id === id))
+    .filter(Boolean) as User[]
+
+  const filteredUsers = availableUsers.filter((user) => {
+    if (selectedMemberIds.includes(user.id)) return false
+    if (!memberSearch.trim()) return true
+    const query = memberSearch.toLowerCase()
+    return user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
+  })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
     const newErrors: { name?: string; key?: string } = {}
     
     if (!name.trim()) {
@@ -149,9 +190,10 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
         type,
         prefix: key.trim(),
         emoji: icon,
+        members: selectedMemberIds.map((id) => ({ userId: id, role: 'member' as const })),
       }
-      
-      const createdBoard = await createBoard(workspaceId, boardInput)
+
+      const createdBoard = await createBoard(boardInput)
       
       if (createdBoard) {
         onCreate({ name: name.trim(), key: key.trim(), type, icon })
@@ -195,6 +237,8 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
     setKey('')
     setType('kanban')
     setIcon('🚀')
+    setSelectedMemberIds([])
+    setMemberSearch('')
     setShowEmojiPicker(false)
     setErrors({})
     onClose()
@@ -379,6 +423,67 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Invite Members */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Invite members</Label>
+              {selectedMemberIds.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {selectedMemberIds.length} invited
+                </span>
+              )}
+            </div>
+            <Input
+              placeholder="Search by name or email"
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+            />
+            <div className="rounded-xl border border-border/60 bg-muted/30 max-h-48 overflow-y-auto">
+              {loadingUsers ? (
+                <div className="p-3 text-sm text-muted-foreground">Loading people…</div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground">No matching users</div>
+              ) : (
+                <div className="divide-y divide-border/60">
+                  {filteredUsers.slice(0, 10).map((user) => (
+                    <button
+                      type="button"
+                      key={user.id}
+                      onClick={() => toggleInvite(user.id)}
+                      className="w-full text-left px-3 py-2 hover:bg-accent transition-colors flex items-center justify-between gap-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                      </div>
+                      <span className="text-xs text-primary font-medium">Invite</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {invitedUsers.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {invitedUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-sm text-foreground border border-primary/30"
+                  >
+                    <span>{user.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleInvite(user.id)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={`Remove ${user.name}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Actions */}

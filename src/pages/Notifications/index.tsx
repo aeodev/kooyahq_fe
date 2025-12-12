@@ -62,6 +62,7 @@ export function Notifications() {
     markAsRead,
     markAllAsRead,
   } = useNotifications()
+  const navigate = useNavigate()
   const canViewNotifications = can(PERMISSIONS.NOTIFICATION_READ) || can(PERMISSIONS.NOTIFICATION_FULL_ACCESS)
   const canUpdateNotifications = can(PERMISSIONS.NOTIFICATION_UPDATE) || can(PERMISSIONS.NOTIFICATION_FULL_ACCESS)
 

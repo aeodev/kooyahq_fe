@@ -52,8 +52,12 @@ function App() {
             element={
               <PrivateRoute fallback={null}>
                 <PermissionGate
-                  anyOf={[PERMISSIONS.WORKSPACE_FULL_ACCESS, PERMISSIONS.BOARD_FULL_ACCESS]}
-                  allOf={[PERMISSIONS.WORKSPACE_READ, PERMISSIONS.BOARD_READ]}
+                  anyOf={[
+                    PERMISSIONS.BOARD_READ,
+                    PERMISSIONS.BOARD_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
                 >
                   <DashboardLayout>
                     <Workspace />
@@ -67,8 +71,14 @@ function App() {
             element={
               <PrivateRoute fallback={null}>
                 <PermissionGate
-                  anyOf={[PERMISSIONS.BOARD_FULL_ACCESS, PERMISSIONS.TICKET_FULL_ACCESS]}
-                  allOf={[PERMISSIONS.BOARD_READ, PERMISSIONS.TICKET_READ]}
+                  anyOf={[
+                    PERMISSIONS.BOARD_READ,
+                    PERMISSIONS.TICKET_READ,
+                    PERMISSIONS.BOARD_FULL_ACCESS,
+                    PERMISSIONS.TICKET_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
                 >
                   <DashboardLayout>
                     <BoardView />
@@ -82,8 +92,13 @@ function App() {
             element={
               <PrivateRoute fallback={null}>
                 <PermissionGate
-                  anyOf={[PERMISSIONS.TICKET_FULL_ACCESS, PERMISSIONS.BOARD_FULL_ACCESS]}
-                  allOf={[PERMISSIONS.TICKET_READ]}
+                  anyOf={[
+                    PERMISSIONS.TICKET_READ,
+                    PERMISSIONS.TICKET_FULL_ACCESS,
+                    PERMISSIONS.BOARD_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
                 >
                   <DashboardLayout>
                     <TicketDetailPage />
@@ -96,7 +111,14 @@ function App() {
             path="/time-tracker"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.TIME_ENTRY_FULL_ACCESS]} allOf={[PERMISSIONS.TIME_ENTRY_READ]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.TIME_ENTRY_READ,
+                    PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <TimeTracker />
                   </DashboardLayout>
@@ -108,7 +130,14 @@ function App() {
             path="/gallery"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.GALLERY_FULL_ACCESS]} allOf={[PERMISSIONS.GALLERY_READ]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.GALLERY_READ,
+                    PERMISSIONS.GALLERY_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <Gallery />
                   </DashboardLayout>
@@ -120,7 +149,14 @@ function App() {
             path="/ai-news"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.AI_NEWS_FULL_ACCESS]} allOf={[PERMISSIONS.AI_NEWS_READ]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.AI_NEWS_READ,
+                    PERMISSIONS.AI_NEWS_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <AINews />
                   </DashboardLayout>
@@ -142,7 +178,15 @@ function App() {
             path="/notifications"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.NOTIFICATION_FULL_ACCESS]} allOf={[PERMISSIONS.NOTIFICATION_READ]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.NOTIFICATION_READ,
+                    PERMISSIONS.NOTIFICATION_FULL_ACCESS,
+                    PERMISSIONS.NOTIFICATION_COUNT,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <Notifications />
                   </DashboardLayout>
@@ -154,7 +198,14 @@ function App() {
             path="/feed"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.POST_FULL_ACCESS]} allOf={[PERMISSIONS.POST_READ]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.POST_READ,
+                    PERMISSIONS.POST_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <KooyaFeed />
                   </DashboardLayout>
@@ -166,7 +217,14 @@ function App() {
             path="/games"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.GAME_FULL_ACCESS]} allOf={[PERMISSIONS.GAME_READ]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.GAME_READ,
+                    PERMISSIONS.GAME_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <Games />
                   </DashboardLayout>
@@ -178,7 +236,14 @@ function App() {
             path="/games/play/:gameType"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.GAME_FULL_ACCESS]} allOf={[PERMISSIONS.GAME_PLAY]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.GAME_PLAY,
+                    PERMISSIONS.GAME_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <PlayGame />
                   </DashboardLayout>
@@ -190,7 +255,14 @@ function App() {
             path="/presence"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.PRESENCE_FULL_ACCESS]} allOf={[PERMISSIONS.PRESENCE_READ]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.PRESENCE_READ,
+                    PERMISSIONS.PRESENCE_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <Presence />
                   </DashboardLayout>
@@ -214,7 +286,14 @@ function App() {
             path="/meet"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.MEET_FULL_ACCESS]} allOf={[PERMISSIONS.MEET_TOKEN]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.MEET_TOKEN,
+                    PERMISSIONS.MEET_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <MeetLanding />
                   </DashboardLayout>
@@ -226,7 +305,14 @@ function App() {
             path="/meet/:meetId/join"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.MEET_FULL_ACCESS]} allOf={[PERMISSIONS.MEET_TOKEN]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.MEET_TOKEN,
+                    PERMISSIONS.MEET_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <DashboardLayout>
                     <Meet />
                   </DashboardLayout>
@@ -238,7 +324,14 @@ function App() {
             path="/meet/:meetId"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.MEET_FULL_ACCESS]} allOf={[PERMISSIONS.MEET_TOKEN]}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.MEET_TOKEN,
+                    PERMISSIONS.MEET_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                    PERMISSIONS.ADMIN_FULL_ACCESS,
+                  ]}
+                >
                   <PreJoin />
                 </PermissionGate>
               </PrivateRoute>

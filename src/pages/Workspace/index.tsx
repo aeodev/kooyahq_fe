@@ -14,7 +14,6 @@ import {
 import { CreateBoardModal } from './components/CreateBoardModal'
 import { EditBoardModal } from './components/EditBoardModal'
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal'
-import { useWorkspaces } from '@/hooks/workspace.hooks'
 import { useBoards, useToggleBoardFavorite } from '@/hooks/board.hooks'
 import { useUsers } from '@/hooks/user.hooks'
 import type { Board as ApiBoard } from '@/types/board'
@@ -95,6 +94,8 @@ const getBoardTypeIcon = (type: BoardType) => {
   }
 }
 
+const GLOBAL_WORKSPACE_ID = 'global' as const
+
 export function Workspace() {
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
@@ -104,16 +105,15 @@ export function Workspace() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedBoard, setSelectedBoard] = useState<BoardDisplay | null>(null)
   const can = useAuthStore((state) => state.can)
-  const canCreateBoard = can(PERMISSIONS.BOARD_CREATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const canCreateBoard =
+    can(PERMISSIONS.BOARD_CREATE) ||
+    can(PERMISSIONS.BOARD_FULL_ACCESS) ||
+    can(PERMISSIONS.SYSTEM_FULL_ACCESS) ||
+    can(PERMISSIONS.ADMIN_FULL_ACCESS)
   const canUpdateBoard = can(PERMISSIONS.BOARD_UPDATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
   const canDeleteBoard = can(PERMISSIONS.BOARD_DELETE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
   const canFavoriteBoard = can(PERMISSIONS.BOARD_FAVORITE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
-
-  // Fetch workspaces and select first one
-  const { data: workspaces, loading: workspacesLoading } = useWorkspaces()
-  const selectedWorkspace = workspaces[0] // Use first workspace for now
-
-  // Fetch boards for selected workspace
+  // Fetch boards accessible to user (member or creator)
   const { 
     data: boards, 
     loading: boardsLoading, 
@@ -122,49 +122,40 @@ export function Workspace() {
     updateBoard,
     addBoard,
     removeBoard,
-  } = useBoards(selectedWorkspace?.id)
+  } = useBoards()
   const { toggleFavorite: toggleFavoriteApi } = useToggleBoardFavorite()
   
   // Fetch users for lead display
   const { users: allUsers } = useUsers()
 
-  // Fetch boards when workspace is selected
+  // Fetch boards on mount
   useEffect(() => {
-    if (selectedWorkspace?.id) {
-      fetchBoards(selectedWorkspace.id)
-    }
-  }, [selectedWorkspace?.id, fetchBoards])
+    fetchBoards()
+  }, [fetchBoards])
 
   // Socket connection for real-time updates
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
 
-  // Join workspace room when workspace is selected
+  // Join global board room for real-time events
   useEffect(() => {
-    if (socket && connected && selectedWorkspace?.id) {
-      socket.emit('workspace:join', selectedWorkspace.id)
-      return () => {
-        socket.emit('workspace:leave', selectedWorkspace.id)
-      }
+    if (!socket || !connected) return
+    socket.emit('workspace:join', GLOBAL_WORKSPACE_ID)
+    return () => {
+      socket.emit('workspace:leave', GLOBAL_WORKSPACE_ID)
     }
-  }, [socket, connected, selectedWorkspace?.id])
+  }, [socket, connected])
 
   // Listen for board socket events
   useEffect(() => {
-    if (!socket || !connected || !selectedWorkspace?.id) return
+    if (!socket || !connected) return
 
     const handleBoardCreated = (data: { board: ApiBoard; userId: string; timestamp: string }) => {
-      // Only update if it's for the current workspace
-      if (data.board.workspaceId === selectedWorkspace.id) {
-        addBoard(data.board)
-      }
+      addBoard(data.board)
     }
 
     const handleBoardUpdated = (data: { board: ApiBoard; userId: string; timestamp: string }) => {
-      // Only update if it's for the current workspace
-      if (data.board.workspaceId === selectedWorkspace.id) {
-        updateBoard(data.board)
-      }
+      updateBoard(data.board)
     }
 
     const handleBoardDeleted = (data: { boardId: string; userId: string; timestamp: string }) => {
@@ -187,7 +178,7 @@ export function Workspace() {
       socket.off(BoardSocketEvents.DELETED, handleBoardDeleted)
       socket.off(BoardSocketEvents.FAVORITE_TOGGLED, handleBoardFavoriteToggled)
     }
-  }, [socket, connected, selectedWorkspace?.id, addBoard, updateBoard, removeBoard, updateBoardFavorite])
+  }, [socket, connected, addBoard, updateBoard, removeBoard, updateBoardFavorite])
 
   // Convert backend boards to display format
   const displayBoards = useMemo(() => {
@@ -311,7 +302,7 @@ export function Workspace() {
     setSelectedBoard(null)
   }
 
-  const loading = workspacesLoading || boardsLoading
+  const loading = boardsLoading
 
   if (loading) {
     return (
@@ -393,32 +384,22 @@ export function Workspace() {
     )
   }
 
-  if (!selectedWorkspace) {
-    return (
-      <section className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <p className="text-muted-foreground">No workspace found</p>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <section className="space-y-4 sm:space-y-6">
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Workspace
+            Boards
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your boards and projects
+            Boards you own or are a member of
           </p>
         </div>
         <Button 
           onClick={() => canCreateBoard && setCreateModalOpen(true)} 
           className="w-full sm:w-auto"
-          disabled={!selectedWorkspace || !canCreateBoard}
+          disabled={!canCreateBoard}
         >
           <Plus className="h-4 w-4 mr-2" />
           Create board
@@ -735,8 +716,7 @@ export function Workspace() {
         open={createModalOpen && canCreateBoard}
         onClose={() => setCreateModalOpen(false)}
         onCreate={handleCreateBoard}
-        workspaceId={selectedWorkspace.id}
-        existingKeys={boards.map(b => b.prefix.toUpperCase())}
+        existingKeys={boards.map((b) => (b.prefix || '').toUpperCase()).filter(Boolean)}
       />
 
       {/* Edit Board Modal */}

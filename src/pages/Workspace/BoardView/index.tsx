@@ -19,11 +19,12 @@ function isApiBoardType(board: any): board is ApiBoardType {
     'id' in board &&
     'name' in board &&
     'prefix' in board && 
-    'workspaceId' in board &&
     'type' in board &&
     'columns' in board
   )
 }
+
+const GLOBAL_WORKSPACE_ID = 'global' as const
 import {
   Search,
   ChevronDown,
@@ -338,6 +339,7 @@ export function BoardView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const can = useAuthStore((state) => state.can)
+  const currentUser = useAuthStore((state) => state.user)
   const canBoardUpdate = can(PERMISSIONS.BOARD_UPDATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
   const canTicketCreate = can(PERMISSIONS.TICKET_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
   const canTicketRank = can(PERMISSIONS.TICKET_RANK) || can(PERMISSIONS.TICKET_FULL_ACCESS)
@@ -459,7 +461,7 @@ export function BoardView() {
         console.log('Board API response:', response.data)
         const boardData = response.data.data
         // Verify the board has required fields
-        if (!boardData || !('prefix' in boardData) || !('workspaceId' in boardData)) {
+        if (!boardData || !('prefix' in boardData)) {
           console.error('Board data missing required fields:', boardData)
           setBoardError({ 
             statusCode: 500, 
@@ -558,18 +560,15 @@ export function BoardView() {
     }
   }, [socket, connected, apiBoard?.id]) // Only depend on board ID, not entire object
 
-  // Join workspace room to receive socket events
+  // Join global board room to receive socket events
   useEffect(() => {
-    if (socket && connected && apiBoard && isApiBoardType(apiBoard)) {
-      const workspaceId = apiBoard.workspaceId
-      if (workspaceId) {
-        socket.emit('workspace:join', workspaceId)
-        return () => {
-          socket.emit('workspace:leave', workspaceId)
-        }
+    if (socket && connected) {
+      socket.emit('workspace:join', GLOBAL_WORKSPACE_ID)
+      return () => {
+        socket.emit('workspace:leave', GLOBAL_WORKSPACE_ID)
       }
     }
-  }, [socket, connected, apiBoard?.workspaceId])
+  }, [socket, connected])
 
   // Listen for ticket socket events
   useEffect(() => {

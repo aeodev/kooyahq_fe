@@ -12,6 +12,8 @@ import type { Post } from '@/types/post'
 
 export function Profile() {
   const user = useAuthStore((state) => state.user)
+  const logout = useAuthStore((state) => state.logout)
+  const hasAnyPermission = Array.isArray(user?.permissions) && user.permissions.length > 0
   const [searchParams] = useSearchParams()
   const viewedUserId = searchParams.get('userId')
   const isOwnProfile = !viewedUserId || viewedUserId === user?.id
@@ -55,6 +57,20 @@ export function Profile() {
   const profilePicInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const postImageInputRef = useRef<HTMLInputElement>(null)
+
+  if (!hasAnyPermission) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="space-y-4 text-center">
+          <p className="text-lg font-semibold">Your account has no permissions assigned.</p>
+          <p className="text-sm text-muted-foreground">Please contact an admin to grant access.</p>
+          <div className="flex justify-center">
+            <Button onClick={logout} variant="outline">Log out</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const getUserInitials = (name: string) => {
     return name

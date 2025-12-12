@@ -48,12 +48,13 @@ export const CREATE_WORKSPACE = () => `/workspaces`
 export const UPDATE_WORKSPACE = (workspaceId: string) => `/workspaces/${workspaceId}`
 export const DELETE_WORKSPACE = (workspaceId: string) => `/workspaces/${workspaceId}`
 
-// Board routes
-export const CREATE_BOARD = (workspaceId: string) => `/workspaces/${workspaceId}/boards`
-export const GET_BOARDS = (workspaceId: string, type?: 'kanban' | 'sprint') => {
-  const base = `/workspaces/${workspaceId}/boards`
+// Board routes (global)
+export const CREATE_BOARD = () => `/boards`
+export const GET_BOARDS = (type?: 'kanban' | 'sprint') => {
+  const base = `/boards`
   return type ? `${base}?type=${type}` : base
 }
+export const GET_MY_BOARDS = () => `/boards`
 export const GET_BOARD_BY_ID = (boardId: string) => `/boards/${boardId}`
 export const GET_BOARD_BY_KEY = (boardKey: string) => `/boards/key/${boardKey}`
 export const UPDATE_BOARD = (boardId: string) => `/boards/${boardId}`

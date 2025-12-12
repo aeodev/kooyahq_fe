@@ -110,7 +110,9 @@ function formatDate(): string {
 
 export function Home() {
   const user = useAuthStore((state) => state.user)
+  const logout = useAuthStore((state) => state.logout)
   const can = useAuthStore((state) => state.can)
+  const hasAnyPermission = Array.isArray(user?.permissions) && user.permissions.length > 0
   const activeTimerFromStore = useTimeEntryStore((state) => state.activeTimer)
   const fetchActiveTimer = useTimeEntryStore((state) => state.fetchActiveTimer)
   const timerLoading = useTimeEntryStore((state) => state.loading.activeTimer)
@@ -232,6 +234,20 @@ export function Home() {
   const availableGames = canReadGames ? (gameTypes.length > 0 ? gameTypes : cachedData.gameTypes) : []
 
   const timerDuration = useTimerDuration(activeTimer)
+
+  if (!hasAnyPermission) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="space-y-4 text-center">
+          <p className="text-lg font-semibold">Your account has no permissions assigned.</p>
+          <p className="text-sm text-muted-foreground">Please contact an admin to grant access.</p>
+          <div className="flex justify-center">
+            <Button onClick={logout} variant="outline">Log out</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (user && !hasInitialized.current) {

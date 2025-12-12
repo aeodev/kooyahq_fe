@@ -11,7 +11,7 @@ export type Sprint = {
 
 export type Board = {
   id: string
-  workspaceId: string
+  workspaceId?: string
   name: string
   description?: string
   prefix: string
@@ -46,6 +46,12 @@ export type Board = {
   createdAt: string
   updatedAt: string
   isFavorite?: boolean
+}
+
+export type BoardMemberInput = {
+  userId: string
+  role?: 'admin' | 'member' | 'viewer'
+  joinedAt?: string
 }
 
 export type CardAttachment = {
@@ -145,6 +151,7 @@ export type CardActivity = {
 export type CreateBoardInput = {
   name: string
   type: 'kanban' | 'sprint'
+  members?: BoardMemberInput[]
 }
 
 export type UpdateBoardInput = {
@@ -169,7 +176,7 @@ export type UpdateBoardInput = {
     members?: Array<{
       userId: string
       role: 'admin' | 'member' | 'viewer'
-      joinedAt: Date
+      joinedAt?: string | Date
     }>
   }
 }
@@ -258,4 +265,3 @@ export type UpdateTicketInput = {
     }
   }
 }
-

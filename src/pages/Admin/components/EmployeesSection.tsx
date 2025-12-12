@@ -21,6 +21,7 @@ export function EmployeesSection() {
   const { data: employees, pagination, loading, error, fetchEmployees } = useEmployees()
   const { updateEmployee, loading: updating } = useUpdateEmployee()
   const { deleteEmployee } = useDeleteEmployee()
+  const { createClient, loading: creatingClient } = useCreateClient()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editData, setEditData] = useState<{ name: string; email: string; position: string; birthday: string }>({
@@ -331,7 +332,7 @@ export function EmployeesSection() {
       setShowCreateClient(false)
       setClientForm({ name: '', email: '', password: '', clientCompanyId: '' })
       setClientFormErrors({})
-      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined, role: roleFilter !== 'all' ? roleFilter : undefined })
+      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
     } else {
       toast.error('Failed to create client')
     }
