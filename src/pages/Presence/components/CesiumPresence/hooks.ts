@@ -4,8 +4,8 @@ import { usePresenceStore } from '@/stores/presence.store'
 import { useAuthStore } from '@/stores/auth.store'
 import type { PresenceUser } from '@/types/presence'
 import { getFallbackAvatar, createSimpleAvatar, preloadImage } from './utils'
-
-const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN
+import axiosInstance from '@/utils/axios.instance'
+import { GET_CESIUM_TOKEN } from '@/utils/api.routes'
 
 const viewerRef = { current: null as Cesium.Viewer | null }
 
@@ -13,7 +13,46 @@ export function setCesiumViewer(viewer: Cesium.Viewer) {
   viewerRef.current = viewer
 }
 
-export function useCesiumViewer(onReady?: (viewer: Cesium.Viewer) => void) {
+export function useCesiumIonToken() {
+  const [ionToken, setIonToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const fetchToken = async () => {
+      try {
+        const response = await axiosInstance.get<{ status: string; data: { token: string } }>(GET_CESIUM_TOKEN())
+        if (cancelled) return
+
+        const token = response.data.data.token ?? ''
+        setIonToken(token || null)
+        Cesium.Ion.defaultAccessToken = token
+      } catch (_error) {
+        if (cancelled) return
+        setError('Failed to load Cesium token')
+        setIonToken(null)
+        Cesium.Ion.defaultAccessToken = ''
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void fetchToken()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return { ionToken, loading, error }
+}
+
+export function useCesiumViewer(options?: { ionToken?: string | null; onReady?: (viewer: Cesium.Viewer) => void }) {
+  const { ionToken, onReady } = options ?? {}
   const [cameraHeight, setCameraHeight] = useState<number>(20000000)
   const users = usePresenceStore((state) => state.users)
   const initializedRef = useRef(false)
@@ -31,14 +70,11 @@ export function useCesiumViewer(onReady?: (viewer: Cesium.Viewer) => void) {
     v.scene.screenSpaceCameraController.minimumZoomDistance = 10.0
     v.scene.screenSpaceCameraController.maximumZoomDistance = 20000000.0
 
-    if (!ionToken && v.imageryLayers.length > 0) {
-      const firstLayer = v.imageryLayers.get(0)
-      if (firstLayer?.imageryProvider instanceof Cesium.SingleTileImageryProvider) {
-        v.imageryLayers.removeAll()
-        v.imageryLayers.addImageryProvider(
-          new Cesium.OpenStreetMapImageryProvider({ url: 'https://a.tile.openstreetmap.org/' })
-        )
-      }
+    if (!ionToken) {
+      v.imageryLayers.removeAll()
+      v.imageryLayers.addImageryProvider(
+        new Cesium.OpenStreetMapImageryProvider({ url: 'https://a.tile.openstreetmap.org/' })
+      )
     }
 
     const updateCameraHeight = () => {
@@ -66,7 +102,7 @@ export function useCesiumViewer(onReady?: (viewer: Cesium.Viewer) => void) {
     }, 1000)
 
     onReady?.(v)
-  }, [users, onReady])
+  }, [ionToken, users, onReady])
 
   useEffect(() => {
     return () => {
@@ -183,4 +219,3 @@ export function useClustering(allUsers: PresenceUser[], validatedAvatars: Map<st
     return { clusters, individualPins }
   }, [allUsers, validatedAvatars, currentUserId, cameraHeight])
 }
-

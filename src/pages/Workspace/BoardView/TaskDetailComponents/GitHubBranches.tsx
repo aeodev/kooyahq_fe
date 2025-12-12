@@ -13,12 +13,10 @@ import {
 import { cn } from '@/utils/cn'
 
 function PRUrlInput({
-  branchName,
   initialValue,
   onSave,
   onCancel,
 }: {
-  branchName: string
   initialValue: string
   onSave: (url: string) => void
   onCancel: () => void
@@ -201,7 +199,6 @@ export function GitHubBranches({
                     {editingPRUrl === branch.name ? (
                       onUpdatePullRequestUrl && (
                         <PRUrlInput
-                          branchName={branch.name}
                           initialValue={branch.pullRequestUrl || ''}
                           onSave={(url) => {
                             onUpdatePullRequestUrl(branch.name, url)
@@ -269,4 +266,3 @@ export function GitHubBranches({
     </div>
   )
 }
-

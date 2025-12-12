@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import type { GalleryItem, UpdateGalleryItemInput } from '@/types/gallery'
 import { cn } from '@/utils/cn'
 import { Upload, X, Image as ImageIcon, Loader2, ChevronLeft, ChevronRight, Edit2, Trash2, Download } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 type UploadFile = {
   file: File
@@ -18,8 +19,21 @@ type UploadFile = {
 }
 
 export function Gallery() {
-  const user = useAuthStore((state) => state.user)
-  const isAdmin = user?.isAdmin ?? false
+  const can = useAuthStore((state) => state.can)
+  const canViewGallery = useMemo(
+    () => can(PERMISSIONS.GALLERY_READ) || can(PERMISSIONS.GALLERY_FULL_ACCESS),
+    [can],
+  )
+  const canManageGallery = useMemo(
+    () =>
+      canViewGallery &&
+      (can(PERMISSIONS.GALLERY_FULL_ACCESS) ||
+        can(PERMISSIONS.GALLERY_CREATE) ||
+        can(PERMISSIONS.GALLERY_UPDATE) ||
+        can(PERMISSIONS.GALLERY_DELETE) ||
+        can(PERMISSIONS.GALLERY_BULK_CREATE)),
+    [can, canViewGallery],
+  )
   const [items, setItems] = useState<GalleryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,8 +47,9 @@ export function Gallery() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    if (!canViewGallery) return
     fetchItems()
-  }, [])
+  }, [canViewGallery])
 
   const fetchItems = async () => {
     setLoading(true)
@@ -235,6 +250,10 @@ export function Gallery() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedImageIndex])
 
+  if (!canViewGallery) {
+    return null
+  }
+
   if (loading && items.length === 0) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -251,10 +270,10 @@ export function Gallery() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gallery</h1>
           <p className="text-muted-foreground mt-1">
-            {isAdmin ? 'Manage gallery images' : 'Browse gallery images'}
+            {canManageGallery ? 'Manage gallery images' : 'Browse gallery images'}
           </p>
         </div>
-        {isAdmin && (
+        {canManageGallery && (
           <Button onClick={() => setShowUploadSection(!showUploadSection)}>
             <Upload className="h-4 w-4 mr-2" />
             {showUploadSection ? 'Hide Upload' : 'Upload Image'}
@@ -269,7 +288,7 @@ export function Gallery() {
       )}
 
       {/* Upload Section - Hidden by default, shown when button clicked */}
-      {isAdmin && showUploadSection && (
+      {canManageGallery && showUploadSection && (
         <Card>
           {uploadFiles.length === 0 ? (
             <CardContent
@@ -418,7 +437,7 @@ export function Gallery() {
           <CardContent className="p-12 text-center">
             <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              {isAdmin ? 'No gallery items yet. Upload images to get started.' : 'No gallery items yet.'}
+              {canManageGallery ? 'No gallery items yet. Upload images to get started.' : 'No gallery items yet.'}
             </p>
           </CardContent>
         </Card>
@@ -435,8 +454,8 @@ export function Gallery() {
                   target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="20" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImage not found%3C/text%3E%3C/svg%3E'
                 }}
               />
-              {/* Edit/Delete buttons - top right corner, visible on hover (admin only) */}
-              {isAdmin && (
+              {/* Edit/Delete buttons - top right corner, visible on hover (managers only) */}
+              {canManageGallery && (
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="secondary"
@@ -522,8 +541,8 @@ export function Gallery() {
             )}
 
             <div className="flex flex-col items-center max-h-full px-4" onClick={(e) => e.stopPropagation()}>
-              {/* Edit form for admin */}
-              {isAdmin && editingId === selectedImage.id ? (
+              {/* Edit form for managers */}
+              {canManageGallery && editingId === selectedImage.id ? (
                 <Card className="w-full max-w-md mb-4 bg-background/95 backdrop-blur-md">
                   <CardHeader>
                     <CardTitle>Edit Image Details</CardTitle>
@@ -575,7 +594,7 @@ export function Gallery() {
               />
               <div className="mt-4 text-center text-white max-w-2xl">
                 <div className="flex items-center justify-center gap-4 mb-2">
-                  {isAdmin && editingId !== selectedImage.id && (
+                  {canManageGallery && editingId !== selectedImage.id && (
                     <>
                       <Button
                         variant="secondary"

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronRight, FileText, FileSpreadsheet, Presentation, Figma, Link2, ExternalLink, Plus, ChevronDown } from 'lucide-react'
+import { ChevronRight, FileText, FileSpreadsheet, Presentation, Figma, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,11 +13,18 @@ import axiosInstance from '@/utils/axios.instance'
 import { UPDATE_TICKET } from '@/utils/api.routes'
 import type { TicketDetailResponse } from './types'
 import { toast } from 'sonner'
+import type { Ticket } from '@/types/board'
+
+type DocumentItem = Ticket['documents'][number] & {
+  name?: string
+  type?: 'doc' | 'sheet' | 'slide' | 'figma' | 'other'
+}
 
 type DocumentsSectionProps = {
   ticketDetails: TicketDetailResponse | null
   documentsExpanded: boolean
   onToggleDocuments: () => void
+  canUpdate: boolean
 }
 
 const getDocumentIcon = (type: 'doc' | 'sheet' | 'slide' | 'figma' | 'other') => {
@@ -37,27 +44,11 @@ const getDocumentIcon = (type: 'doc' | 'sheet' | 'slide' | 'figma' | 'other') =>
   }
 }
 
-const getDocumentTypeLabel = (type: 'doc' | 'sheet' | 'slide' | 'figma' | 'other') => {
-  switch (type) {
-    case 'doc':
-      return 'Document'
-    case 'sheet':
-      return 'Spreadsheet'
-    case 'slide':
-      return 'Presentation'
-    case 'figma':
-      return 'Figma'
-    case 'other':
-      return 'Link'
-    default:
-      return 'Document'
-  }
-}
-
 export function DocumentsSection({
   ticketDetails,
   documentsExpanded,
   onToggleDocuments,
+  canUpdate,
 }: DocumentsSectionProps) {
   const [newDocumentName, setNewDocumentName] = useState('')
   const [newDocumentUrl, setNewDocumentUrl] = useState('')
@@ -65,22 +56,25 @@ export function DocumentsSection({
   const [isAdding, setIsAdding] = useState(false)
   const [loading, setLoading] = useState(false)
   const [removingIndex, setRemovingIndex] = useState<number | null>(null)
-  const [localDocuments, setLocalDocuments] = useState(ticketDetails?.ticket.documents || [])
+  const [localDocuments, setLocalDocuments] = useState<DocumentItem[]>(
+    (ticketDetails?.ticket.documents as DocumentItem[] | undefined) || []
+  )
 
   // Sync local documents when ticketDetails changes
   useEffect(() => {
     if (ticketDetails?.ticket.documents) {
-      setLocalDocuments(ticketDetails.ticket.documents)
+      setLocalDocuments(ticketDetails.ticket.documents as DocumentItem[])
     }
   }, [ticketDetails?.ticket.documents])
 
   const documents = localDocuments
 
   const handleAddDocument = async () => {
-    if (!newDocumentName.trim() || !newDocumentUrl.trim() || !ticketDetails?.ticket.id || loading) return
+    if (!newDocumentName.trim() || !newDocumentUrl.trim() || !ticketDetails?.ticket.id || loading || !canUpdate) return
 
-    const newDocument = {
+    const newDocument: DocumentItem = {
       name: newDocumentName.trim(),
+      label: newDocumentName.trim(),
       url: newDocumentUrl.trim(),
       type: newDocumentType,
     }
@@ -124,7 +118,7 @@ export function DocumentsSection({
   }
 
   const handleRemoveDocument = async (index: number) => {
-    if (!ticketDetails?.ticket.id || removingIndex !== null) return
+    if (!ticketDetails?.ticket.id || removingIndex !== null || !canUpdate) return
 
     // Optimistically update UI
     const oldDocuments = [...documents]
@@ -171,7 +165,7 @@ export function DocumentsSection({
               {documents.map((doc, index) => (
                 <div key={index} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg group">
                   <div className="flex-shrink-0">
-                    {getDocumentIcon(doc.type)}
+                    {getDocumentIcon((doc.type as any) || 'other')}
                   </div>
                   <a
                     href={doc.url}
@@ -180,22 +174,24 @@ export function DocumentsSection({
                     className="text-sm font-medium text-foreground hover:text-primary flex-1 truncate"
                     title={doc.url}
                   >
-                    {doc.name}
+                    {doc.name || doc.label || doc.url}
                   </a>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveDocument(index)}
-                    disabled={removingIndex === index}
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    {removingIndex === index ? '...' : '×'}
-                  </Button>
+                  {canUpdate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveDocument(index)}
+                      disabled={removingIndex === index}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {removingIndex === index ? '...' : '×'}
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           )}
-          {isAdding ? (
+          {canUpdate && isAdding ? (
             <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">
               <Input
                 value={newDocumentName}
@@ -289,4 +285,3 @@ export function DocumentsSection({
     </div>
   )
 }
-

@@ -8,15 +8,30 @@ type QuickActionsProps = {
   onAdd: () => void
   onEndDay: () => void
   showEndDay?: boolean
+  disabled?: boolean
+  disableAdd?: boolean
+  disableEndDay?: boolean
 }
 
-export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAdd, onEndDay, showEndDay = true }: QuickActionsProps) {
+export function QuickActions({
+  isTimerRunning,
+  isPaused,
+  onPause,
+  onResume,
+  onAdd,
+  onEndDay,
+  showEndDay = true,
+  disabled = false,
+  disableAdd = false,
+  disableEndDay = false,
+}: QuickActionsProps) {
   return (
     <div className="flex gap-3">
       {isTimerRunning && !isPaused && (
         <Button
           variant="outline"
           onClick={onPause}
+          disabled={disabled}
           className="flex-1 h-11 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
         >
           Pause (Lunch)
@@ -26,6 +41,7 @@ export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAd
         <Button
           variant="outline"
           onClick={onResume}
+          disabled={disabled}
           className="flex-1 h-11 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
         >
           Resume
@@ -34,6 +50,7 @@ export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAd
       <Button
         variant="outline"
         onClick={onAdd}
+        disabled={disabled || disableAdd}
         className="flex-1 h-11 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
       >
         Add
@@ -42,6 +59,7 @@ export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAd
         <Button
           variant="outline"
           onClick={onEndDay}
+          disabled={disabled || disableEndDay}
           className="flex-1 h-11 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
         >
           End Day
@@ -50,4 +68,3 @@ export function QuickActions({ isTimerRunning, isPaused, onPause, onResume, onAd
     </div>
   )
 }
-

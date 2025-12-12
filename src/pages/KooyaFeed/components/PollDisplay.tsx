@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useAuthStore } from '@/stores/auth.store'
 import { toast } from 'sonner'
 import type { Post } from '@/types/post'
+import { PERMISSIONS } from '@/constants/permissions'
 
 interface PollDisplayProps {
     post: Post
@@ -13,7 +14,9 @@ interface PollDisplayProps {
 
 export function PollDisplay({ post, onVote }: PollDisplayProps) {
     const user = useAuthStore((state) => state.user)
+    const can = useAuthStore((state) => state.can)
     const [_, startTransition] = useTransition()
+    const canVote = can(PERMISSIONS.POST_POLL_VOTE) || can(PERMISSIONS.POST_FULL_ACCESS)
 
     if (!post.poll) return null
 
@@ -42,7 +45,7 @@ export function PollDisplay({ post, onVote }: PollDisplayProps) {
     }, [optimisticPoll])
 
     const handleVote = (index: number) => {
-        if (!user) return
+        if (!user || !canVote) return
 
         startTransition(async () => {
             updateOptimisticPoll(index)
@@ -71,7 +74,7 @@ export function PollDisplay({ post, onVote }: PollDisplayProps) {
                             key={index}
                             onClick={() => handleVote(index)}
                             className="relative w-full text-left group"
-                            disabled={!user}
+                            disabled={!user || !canVote}
                         >
                             {/* Progress Bar Background */}
                             <div className="absolute inset-0 rounded-lg bg-secondary/50 overflow-hidden">

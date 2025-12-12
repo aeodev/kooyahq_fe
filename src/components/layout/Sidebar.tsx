@@ -6,24 +6,68 @@ import { cn } from '@/utils/cn'
 import { useTheme } from '@/composables/useTheme'
 import { useUnreadCount } from '@/hooks/notification.hooks'
 import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS, type Permission } from '@/constants/permissions'
 
 type NavItem = {
   name: string
   to: string
   icon: LucideIcon
   adminOnly?: boolean
+  requiredPermissions?: Permission[]
+  requireAllPermissions?: boolean
 }
 
 const NAVIGATION: NavItem[] = [
   { name: 'Dashboard', to: '/', icon: Home },
-  { name: 'Workspace', to: '/workspace', icon: LayoutGrid },
-  { name: 'Presence', to: '/presence', icon: Globe },
-  { name: 'Time Tracker', to: '/time-tracker', icon: Clock4 },
-  { name: 'Gallery', to: '/gallery', icon: Images, adminOnly: true },
-  { name: 'AI News', to: '/ai-news', icon: Sparkles },
-  { name: 'Feed', to: '/feed', icon: MessageSquare },
-  { name: 'Games', to: '/games', icon: Gamepad2 },
-  { name: 'Meet', to: '/meet', icon: Video },
+  {
+    name: 'Workspace',
+    to: '/workspace',
+    icon: LayoutGrid,
+    requiredPermissions: [PERMISSIONS.WORKSPACE_READ, PERMISSIONS.BOARD_READ],
+    requireAllPermissions: true,
+  },
+  {
+    name: 'Presence',
+    to: '/presence',
+    icon: Globe,
+    requiredPermissions: [PERMISSIONS.PRESENCE_READ],
+  },
+  {
+    name: 'Time Tracker',
+    to: '/time-tracker',
+    icon: Clock4,
+    requiredPermissions: [PERMISSIONS.TIME_ENTRY_READ],
+  },
+  {
+    name: 'Gallery',
+    to: '/gallery',
+    icon: Images,
+    requiredPermissions: [PERMISSIONS.GALLERY_READ],
+  },
+  {
+    name: 'AI News',
+    to: '/ai-news',
+    icon: Sparkles,
+    requiredPermissions: [PERMISSIONS.AI_NEWS_READ],
+  },
+  {
+    name: 'Feed',
+    to: '/feed',
+    icon: MessageSquare,
+    requiredPermissions: [PERMISSIONS.POST_READ],
+  },
+  {
+    name: 'Games',
+    to: '/games',
+    icon: Gamepad2,
+    requiredPermissions: [PERMISSIONS.GAME_READ],
+  },
+  {
+    name: 'Meet',
+    to: '/meet',
+    icon: Video,
+    requiredPermissions: [PERMISSIONS.MEET_TOKEN],
+  },
   { name: 'Admin', to: '/admin', icon: Users, adminOnly: true },
 ]
 
@@ -52,6 +96,7 @@ export function Sidebar() {
   
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+  const can = useAuthStore((s) => s.can)
   
   const collapsed = useSidebarStore((s) => s.collapsed)
   const mobileOpen = useSidebarStore((s) => s.mobileOpen)
@@ -68,7 +113,17 @@ export function Sidebar() {
     .join('') ?? ''
   const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
   
-  const navigation = NAVIGATION.filter((item) => !item.adminOnly || user?.isAdmin)
+  const navigation = NAVIGATION.filter((item) => {
+    if (item.adminOnly) {
+      return can(PERMISSIONS.ADMIN_READ) || can(PERMISSIONS.ADMIN_FULL_ACCESS)
+    }
+    if (item.requiredPermissions?.length) {
+      return item.requireAllPermissions
+        ? item.requiredPermissions.every((permission) => can(permission))
+        : item.requiredPermissions.some((permission) => can(permission))
+    }
+    return true
+  })
 
   useEffect(() => {
     setImageError(false)

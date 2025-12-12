@@ -22,6 +22,7 @@ type ActiveTimerCardProps = {
   selectedProjects: string[]
   activeProject: string
   onSwitchProject: (project: string) => void
+  controlsDisabled?: boolean
 }
 
 export function ActiveTimerCard({ 
@@ -33,6 +34,7 @@ export function ActiveTimerCard({
   selectedProjects,
   activeProject,
   onSwitchProject,
+  controlsDisabled = false,
 }: ActiveTimerCardProps) {
   const [quickTask, setQuickTask] = useState('')
   const hasMultipleProjects = selectedProjects.length > 1
@@ -42,6 +44,7 @@ export function ActiveTimerCard({
   const latestTask = tasks.length > 0 ? tasks[tasks.length - 1].text : ''
 
   const handleQuickAdd = () => {
+    if (controlsDisabled) return
     if (quickTask.trim() && onQuickAddTask) {
       onQuickAddTask(quickTask.trim())
       setQuickTask('')
@@ -63,6 +66,7 @@ export function ActiveTimerCard({
             variant="destructive" 
             onClick={onStop} 
             size="lg"
+            disabled={controlsDisabled}
             className="h-11 px-6 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200"
           >
             Stop
@@ -85,7 +89,7 @@ export function ActiveTimerCard({
               {hasMultipleProjects && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-7 text-xs">
+                    <Button variant="outline" size="sm" className="h-7 text-xs" disabled={controlsDisabled}>
                       Switch <ChevronDown className="h-3 w-3 ml-1" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -126,11 +130,12 @@ export function ActiveTimerCard({
                     handleQuickAdd()
                   }
                 }}
+                disabled={controlsDisabled}
                 className="flex-1"
               />
               <Button
                 onClick={handleQuickAdd}
-                disabled={!quickTask.trim()}
+                disabled={!quickTask.trim() || controlsDisabled}
                 size="default"
               >
                 <Plus className="h-4 w-4 mr-1" />

@@ -22,6 +22,8 @@ import type { User } from '@/types/user'
 import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 // Types for Board Display
 type BoardType = 'kanban' | 'sprint'
@@ -101,6 +103,11 @@ export function Workspace() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedBoard, setSelectedBoard] = useState<BoardDisplay | null>(null)
+  const can = useAuthStore((state) => state.can)
+  const canCreateBoard = can(PERMISSIONS.BOARD_CREATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const canUpdateBoard = can(PERMISSIONS.BOARD_UPDATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const canDeleteBoard = can(PERMISSIONS.BOARD_DELETE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const canFavoriteBoard = can(PERMISSIONS.BOARD_FAVORITE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
 
   // Fetch workspaces and select first one
   const { data: workspaces, loading: workspacesLoading } = useWorkspaces()
@@ -250,6 +257,7 @@ export function Workspace() {
 
   // Toggle star - sync with backend
   const toggleStar = async (id: string) => {
+    if (!canFavoriteBoard) return
     const board = boards.find(b => b.id === id)
     if (!board) return
 
@@ -268,13 +276,14 @@ export function Workspace() {
   }
 
   // Handle create board
-  const handleCreateBoard = (data: { name: string; key: string; type: BoardType; icon: string }) => {
+  const handleCreateBoard = () => {
     // Socket will handle the update via handleBoardCreated
     setCreateModalOpen(false)
   }
 
   // Handle edit board
   const handleEditBoard = (board: BoardDisplay) => {
+    if (!canUpdateBoard) return
     setSelectedBoard(board)
     setEditModalOpen(true)
   }
@@ -290,6 +299,7 @@ export function Workspace() {
 
   // Handle delete board
   const handleDeleteBoard = (board: BoardDisplay) => {
+    if (!canDeleteBoard) return
     setSelectedBoard(board)
     setDeleteModalOpen(true)
   }
@@ -388,9 +398,6 @@ export function Workspace() {
       <section className="space-y-4 sm:space-y-6">
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <p className="text-muted-foreground">No workspace found</p>
-          <p className="text-sm text-muted-foreground/70">
-            Run the seed script to create a default workspace: <code className="bg-muted px-2 py-1 rounded">npm run seed:workspace</code>
-          </p>
         </div>
       </section>
     )
@@ -409,9 +416,9 @@ export function Workspace() {
           </p>
         </div>
         <Button 
-          onClick={() => setCreateModalOpen(true)} 
+          onClick={() => canCreateBoard && setCreateModalOpen(true)} 
           className="w-full sm:w-auto"
-          disabled={!selectedWorkspace}
+          disabled={!selectedWorkspace || !canCreateBoard}
         >
           <Plus className="h-4 w-4 mr-2" />
           Create board
@@ -470,6 +477,7 @@ export function Workspace() {
                       }}
                       className="p-1 hover:bg-accent rounded transition-colors"
                       aria-label={board.starred ? 'Unstar board' : 'Star board'}
+                      disabled={!canFavoriteBoard}
                     >
                       <Star
                         className={cn(
@@ -516,33 +524,39 @@ export function Workspace() {
                     </div>
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          className="p-1.5 hover:bg-accent rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                          aria-label="More options"
-                        >
-                          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleEditBoard(board)}
-                          className="cursor-pointer"
-                        >
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit board
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteBoard(board)}
-                          className="cursor-pointer text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete board
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {(canUpdateBoard || canDeleteBoard) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="p-1.5 hover:bg-accent rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                            aria-label="More options"
+                          >
+                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canUpdateBoard && (
+                            <DropdownMenuItem
+                              onClick={() => handleEditBoard(board)}
+                              className="cursor-pointer"
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit board
+                            </DropdownMenuItem>
+                          )}
+                          {canUpdateBoard && canDeleteBoard && <DropdownMenuSeparator />}
+                          {canDeleteBoard && (
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteBoard(board)}
+                              className="cursor-pointer text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete board
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -589,6 +603,7 @@ export function Workspace() {
                   onClick={() => toggleStar(board.id)}
                   className="p-2 hover:bg-accent rounded-lg transition-colors"
                   aria-label={board.starred ? 'Unstar board' : 'Star board'}
+                  disabled={!canFavoriteBoard}
                 >
                   <Star
                     className={cn(
@@ -599,33 +614,39 @@ export function Workspace() {
                     )}
                   />
                 </button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="p-2 hover:bg-accent rounded-lg transition-colors"
-                      aria-label="More options"
-                    >
-                      <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => handleEditBoard(board)}
-                      className="cursor-pointer"
-                    >
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit board
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => handleDeleteBoard(board)}
-                      className="cursor-pointer text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete board
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {(canUpdateBoard || canDeleteBoard) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="p-2 hover:bg-accent rounded-lg transition-colors"
+                        aria-label="More options"
+                      >
+                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {canUpdateBoard && (
+                        <DropdownMenuItem
+                          onClick={() => handleEditBoard(board)}
+                          className="cursor-pointer"
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit board
+                        </DropdownMenuItem>
+                      )}
+                      {canUpdateBoard && canDeleteBoard && <DropdownMenuSeparator />}
+                      {canDeleteBoard && (
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteBoard(board)}
+                          className="cursor-pointer text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete board
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
@@ -711,7 +732,7 @@ export function Workspace() {
 
       {/* Create Board Modal */}
       <CreateBoardModal
-        open={createModalOpen}
+        open={createModalOpen && canCreateBoard}
         onClose={() => setCreateModalOpen(false)}
         onCreate={handleCreateBoard}
         workspaceId={selectedWorkspace.id}
@@ -719,27 +740,31 @@ export function Workspace() {
       />
 
       {/* Edit Board Modal */}
-      <EditBoardModal
-        open={editModalOpen}
-        onClose={() => {
-          setEditModalOpen(false)
-          setSelectedBoard(null)
-        }}
-        board={selectedBoard}
-        onSave={handleSaveEdit}
-      />
+      {canUpdateBoard && (
+        <EditBoardModal
+          open={editModalOpen}
+          onClose={() => {
+            setEditModalOpen(false)
+            setSelectedBoard(null)
+          }}
+          board={selectedBoard}
+          onSave={handleSaveEdit}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        open={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false)
-          setSelectedBoard(null)
-        }}
-        boardName={selectedBoard?.name || ''}
-        boardId={selectedBoard?.id || ''}
-        onConfirm={handleConfirmDelete}
-      />
+      {canDeleteBoard && (
+        <DeleteConfirmationModal
+          open={deleteModalOpen}
+          onClose={() => {
+            setDeleteModalOpen(false)
+            setSelectedBoard(null)
+          }}
+          boardName={selectedBoard?.name || ''}
+          boardId={selectedBoard?.id || ''}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </section>
   )
 }

@@ -161,7 +161,8 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
         navigate(`/workspace/${boardPrefix.toLowerCase()}`)
       } else {
         // Extract error message from hook error
-        const errorMessage = createError?.message || 'Failed to create board'
+        const rawError = createError?.message
+        const errorMessage = Array.isArray(rawError) ? rawError.join(', ') : rawError || 'Failed to create board'
         // Check if it's a key/prefix error
         if (errorMessage.toLowerCase().includes('key') || errorMessage.toLowerCase().includes('prefix') || errorMessage.toLowerCase().includes('deleted')) {
           setErrors({ key: errorMessage })
@@ -172,11 +173,12 @@ export function CreateBoardModal({ open, onClose, onCreate, workspaceId, existin
     } catch (err: any) {
       // Extract human-readable error message
       const errorData = err?.response?.data
-      const errorMessage = 
-        errorData?.error?.message || 
-        errorData?.message || 
-        err?.message || 
+      const rawErrorMessage =
+        errorData?.error?.message ||
+        errorData?.message ||
+        err?.message ||
         'Failed to create board'
+      const errorMessage = Array.isArray(rawErrorMessage) ? rawErrorMessage.join(', ') : rawErrorMessage
       
       // Check if it's a key/prefix error
       const lowerMessage = errorMessage.toLowerCase()

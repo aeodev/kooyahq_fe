@@ -3,24 +3,23 @@ import { Viewer, useCesium } from 'resium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import { usePresenceStore } from '@/stores/presence.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { useCesiumViewer, useUserAvatars, useClustering, setCesiumViewer } from './CesiumPresence/hooks'
+import { useCesiumIonToken, useCesiumViewer, useUserAvatars, useClustering, setCesiumViewer } from './CesiumPresence/hooks'
 import { UserPin } from './CesiumPresence/UserPin'
 import { ClusterPin } from './CesiumPresence/ClusterPin'
 import { useEffect } from 'react'
 
-const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN
-Cesium.Ion.defaultAccessToken = ionToken || ''
-
 type ViewerCaptureProps = {
   onViewerReady: () => void
+  onViewerInitialized?: (viewer: Cesium.Viewer) => void
 }
 
-function ViewerCapture({ onViewerReady }: ViewerCaptureProps) {
+function ViewerCapture({ onViewerReady, onViewerInitialized }: ViewerCaptureProps) {
   const { viewer } = useCesium()
   
   useEffect(() => {
     if (viewer) {
       setCesiumViewer(viewer)
+      onViewerInitialized?.(viewer)
       
       let renderCount = 0
       let readyCalled = false
@@ -58,7 +57,7 @@ function ViewerCapture({ onViewerReady }: ViewerCaptureProps) {
         clearTimeout(fallbackTimeout)
       }
     }
-  }, [viewer, onViewerReady])
+  }, [viewer, onViewerInitialized, onViewerReady])
   
   return null
 }
@@ -66,52 +65,56 @@ function ViewerCapture({ onViewerReady }: ViewerCaptureProps) {
 const CesiumPresence = ({ onViewerReady }: { onViewerReady: () => void }) => {
   const users = usePresenceStore((state) => state.users)
   const currentUser = useAuthStore((state) => state.user)
-  const { cameraHeight } = useCesiumViewer()
+  const { ionToken, loading: loadingIonToken } = useCesiumIonToken()
+  const { cameraHeight, onViewerReady: onViewerInitialized } = useCesiumViewer({ ionToken })
   const { validatedAvatars, allUsers } = useUserAvatars(users)
   const { clusters, individualPins } = useClustering(allUsers, validatedAvatars, cameraHeight, currentUser?.id)
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <Viewer
-        full
-        timeline={false}
-        animation={false}
-        baseLayerPicker={false}
-        geocoder={false}
-        homeButton={false}
-        sceneModePicker={false}
-        navigationHelpButton={false}
-        infoBox={false}
-        selectionIndicator={false}
-        fullscreenButton={false}
-      >
-        <ViewerCapture onViewerReady={onViewerReady} />
-        {clusters.map((cluster, idx) => {
-          const hasActiveUsers = cluster.users.some(u => u.isActive)
-          return (
-            <ClusterPin
-              key={`cluster-${idx}`}
-              idx={idx}
-              lon={cluster.lon}
-              lat={cluster.lat}
-              count={cluster.count}
-              hasActiveUsers={hasActiveUsers}
+      {!loadingIonToken && (
+        <Viewer
+          full
+          timeline={false}
+          animation={false}
+          baseLayerPicker={false}
+          geocoder={false}
+          homeButton={false}
+          sceneModePicker={false}
+          navigationHelpButton={false}
+          infoBox={false}
+          selectionIndicator={false}
+          fullscreenButton={false}
+        >
+          <ViewerCapture onViewerReady={onViewerReady} onViewerInitialized={onViewerInitialized} />
+          {clusters.map((cluster, idx) => {
+            const hasActiveUsers = cluster.users.some(u => u.isActive)
+            return (
+              <ClusterPin
+                key={`cluster-${idx}`}
+                idx={idx}
+                lon={cluster.lon}
+                lat={cluster.lat}
+                count={cluster.count}
+                hasActiveUsers={hasActiveUsers}
+              />
+            )
+          })}
+          
+          {individualPins.map((p) => (
+            <UserPin
+              key={p.id}
+              id={p.id}
+              name={p.name}
+              lon={p.lon}
+              lat={p.lat}
+              avatar={p.avatar}
+              isCurrentUser={p.isCurrentUser}
+              isActive={p.isActive}
             />
-          )
-        })}
-        
-        {individualPins.map((p) => (
-          <UserPin
-            key={p.id}
-            id={p.id}
-            name={p.name}
-            lon={p.lon}
-            lat={p.lat}
-            avatar={p.avatar}
-            isCurrentUser={p.isCurrentUser}
-          />
-        ))}
-      </Viewer>
+          ))}
+        </Viewer>
+      )}
     </div>
   )
 }

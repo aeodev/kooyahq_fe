@@ -6,8 +6,15 @@ import { Label } from '@/components/ui/label'
 import { Edit2, Save, X, Trash2, Plus, Loader2 } from 'lucide-react'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, type Project } from '@/hooks/project.hooks'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 export function ProjectsSection() {
+  const can = useAuthStore((state) => state.can)
+  const canReadProjects = can(PERMISSIONS.PROJECT_READ) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
+  const canCreateProjects = can(PERMISSIONS.PROJECT_CREATE) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
+  const canUpdateProjects = can(PERMISSIONS.PROJECT_UPDATE) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
+  const canDeleteProjects = can(PERMISSIONS.PROJECT_DELETE) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
   const { data: projects, loading, error, fetchProjects } = useProjects()
   const { createProject, loading: creating } = useCreateProject()
   const { updateProject, loading: updating } = useUpdateProject()
@@ -22,10 +29,13 @@ export function ProjectsSection() {
 
   // Load projects on mount
   useEffect(() => {
-    fetchProjects()
-  }, [fetchProjects])
+    if (canReadProjects) {
+      fetchProjects()
+    }
+  }, [fetchProjects, canReadProjects])
 
   const handleAdd = async () => {
+    if (!canCreateProjects) return
     if (!newProjectName.trim()) return
 
     const trimmedName = newProjectName.trim()
@@ -42,6 +52,7 @@ export function ProjectsSection() {
   }
 
   const startEdit = (project: Project) => {
+    if (!canUpdateProjects) return
     setEditingId(project.id)
     setEditName(project.name)
   }
@@ -52,6 +63,7 @@ export function ProjectsSection() {
   }
 
   const handleSave = async (projectId: string) => {
+    if (!canUpdateProjects) return
     if (!editName.trim()) {
       cancelEdit()
       return
@@ -70,6 +82,7 @@ export function ProjectsSection() {
   }
 
   const handleDelete = async (projectId: string) => {
+    if (!canDeleteProjects) return
     if (!confirm('Are you sure you want to delete this project?')) {
       return
     }
@@ -95,6 +108,16 @@ export function ProjectsSection() {
     )
   }
 
+  if (!canReadProjects) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">You do not have permission to view projects.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (error) {
     return (
       <Card className="border-destructive">
@@ -114,7 +137,7 @@ export function ProjectsSection() {
           <h2 className="text-lg sm:text-xl font-semibold">Projects</h2>
           <p className="text-sm text-muted-foreground mt-1">Manage your project list</p>
         </div>
-        {!showAddForm && (
+        {!showAddForm && canCreateProjects && (
           <Button onClick={() => setShowAddForm(true)} size="sm" className="flex-shrink-0">
             <Plus className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Add Project</span>
@@ -123,7 +146,7 @@ export function ProjectsSection() {
         )}
       </div>
 
-      {showAddForm && (
+      {showAddForm && canCreateProjects && (
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-4">
@@ -146,7 +169,7 @@ export function ProjectsSection() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleAdd} disabled={!newProjectName.trim() || saving} size="sm">
+                <Button onClick={handleAdd} disabled={!newProjectName.trim() || saving || !canCreateProjects} size="sm">
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -208,7 +231,7 @@ export function ProjectsSection() {
                       />
                     </div>
                     <div className="flex gap-2">
-                      <Button onClick={() => handleSave(project.id)} disabled={!editName.trim() || saving} size="sm">
+                      <Button onClick={() => handleSave(project.id)} disabled={!editName.trim() || saving || !canUpdateProjects} size="sm">
                         {saving ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -231,7 +254,7 @@ export function ProjectsSection() {
                   <div className="flex items-center justify-between gap-4">
                     <h3 className="font-semibold text-base sm:text-lg flex-1">{project.name}</h3>
                     <div className="flex gap-2 flex-shrink-0">
-                      <Button onClick={() => startEdit(project)} variant="outline" size="sm">
+                      <Button onClick={() => startEdit(project)} variant="outline" size="sm" disabled={!canUpdateProjects}>
                         <Edit2 className="mr-2 h-4 w-4" />
                         <span className="hidden sm:inline">Edit</span>
                       </Button>
@@ -240,6 +263,7 @@ export function ProjectsSection() {
                         variant="outline"
                         size="sm"
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={!canDeleteProjects}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         <span className="hidden sm:inline">Delete</span>
@@ -255,4 +279,3 @@ export function ProjectsSection() {
     </div>
   )
 }
-

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, GripVertical, Plus, Trash2, LayoutGrid, List, Settings, Info, Columns, AlertTriangle, ListChecks } from 'lucide-react'
+import { X, GripVertical, Plus, Trash2, LayoutGrid, List, Settings, Columns, AlertTriangle, ListChecks } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -96,7 +96,6 @@ export function ConfigureBoardModal({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null)
-  const [customColorOpen, setCustomColorOpen] = useState<string | null>(null)
   const [customColorValue, setCustomColorValue] = useState<string>('#3b82f6')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [deleteColumnIndex, setDeleteColumnIndex] = useState<number | null>(null)
@@ -242,7 +241,6 @@ export function ConfigureBoardModal({
   const handleConfirmDeleteColumn = () => {
     if (deleteColumnIndex === null) return
     
-    const column = editedColumns[deleteColumnIndex]
     setEditedColumns(editedColumns.filter((_, i) => i !== deleteColumnIndex))
     setDeleteColumnIndex(null)
   }
@@ -678,7 +676,6 @@ export function ConfigureBoardModal({
                               className="fixed inset-0 z-10"
                               onClick={() => {
                                 setColorPickerOpen(null)
-                                setCustomColorOpen(null)
                               }}
                             />
                             <div className="absolute top-full left-0 mt-2 z-20 w-80 p-3 bg-popover border border-border rounded-lg shadow-xl max-h-96 overflow-y-auto">

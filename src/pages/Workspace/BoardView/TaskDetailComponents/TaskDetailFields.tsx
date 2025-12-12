@@ -1,4 +1,5 @@
-import { X, Calendar, GitBranch } from 'lucide-react'
+import { X, Calendar } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import { cn } from '@/utils/cn'
-import type { Task, Assignee, Priority } from '../types'
+import type { Task, Assignee, Priority, TaskType } from '../types'
 import { getPriorityIcon, getPriorityLabel, getTaskTypeIcon } from '../index'
 import type { TicketDetailResponse } from './types'
 
@@ -107,7 +108,7 @@ export function TaskDetailFields({
   const visibleFields = getVisibleFields()
 
   // Field components mapped by field name
-  const fieldComponents: Record<string, JSX.Element> = {
+  const fieldComponents: Record<string, ReactNode> = {
     priority: (
       <div key="priority">
         <label className="text-xs text-muted-foreground block mb-1">Priority</label>
@@ -306,7 +307,7 @@ export function TaskDetailFields({
                       className="cursor-pointer"
                     >
                       <div className="flex items-center gap-2 w-full">
-                        {getTaskTypeIcon(parentTicket.ticketType)}
+                        {getTaskTypeIcon(parentTicket.ticketType as TaskType)}
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm truncate">{parentTicket.ticketKey}</div>
                           <p className="text-xs text-muted-foreground truncate">{parentTicket.title}</p>
@@ -438,4 +439,3 @@ export function TaskDetailFields({
     </div>
   )
 }
-

@@ -142,18 +142,6 @@ export function TicketDetailPage() {
     setTask(updatedTask)
   }
 
-  const handleBoardUpdate = async (boardId: string, settings: any) => {
-    if (board && board.id === boardId) {
-      setBoard({
-        ...board,
-        settings: {
-          ...board.settings,
-          ...settings,
-        },
-      })
-    }
-  }
-
   const handleNavigateToTask = (taskKey: string) => {
     navigate(`/workspace/${boardKey}/${taskKey}`)
     // Reload the page to fetch new ticket
@@ -235,4 +223,3 @@ export function TicketDetailPage() {
     </div>
   )
 }
-

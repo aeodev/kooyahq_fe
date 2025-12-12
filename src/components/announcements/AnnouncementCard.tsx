@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Megaphone, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDeleteAnnouncement } from '@/hooks/announcement.hooks'
+import { PERMISSIONS } from '@/constants/permissions'
 import type { Announcement } from '@/types/announcement'
 
 interface AnnouncementCardProps {
@@ -26,7 +27,7 @@ function formatDate(dateString: string): string {
 }
 
 export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardProps) {
-  const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
   const { deleteAnnouncement, loading } = useDeleteAnnouncement()
 
   const handleDelete = async () => {
@@ -54,7 +55,7 @@ export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardPro
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {formatDate(announcement.createdAt)}
             </span>
-            {user?.isAdmin && (
+            {(can(PERMISSIONS.ANNOUNCEMENT_DELETE) || can(PERMISSIONS.ANNOUNCEMENT_FULL_ACCESS)) && (
               <Button
                 variant="ghost"
                 size="icon"

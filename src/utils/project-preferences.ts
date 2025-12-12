@@ -13,15 +13,3 @@ export function getLastUsedProjects(): string[] {
     return []
   }
 }
-
-export function saveLastUsedProjects(projects: string[]): void {
-  if (typeof window === 'undefined') return
-  
-  try {
-    const projectsArray = Array.isArray(projects) ? projects : []
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projectsArray))
-  } catch {
-    // Silently fail if localStorage is not available
-  }
-}
-

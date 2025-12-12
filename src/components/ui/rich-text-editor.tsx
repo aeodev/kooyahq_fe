@@ -20,6 +20,13 @@ export function RichTextEditor({ value, onChange, placeholder, className, autoFo
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<{ fileName: string; progress: number; type: 'image' | 'video' } | null>(null)
   
+  useEffect(() => {
+    if (autoFocus) {
+      const editor = quillRef.current?.getEditor()
+      editor?.focus()
+    }
+  }, [autoFocus])
+  
   // Notify parent when upload status changes
   useEffect(() => {
     onUploadingChange?.(uploading)
@@ -76,9 +83,8 @@ export function RichTextEditor({ value, onChange, placeholder, className, autoFo
 
   const handleMediaUpload = async (file: File, type: 'image' | 'video') => {
     const quill = quillRef.current?.getEditor()
-    const range = quill?.getSelection()
-    if (!range && !quill) return
-
+    if (!quill) return
+    const range = quill.getSelection()
     const insertIndex = range?.index ?? quill.getLength()
     
     // Create placeholder

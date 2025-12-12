@@ -3,9 +3,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Filter, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_ADMIN_ACTIVITY } from '@/utils/api.routes'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 type AdminActivity = {
   id: string
@@ -24,6 +26,8 @@ type User = {
 }
 
 export function ActivityLogSection() {
+  const can = useAuthStore((state) => state.can)
+  const canViewActivity = can(PERMISSIONS.ADMIN_ACTIVITY_READ) || can(PERMISSIONS.ADMIN_FULL_ACCESS)
   const [activities, setActivities] = useState<AdminActivity[]>([])
   const [users, setUsers] = useState<Record<string, User>>({})
   const [loading, setLoading] = useState(false)
@@ -33,10 +37,13 @@ export function ActivityLogSection() {
   const [endDate, setEndDate] = useState('')
 
   useEffect(() => {
-    fetchActivities()
-  }, [])
+    if (canViewActivity) {
+      fetchActivities()
+    }
+  }, [canViewActivity])
 
   const fetchActivities = async () => {
+    if (!canViewActivity) return
     setLoading(true)
     setError(null)
     try {
@@ -107,8 +114,20 @@ export function ActivityLogSection() {
   }
 
   useEffect(() => {
-    fetchActivities()
-  }, [actionFilter, startDate, endDate])
+    if (canViewActivity) {
+      fetchActivities()
+    }
+  }, [actionFilter, startDate, endDate, canViewActivity])
+
+  if (!canViewActivity) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">You do not have permission to view admin activity.</p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -240,9 +259,6 @@ export function ActivityLogSection() {
     </div>
   )
 }
-
-
-
 
 
 

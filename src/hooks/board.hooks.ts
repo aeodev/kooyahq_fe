@@ -18,14 +18,10 @@ import {
 } from '@/utils/api.routes'
 import type {
   Board,
-  Card,
   Ticket,
   Comment,
-  CardActivity,
   CreateBoardInput,
   UpdateBoardInput,
-  CreateCardInput,
-  UpdateCardInput,
   CreateTicketInput,
   UpdateTicketInput,
 } from '@/types/board'
@@ -556,43 +552,6 @@ export const useDeleteComment = () => {
   }
 }
 
-export const useCardActivities = () => {
-  const [data, setData] = useState<CardActivity[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<Errors | null>(null)
-
-  const fetchActivities = useCallback(async (cardId: string) => {
-    if (!cardId) {
-      setData([])
-      return []
-    }
-
-    setError(null)
-    setLoading(true)
-
-    try {
-      const response = await axiosInstance.get<{ status: string; data: CardActivity[] }>(
-        GET_CARD_ACTIVITIES(cardId),
-      )
-      setData(response.data.data)
-      return response.data.data
-    } catch (err) {
-      const normalized = normalizeError(err)
-      setError(normalized)
-      return []
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  return {
-    data,
-    loading,
-    error,
-    fetchActivities,
-  }
-}
-
 export const useToggleBoardFavorite = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
@@ -624,4 +583,3 @@ export const useToggleBoardFavorite = () => {
     toggleFavorite,
   }
 }
-
