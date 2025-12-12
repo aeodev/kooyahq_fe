@@ -97,6 +97,11 @@ export function Sidebar() {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const can = useAuthStore((s) => s.can)
+  const canViewNotifications =
+    can(PERMISSIONS.NOTIFICATION_READ) ||
+    can(PERMISSIONS.NOTIFICATION_FULL_ACCESS) ||
+    can(PERMISSIONS.NOTIFICATION_COUNT)
+  const hasAnyPermission = Array.isArray(user?.permissions) && user.permissions.length > 0
   
   const collapsed = useSidebarStore((s) => s.collapsed)
   const mobileOpen = useSidebarStore((s) => s.mobileOpen)
@@ -122,7 +127,8 @@ export function Sidebar() {
         ? item.requiredPermissions.every((permission) => can(permission))
         : item.requiredPermissions.some((permission) => can(permission))
     }
-    return true
+    // Items without explicit permissions should still be hidden if the user has zero permissions overall
+    return hasAnyPermission
   })
 
   useEffect(() => {
@@ -318,24 +324,26 @@ export function Sidebar() {
 
           <div className={cn('flex items-center gap-1 transition-all duration-300 ease-out', collapsed && 'flex-col w-full')}>
             {/* Notifications */}
-            <button
-              type="button"
-              className={cn(
-                'relative flex h-8 items-center justify-center rounded-lg',
-                'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
-                'transition-all duration-150 ease-out hover:scale-105 active:scale-95',
-                collapsed ? 'w-full' : 'w-8'
-              )}
-              onClick={handleNotificationClick}
-              aria-label="Notifications"
-            >
-              <Bell className="h-5 w-5 stroke-[1.5]" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
+            {canViewNotifications && (
+              <button
+                type="button"
+                className={cn(
+                  'relative flex h-8 items-center justify-center rounded-lg',
+                  'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
+                  'transition-all duration-150 ease-out hover:scale-105 active:scale-95',
+                  collapsed ? 'w-full' : 'w-8'
+                )}
+                onClick={handleNotificationClick}
+                aria-label="Notifications"
+              >
+                <Bell className="h-5 w-5 stroke-[1.5]" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Log Out */}
             <button
