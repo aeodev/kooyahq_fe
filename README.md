@@ -18,6 +18,11 @@ npm run dev
 
 The dev server runs on [http://localhost:5173](http://localhost:5173) by default. The CTA on the home page assumes the backend health route is exposed at `/api/health`.
 
+## Environment
+
+- `VITE_API_URL` – Optional base API URL (defaults to `http://localhost:5001/api`).
+- `VITE_GOOGLE_CLIENT_ID` – Required for Google Sign-In. The auth screen will prompt you if it is missing.
+
 ## Project structure
 
 ```

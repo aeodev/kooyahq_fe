@@ -32,6 +32,7 @@ export type SocketTimeEntriesEventsEnum = typeof SocketTimeEntriesEvents[keyof t
 // Auth routes
 export const SIGN_UP = () => `/auth/register`
 export const SIGN_IN = () => `/auth/login`
+export const SIGN_IN_WITH_GOOGLE = () => `/auth/google`
 export const PROFILE = () => `/auth/me`
 
 // User routes

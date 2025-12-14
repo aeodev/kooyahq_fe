@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import axiosInstance from '@/utils/axios.instance'
-import { PROFILE, SIGN_IN, SIGN_UP, UPDATE_PROFILE } from '@/utils/api.routes'
+import { PROFILE, SIGN_IN_WITH_GOOGLE, SIGN_UP, UPDATE_PROFILE } from '@/utils/api.routes'
 import { AUTH_STORAGE_KEY } from '@/utils/axios.instance'
 import type { User } from '@/types/user'
 
@@ -75,7 +75,7 @@ type AuthState = {
 }
 
 type AuthActions = {
-  login: (payload: { email: string; password: string }) => Promise<User>
+  loginWithGoogle: (credential: string) => Promise<User>
   register: (payload: { name: string; email: string; password: string; permissions: string[] }) => Promise<User>
   logout: () => void
   refreshProfile: () => Promise<void>
@@ -105,9 +105,11 @@ export const useAuthStore = create<AuthStore>()(
 
       setLoading: (loading) => set({ isLoading: loading }),
 
-      login: async (payload) => {
+      loginWithGoogle: async (credential) => {
         try {
-          const response = await axiosInstance.post<ApiEnvelope<AuthResponse>>(SIGN_IN(), payload)
+          const response = await axiosInstance.post<ApiEnvelope<AuthResponse>>(SIGN_IN_WITH_GOOGLE(), {
+            credential,
+          })
           const { user, token } = response.data.data
 
           const prepared = prepareUser(user)
@@ -115,7 +117,7 @@ export const useAuthStore = create<AuthStore>()(
           return prepared
         } catch (error) {
           set({ isLoading: false })
-          throw new Error(resolveErrorMessage(error, 'Unable to sign in'))
+          throw new Error(resolveErrorMessage(error, 'Unable to sign in with Google'))
         }
       },
 
