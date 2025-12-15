@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
+import type { GithubStatus } from '@/types/board'
 
 function PRUrlInput({
   initialValue,
@@ -54,16 +55,43 @@ function PRUrlInput({
 
 type Branch = {
   name: string
-  status: 'merged' | 'open' | 'closed'
+  status: GithubStatus
   pullRequestUrl?: string
 }
+
+const STATUS_META: Record<
+  GithubStatus,
+  { label: string; badge: 'default' | 'secondary' | 'outline'; dot: string }
+> = {
+  open: { label: 'Open', badge: 'outline', dot: 'bg-green-500' },
+  requested_pr: { label: 'Requested PR', badge: 'outline', dot: 'bg-amber-500' },
+  merging_pr: { label: 'Merging PR', badge: 'default', dot: 'bg-blue-500' },
+  merged_pr: { label: 'Merged PR', badge: 'default', dot: 'bg-purple-500' },
+  merged: { label: 'Merged', badge: 'default', dot: 'bg-purple-500' },
+  deploying: { label: 'Deploying', badge: 'default', dot: 'bg-indigo-500' },
+  deployed: { label: 'Deployed', badge: 'default', dot: 'bg-green-600' },
+  failed: { label: 'Failed', badge: 'secondary', dot: 'bg-red-500' },
+  closed: { label: 'Closed', badge: 'secondary', dot: 'bg-gray-500' },
+}
+
+const STATUS_OPTIONS: Array<{ value: GithubStatus; label: string }> = [
+  { value: 'open', label: 'Open' },
+  { value: 'requested_pr', label: 'Requested PR' },
+  { value: 'merging_pr', label: 'Merging PR' },
+  { value: 'merged_pr', label: 'Merged PR' },
+  { value: 'merged', label: 'Merged' },
+  { value: 'deploying', label: 'Deploying' },
+  { value: 'deployed', label: 'Deployed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'closed', label: 'Closed' },
+]
 
 type GitHubBranchesProps = {
   branches: Branch[]
   newBranchName: string
   setNewBranchName: (name: string) => void
   onAddBranch: () => void
-  onUpdateBranchStatus: (branchName: string, status: 'merged' | 'open' | 'closed') => void
+  onUpdateBranchStatus: (branchName: string, status: GithubStatus) => void
   onUpdatePullRequestUrl?: (branchName: string, pullRequestUrl: string) => void
 }
 
@@ -77,29 +105,14 @@ export function GitHubBranches({
 }: GitHubBranchesProps) {
   const [editingPRUrl, setEditingPRUrl] = useState<string | null>(null)
 
-  const getStatusBadgeVariant = (status: 'merged' | 'open' | 'closed') => {
-    switch (status) {
-      case 'merged':
-        return 'default'
-      case 'closed':
-        return 'secondary'
-      case 'open':
-      default:
-        return 'outline'
-    }
+  const getStatusMeta = (status: GithubStatus) => {
+    return STATUS_META[status] || STATUS_META.open
   }
 
-  const getStatusColor = (status: 'merged' | 'open' | 'closed') => {
-    switch (status) {
-      case 'merged':
-        return 'bg-purple-500'
-      case 'closed':
-        return 'bg-gray-500'
-      case 'open':
-      default:
-        return 'bg-green-500'
-    }
-  }
+  const statusMetaList = STATUS_OPTIONS.map((option) => ({
+    ...option,
+    meta: getStatusMeta(option.value),
+  }))
 
   return (
     <div className="space-y-2">
@@ -120,10 +133,10 @@ export function GitHubBranches({
                       <div key={index} className="flex items-center gap-2">
                         <span className="text-sm truncate">{branch.name}</span>
                         <Badge
-                          variant={getStatusBadgeVariant(branch.status)}
+                          variant={getStatusMeta(branch.status).badge}
                           className="text-xs flex-shrink-0"
                         >
-                          {branch.status}
+                          {getStatusMeta(branch.status).label}
                         </Badge>
                       </div>
                     ))}
@@ -157,14 +170,14 @@ export function GitHubBranches({
                           <div
                             className={cn(
                               'h-2 w-2 rounded-full flex-shrink-0',
-                              getStatusColor(branch.status)
+                              getStatusMeta(branch.status).dot
                             )}
                           />
                           <Badge
-                            variant={getStatusBadgeVariant(branch.status)}
+                            variant={getStatusMeta(branch.status).badge}
                             className="text-xs"
                           >
-                            {branch.status}
+                            {getStatusMeta(branch.status).label}
                           </Badge>
                         </div>
                       </div>
@@ -175,24 +188,16 @@ export function GitHubBranches({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem
-                            onClick={() => onUpdateBranchStatus(branch.name, 'open')}
-                            className="cursor-pointer"
-                          >
-                            Open
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onUpdateBranchStatus(branch.name, 'merged')}
-                            className="cursor-pointer"
-                          >
-                            Merged
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onUpdateBranchStatus(branch.name, 'closed')}
-                            className="cursor-pointer"
-                          >
-                            Closed
-                          </DropdownMenuItem>
+                          {statusMetaList.map((option) => (
+                            <DropdownMenuItem
+                              key={option.value}
+                              onClick={() => onUpdateBranchStatus(branch.name, option.value)}
+                              className="cursor-pointer flex items-center gap-2"
+                            >
+                              <div className={cn('h-2 w-2 rounded-full', option.meta.dot)} />
+                              <span>{option.label}</span>
+                            </DropdownMenuItem>
+                          ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

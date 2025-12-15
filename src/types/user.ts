@@ -3,7 +3,6 @@ export type User = {
   email: string
   name: string
   permissions: string[]
-  userType?: 'employee' | 'client'
   position?: string
   birthday?: string
   profilePic?: string

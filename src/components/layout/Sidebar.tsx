@@ -24,10 +24,9 @@ const NAVIGATION: NavItem[] = [
     to: '/workspace',
     icon: LayoutGrid,
     requiredPermissions: [
-      PERMISSIONS.BOARD_READ,
+      PERMISSIONS.BOARD_VIEW,
       PERMISSIONS.BOARD_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
     ],
   },
   {
@@ -44,7 +43,6 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.TIME_ENTRY_READ,
       PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
     ],
   },
   {
@@ -55,7 +53,6 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.GALLERY_READ,
       PERMISSIONS.GALLERY_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
     ],
   },
   {
@@ -66,7 +63,6 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.AI_NEWS_READ,
       PERMISSIONS.AI_NEWS_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
     ],
   },
   {
@@ -77,7 +73,6 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.POST_READ,
       PERMISSIONS.POST_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
     ],
   },
   {
@@ -88,7 +83,6 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.GAME_READ,
       PERMISSIONS.GAME_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
     ],
   },
   {
@@ -99,10 +93,20 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.MEET_TOKEN,
       PERMISSIONS.MEET_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.ADMIN_FULL_ACCESS,
     ],
   },
-  { name: 'Admin', to: '/admin', icon: Users, adminOnly: true },
+  {
+    name: 'User Management',
+    to: '/user-management',
+    icon: Users,
+    requiredPermissions: [
+      PERMISSIONS.USERS_VIEW,
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.PROJECTS_VIEW,
+      PERMISSIONS.PROJECTS_MANAGE,
+      PERMISSIONS.SYSTEM_LOGS,
+    ],
+  },
 ]
 
 // Sidebar store for state management
@@ -153,9 +157,6 @@ export function Sidebar() {
   const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
   
   const navigation = NAVIGATION.filter((item) => {
-    if (item.adminOnly) {
-      return can(PERMISSIONS.ADMIN_READ) || can(PERMISSIONS.ADMIN_FULL_ACCESS)
-    }
     if (item.requiredPermissions?.length) {
       return item.requireAllPermissions
         ? item.requiredPermissions.every((permission) => can(permission))

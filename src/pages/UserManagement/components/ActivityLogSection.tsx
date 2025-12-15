@@ -5,9 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, X } from 'lucide-react'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_ADMIN_ACTIVITY } from '@/utils/api.routes'
-import { useAuthStore } from '@/stores/auth.store'
-import { PERMISSIONS } from '@/constants/permissions'
+import { GET_USER_MANAGEMENT_ACTIVITY } from '@/utils/api.routes'
 
 type AdminActivity = {
   id: string
@@ -25,9 +23,11 @@ type User = {
   email: string
 }
 
-export function ActivityLogSection() {
-  const can = useAuthStore((state) => state.can)
-  const canViewActivity = can(PERMISSIONS.ADMIN_ACTIVITY_READ) || can(PERMISSIONS.ADMIN_FULL_ACCESS)
+type ActivityLogSectionProps = {
+  canViewActivity: boolean
+}
+
+export function ActivityLogSection({ canViewActivity }: ActivityLogSectionProps) {
   const [activities, setActivities] = useState<AdminActivity[]>([])
   const [users, setUsers] = useState<Record<string, User>>({})
   const [loading, setLoading] = useState(false)
@@ -53,7 +53,7 @@ export function ActivityLogSection() {
       if (endDate) params.append('endDate', endDate)
 
       const response = await axiosInstance.get<{ status: string; data: AdminActivity[] }>(
-        `${GET_ADMIN_ACTIVITY()}${params.toString() ? `?${params.toString()}` : ''}`
+        `${GET_USER_MANAGEMENT_ACTIVITY()}${params.toString() ? `?${params.toString()}` : ''}`
       )
 
       setActivities(response.data.data)
@@ -123,7 +123,7 @@ export function ActivityLogSection() {
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">You do not have permission to view admin activity.</p>
+          <p className="text-sm text-muted-foreground">You do not have permission to view activity logs.</p>
         </CardContent>
       </Card>
     )
@@ -133,7 +133,7 @@ export function ActivityLogSection() {
     <div className="space-y-4 sm:space-y-6">
       <div>
         <h2 className="text-lg sm:text-xl font-semibold">Activity Log</h2>
-        <p className="text-sm text-muted-foreground mt-1">Track all admin actions</p>
+        <p className="text-sm text-muted-foreground mt-1">Track sensitive user management actions</p>
       </div>
 
       {/* Filters */}
@@ -259,7 +259,3 @@ export function ActivityLogSection() {
     </div>
   )
 }
-
-
-
-

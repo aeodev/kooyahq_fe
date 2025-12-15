@@ -13,6 +13,7 @@ import type { User } from '@/types/user'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_USERS } from '@/utils/api.routes'
 import { useEmojiPicker } from './useEmojiPicker'
+import { useAuthStore } from '@/stores/auth.store'
 
 type BoardType = 'kanban' | 'sprint'
 
@@ -38,6 +39,7 @@ export function CreateBoardModal({ open, onClose, onCreate, existingKeys = [] }:
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
+  const currentUserId = useAuthStore((state) => state.user?.id)
 
   const handleCloseEmojiPicker = useCallback(() => {
     setShowEmojiPicker(false)
@@ -148,6 +150,8 @@ export function CreateBoardModal({ open, onClose, onCreate, existingKeys = [] }:
   }
 
   const toggleInvite = (userId: string) => {
+    // Prevent inviting yourself
+    if (userId === currentUserId) return
     setSelectedMemberIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
     )
@@ -158,6 +162,7 @@ export function CreateBoardModal({ open, onClose, onCreate, existingKeys = [] }:
     .filter(Boolean) as User[]
 
   const filteredUsers = availableUsers.filter((user) => {
+    if (user.id === currentUserId) return false
     if (selectedMemberIds.includes(user.id)) return false
     if (!memberSearch.trim()) return true
     const query = memberSearch.toLowerCase()

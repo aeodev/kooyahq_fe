@@ -38,7 +38,7 @@ export function TimeTracker() {
   const canCreateEntries = can(PERMISSIONS.TIME_ENTRY_CREATE) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
   const canUpdateEntries = can(PERMISSIONS.TIME_ENTRY_UPDATE) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
   const canViewAnalytics = can(PERMISSIONS.TIME_ENTRY_ANALYTICS) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
-  const canReadProjects = can(PERMISSIONS.PROJECT_READ) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
+  const canReadProjects = can(PERMISSIONS.PROJECTS_VIEW) || can(PERMISSIONS.PROJECTS_MANAGE)
   const canControlTimer = canCreateEntries || canUpdateEntries
   const availableTabs: TabType[] = useMemo(() => {
     const tabs: TabType[] = ['you']

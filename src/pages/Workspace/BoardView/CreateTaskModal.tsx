@@ -15,8 +15,6 @@ import { getTaskTypeIcon, getPriorityIcon, getPriorityLabel } from './index'
 import axiosInstance from '@/utils/axios.instance'
 import { CREATE_TICKET, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
 import type { Ticket } from '@/types/board'
-import { useAuthStore } from '@/stores/auth.store'
-import { PERMISSIONS } from '@/constants/permissions'
 
 type CreateTaskModalProps = {
   open: boolean
@@ -26,6 +24,8 @@ type CreateTaskModalProps = {
   boardId: string
   assignees: Array<{ id: string; name: string; initials: string; color: string }>
   onSuccess?: () => void
+  canCreate: boolean
+  canRead: boolean
 }
 
 const TASK_TYPES: TaskType[] = ['task', 'bug', 'story', 'epic']
@@ -52,10 +52,11 @@ export function CreateTaskModal({
   boardId,
   assignees,
   onSuccess,
+  canCreate,
+  canRead,
 }: CreateTaskModalProps) {
-  const can = useAuthStore((state) => state.can)
-  const canCreateTicket = can(PERMISSIONS.TICKET_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
-  const canReadTickets = can(PERMISSIONS.TICKET_READ) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const canCreateTicket = canCreate
+  const canReadTickets = canRead
   // Form state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')

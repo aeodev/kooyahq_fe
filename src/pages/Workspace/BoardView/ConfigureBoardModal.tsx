@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import type { User } from '@/types/user'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_USERS } from '@/utils/api.routes'
+import { useAuthStore } from '@/stores/auth.store'
 
 type ConfigureBoardModalProps = {
   open: boolean
@@ -112,6 +113,7 @@ export function ConfigureBoardModal({
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
   const colorButtonRef = useRef<HTMLButtonElement>(null)
   const { updateBoard, loading } = useUpdateBoard()
+  const currentUserId = useAuthStore((state) => state.user?.id)
 
   // Initialize form data when modal opens (only once per open)
   const prevOpenRef = useRef(false)
@@ -339,12 +341,14 @@ export function ConfigureBoardModal({
     const currentIds = new Set(memberList.map((m) => m.userId))
     return availableUsers.filter((user) => {
       if (currentIds.has(user.id)) return false
+      if (user.id === currentUserId) return false
       if (!query) return true
       return user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
     })
-  }, [availableUsers, memberList, memberSearch])
+  }, [availableUsers, memberList, memberSearch, currentUserId])
 
   const handleAddMember = (user: User) => {
+    if (user.id === currentUserId) return
     setMemberList((prev) => {
       if (prev.some((m) => m.userId === user.id)) return prev
       return [

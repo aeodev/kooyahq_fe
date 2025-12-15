@@ -6,15 +6,13 @@ import { Label } from '@/components/ui/label'
 import { Edit2, Save, X, Trash2, Plus, Loader2 } from 'lucide-react'
 import { useProjects, useCreateProject, useUpdateProject, useDeleteProject, type Project } from '@/hooks/project.hooks'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth.store'
-import { PERMISSIONS } from '@/constants/permissions'
 
-export function ProjectsSection() {
-  const can = useAuthStore((state) => state.can)
-  const canReadProjects = can(PERMISSIONS.PROJECT_READ) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
-  const canCreateProjects = can(PERMISSIONS.PROJECT_CREATE) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
-  const canUpdateProjects = can(PERMISSIONS.PROJECT_UPDATE) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
-  const canDeleteProjects = can(PERMISSIONS.PROJECT_DELETE) || can(PERMISSIONS.PROJECT_FULL_ACCESS)
+type ProjectsSectionProps = {
+  canViewProjects: boolean
+  canManageProjects: boolean
+}
+
+export function ProjectsSection({ canViewProjects, canManageProjects }: ProjectsSectionProps) {
   const { data: projects, loading, error, fetchProjects } = useProjects()
   const { createProject, loading: creating } = useCreateProject()
   const { updateProject, loading: updating } = useUpdateProject()
@@ -29,13 +27,13 @@ export function ProjectsSection() {
 
   // Load projects on mount
   useEffect(() => {
-    if (canReadProjects) {
+    if (canViewProjects) {
       fetchProjects()
     }
-  }, [fetchProjects, canReadProjects])
+  }, [fetchProjects, canViewProjects])
 
   const handleAdd = async () => {
-    if (!canCreateProjects) return
+    if (!canManageProjects) return
     if (!newProjectName.trim()) return
 
     const trimmedName = newProjectName.trim()
@@ -52,7 +50,7 @@ export function ProjectsSection() {
   }
 
   const startEdit = (project: Project) => {
-    if (!canUpdateProjects) return
+    if (!canManageProjects) return
     setEditingId(project.id)
     setEditName(project.name)
   }
@@ -63,7 +61,7 @@ export function ProjectsSection() {
   }
 
   const handleSave = async (projectId: string) => {
-    if (!canUpdateProjects) return
+    if (!canManageProjects) return
     if (!editName.trim()) {
       cancelEdit()
       return
@@ -82,7 +80,7 @@ export function ProjectsSection() {
   }
 
   const handleDelete = async (projectId: string) => {
-    if (!canDeleteProjects) return
+    if (!canManageProjects) return
     if (!confirm('Are you sure you want to delete this project?')) {
       return
     }
@@ -108,7 +106,7 @@ export function ProjectsSection() {
     )
   }
 
-  if (!canReadProjects) {
+  if (!canViewProjects) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -136,8 +134,11 @@ export function ProjectsSection() {
         <div>
           <h2 className="text-lg sm:text-xl font-semibold">Projects</h2>
           <p className="text-sm text-muted-foreground mt-1">Manage your project list</p>
+          {!canManageProjects && (
+            <p className="text-xs text-muted-foreground mt-1">View-only access. Editing controls are hidden.</p>
+          )}
         </div>
-        {!showAddForm && canCreateProjects && (
+        {!showAddForm && canManageProjects && (
           <Button onClick={() => setShowAddForm(true)} size="sm" className="flex-shrink-0">
             <Plus className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Add Project</span>
@@ -146,7 +147,7 @@ export function ProjectsSection() {
         )}
       </div>
 
-      {showAddForm && canCreateProjects && (
+      {showAddForm && canManageProjects && (
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-4">
@@ -169,7 +170,7 @@ export function ProjectsSection() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleAdd} disabled={!newProjectName.trim() || saving || !canCreateProjects} size="sm">
+                <Button onClick={handleAdd} disabled={!newProjectName.trim() || saving || !canManageProjects} size="sm">
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -204,7 +205,9 @@ export function ProjectsSection() {
         {!projects || projects.length === 0 ? (
           <Card>
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground text-center py-8">No projects yet. Add your first project above.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {canManageProjects ? 'No projects yet. Add your first project above.' : 'No projects available to view.'}
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -231,7 +234,7 @@ export function ProjectsSection() {
                       />
                     </div>
                     <div className="flex gap-2">
-                      <Button onClick={() => handleSave(project.id)} disabled={!editName.trim() || saving || !canUpdateProjects} size="sm">
+                      <Button onClick={() => handleSave(project.id)} disabled={!editName.trim() || saving || !canManageProjects} size="sm">
                         {saving ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -253,22 +256,24 @@ export function ProjectsSection() {
                 ) : (
                   <div className="flex items-center justify-between gap-4">
                     <h3 className="font-semibold text-base sm:text-lg flex-1">{project.name}</h3>
-                    <div className="flex gap-2 flex-shrink-0">
-                      <Button onClick={() => startEdit(project)} variant="outline" size="sm" disabled={!canUpdateProjects}>
-                        <Edit2 className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">Edit</span>
-                      </Button>
-                      <Button
-                        onClick={() => handleDelete(project.id)}
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        disabled={!canDeleteProjects}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">Delete</span>
-                      </Button>
-                    </div>
+                    {canManageProjects && (
+                      <div className="flex gap-2 flex-shrink-0">
+                        <Button onClick={() => startEdit(project)} variant="outline" size="sm">
+                          <Edit2 className="mr-2 h-4 w-4" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleDelete(project.id)}
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          disabled={!canManageProjects}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span className="hidden sm:inline">Delete</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

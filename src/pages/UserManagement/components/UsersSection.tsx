@@ -3,32 +3,40 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Edit2, Save, X, Loader2, Trash2, Search, Download, ChevronLeft, ChevronRight, Filter, X as XIcon, UserPlus } from 'lucide-react'
-import { useEmployees, useUpdateEmployee, useDeleteEmployee, useCreateClient } from '@/hooks/admin.hooks'
+import { Badge } from '@/components/ui/badge'
+import { ChevronDown, ChevronRight, Edit2, Save, X, Loader2, Trash2, Search, Download, ChevronLeft, Filter, X as XIcon, UserPlus } from 'lucide-react'
+import { useEmployees, useUpdateEmployee, useDeleteEmployee, useCreateClient } from '@/hooks/user-management.hooks'
 import type { User } from '@/types/user'
 import { toast } from 'sonner'
 import axiosInstance from '@/utils/axios.instance'
 import { EXPORT_USERS } from '@/utils/api.routes'
-import { useAuthStore } from '@/stores/auth.store'
-import { PERMISSIONS } from '@/constants/permissions'
+import { PERMISSION_LIST } from '@/constants/permissions'
 
-export function EmployeesSection() {
-  const can = useAuthStore((state) => state.can)
-  const canReadUsers = can(PERMISSIONS.USER_READ) || can(PERMISSIONS.USER_FULL_ACCESS)
-  const canUpdateUsers = can(PERMISSIONS.USER_UPDATE) || can(PERMISSIONS.USER_FULL_ACCESS)
-  const canDeleteUsers = can(PERMISSIONS.USER_DELETE) || can(PERMISSIONS.USER_FULL_ACCESS)
-  const canExportUsers = can(PERMISSIONS.ADMIN_EXPORT) || can(PERMISSIONS.ADMIN_FULL_ACCESS)
+type UsersSectionProps = {
+  canViewUsers: boolean
+  canManageUsers: boolean
+}
+
+export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps) {
+  const canExportUsers = canManageUsers
   const { data: employees, pagination, loading, error, fetchEmployees } = useEmployees()
   const { updateEmployee, loading: updating } = useUpdateEmployee()
   const { deleteEmployee } = useDeleteEmployee()
   const { createClient, loading: creatingClient } = useCreateClient()
 
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editData, setEditData] = useState<{ name: string; email: string; position: string; birthday: string }>({
+  const [editData, setEditData] = useState<{
+    name: string
+    email: string
+    position: string
+    birthday: string
+    permissions: string[]
+  }>({
     name: '',
     email: '',
     position: '',
     birthday: '',
+    permissions: [],
   })
   const [editingEmployee, setEditingEmployee] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -50,11 +58,28 @@ export function EmployeesSection() {
     clientCompanyId: '',
   })
   const [clientFormErrors, setClientFormErrors] = useState<Record<string, string>>({})
+  const [expandedPermissionGroups, setExpandedPermissionGroups] = useState<Set<string>>(new Set())
+
+  const permissionGroups = useMemo(() => {
+    const groups: Record<string, { label: string; permissions: { value: string; label: string }[] }> = {}
+    PERMISSION_LIST.forEach(({ value, label }) => {
+      const [prefix] = value.split(':')
+      if (!groups[prefix]) {
+        const friendly = prefix.replace(/-/g, ' ')
+        groups[prefix] = {
+          label: friendly.replace(/\b\w/g, (c) => c.toUpperCase()),
+          permissions: [],
+        }
+      }
+      groups[prefix].permissions.push({ value, label })
+    })
+    return Object.entries(groups).map(([key, group]) => ({ key, ...group }))
+  }, [])
 
   useEffect(() => {
-    if (!canReadUsers) return
+    if (!canViewUsers) return
     fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
-  }, [currentPage, searchQuery, fetchEmployees, canReadUsers])
+  }, [currentPage, searchQuery, fetchEmployees, canViewUsers])
 
   // Filter employees based on filters
   const filteredEmployees = useMemo(() => {
@@ -118,7 +143,7 @@ export function EmployeesSection() {
   }
 
   const startEdit = (employee: User) => {
-    if (!canUpdateUsers) return
+    if (!canManageUsers) return
     setEditingId(employee.id)
     setEditingEmployee(employee)
     setEditData({
@@ -126,6 +151,7 @@ export function EmployeesSection() {
       email: employee.email,
       position: employee.position || '',
       birthday: employee.birthday ? employee.birthday.split('T')[0] : '',
+      permissions: employee.permissions || [],
     })
     setValidationErrors({})
   }
@@ -133,19 +159,25 @@ export function EmployeesSection() {
   const cancelEdit = () => {
     setEditingId(null)
     setEditingEmployee(null)
-    setEditData({ name: '', email: '', position: '', birthday: '' })
+    setEditData({ name: '', email: '', position: '', birthday: '', permissions: [] })
     setValidationErrors({})
   }
 
   const handleSave = async (employeeId: string) => {
-    if (!canUpdateUsers) return
+    if (!canManageUsers) return
     if (!validateForm()) {
       return
     }
 
     if (!editingEmployee) return
 
-    const updates: { name?: string; email?: string; position?: string; birthday?: string } = {}
+    const updates: {
+      name?: string
+      email?: string
+      position?: string
+      birthday?: string
+      permissions?: string[]
+    } = {}
 
     if (editData.name.trim() !== editingEmployee.name) {
       updates.name = editData.name.trim()
@@ -161,6 +193,15 @@ export function EmployeesSection() {
     if (editData.birthday !== currentBirthdayDate) {
       updates.birthday = editData.birthday ? editData.birthday : undefined
     }
+    const currentPerms = Array.isArray(editingEmployee.permissions) ? editingEmployee.permissions : []
+    const newPerms = Array.isArray(editData.permissions) ? editData.permissions : []
+    const permsChanged =
+      newPerms.length !== currentPerms.length ||
+      newPerms.some((perm) => !currentPerms.includes(perm)) ||
+      currentPerms.some((perm) => !newPerms.includes(perm))
+    if (permsChanged) {
+      updates.permissions = newPerms
+    }
     if (Object.keys(updates).length === 0) {
       cancelEdit()
       return
@@ -169,17 +210,17 @@ export function EmployeesSection() {
     const result = await updateEmployee(employeeId, updates)
 
     if (result) {
-      toast.success('Employee updated successfully')
+      toast.success('User updated successfully')
       cancelEdit()
       fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
     } else {
-      toast.error('Failed to update employee')
+      toast.error('Failed to update user')
     }
   }
 
   const handleDelete = async (employeeId: string) => {
-    if (!canDeleteUsers) return
-    if (!confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+    if (!canManageUsers) return
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       return
     }
 
@@ -188,13 +229,13 @@ export function EmployeesSection() {
       const success = await deleteEmployee(employeeId)
 
       if (success) {
-        toast.success('Employee deleted successfully')
+        toast.success('User deleted successfully')
         if (editingId === employeeId) {
           cancelEdit()
         }
         fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
       } else {
-        toast.error('Failed to delete employee')
+        toast.error('Failed to delete user')
       }
     } finally {
       setDeletingUserId(null)
@@ -202,7 +243,7 @@ export function EmployeesSection() {
   }
 
   const handleSelectAll = () => {
-    if (!canDeleteUsers) return
+    if (!canManageUsers) return
     if (selectedIds.size === filteredEmployees.length) {
       setSelectedIds(new Set())
     } else {
@@ -211,7 +252,7 @@ export function EmployeesSection() {
   }
 
   const handleSelectOne = (id: string) => {
-    if (!canDeleteUsers) return
+    if (!canManageUsers) return
     const newSelected = new Set(selectedIds)
     if (newSelected.has(id)) {
       newSelected.delete(id)
@@ -222,10 +263,10 @@ export function EmployeesSection() {
   }
 
   const handleBulkDelete = async () => {
-    if (!canDeleteUsers) return
+    if (!canManageUsers) return
     if (selectedIds.size === 0) return
 
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} employee(s)? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} user(s)? This action cannot be undone.`)) {
       return
     }
 
@@ -236,11 +277,11 @@ export function EmployeesSection() {
       const successCount = results.filter((r) => r).length
 
       if (successCount > 0) {
-        toast.success(`${successCount} employee(s) deleted successfully`)
+        toast.success(`${successCount} user(s) deleted successfully`)
         setSelectedIds(new Set())
         fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
       } else {
-        toast.error('Failed to delete employees')
+        toast.error('Failed to delete users')
       }
     } finally {
       setDeletingUserId(null)
@@ -316,6 +357,7 @@ export function EmployeesSection() {
   }
 
   const handleCreateClient = async () => {
+    if (!canManageUsers) return
     if (!validateClientForm()) {
       return
     }
@@ -338,14 +380,88 @@ export function EmployeesSection() {
     }
   }
 
+  const formatDate = (value?: string) => {
+    if (!value) return 'N/A'
+    const date = new Date(value)
+    return date.toLocaleDateString()
+  }
+
+  const togglePermission = (permission: string, groupPermissions: string[]) => {
+    setEditData((prev) => {
+      const current = new Set(prev.permissions)
+      const isFullAccess = permission.endsWith(':fullAccess')
+      const currentlyChecked = current.has(permission)
+
+      if (isFullAccess) {
+        if (currentlyChecked) {
+          groupPermissions.forEach((perm) => current.delete(perm))
+        } else {
+          groupPermissions.forEach((perm) => current.add(perm))
+        }
+      } else {
+        if (currentlyChecked) {
+          current.delete(permission)
+        } else {
+          current.add(permission)
+        }
+        // If a child is unchecked, also ensure prefix fullAccess is off
+        const [prefix] = permission.split(':')
+        const fullAccessKey = `${prefix}:fullAccess`
+        if (!currentlyChecked && current.has(fullAccessKey)) {
+          // keep fullAccess if already present
+        }
+        if (currentlyChecked && current.has(fullAccessKey)) {
+          // unchecking a child should not uncheck fullAccess automatically
+        }
+      }
+
+      return { ...prev, permissions: Array.from(current) }
+    })
+  }
+
+  const toggleGroup = (permissions: string[]) => {
+    setEditData((prev) => {
+      const current = new Set(prev.permissions)
+      const hasAll = permissions.every((perm) => current.has(perm))
+      if (hasAll) {
+        permissions.forEach((perm) => current.delete(perm))
+      } else {
+        permissions.forEach((perm) => current.add(perm))
+      }
+      return { ...prev, permissions: Array.from(current) }
+    })
+  }
+
+  const isGroupChecked = (permissions: string[]) => {
+    if (!permissions.length) return false
+    return permissions.every((perm) => editData.permissions.includes(perm))
+  }
+
+  const isGroupIndeterminate = (permissions: string[]) => {
+    const selectedCount = permissions.filter((perm) => editData.permissions.includes(perm)).length
+    return selectedCount > 0 && selectedCount < permissions.length
+  }
+
+  const toggleGroupExpanded = (key: string) => {
+    setExpandedPermissionGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
   const saving = updating || deletingUserId !== null
   const totalPages = pagination?.totalPages || 1
 
-  if (!canReadUsers) {
+  if (!canViewUsers) {
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">You do not have permission to view employees.</p>
+          <p className="text-sm text-muted-foreground">You do not have permission to view users.</p>
         </CardContent>
       </Card>
     )
@@ -356,8 +472,11 @@ export function EmployeesSection() {
       {/* Header with Export */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg sm:text-xl font-semibold">Employees</h2>
-          <p className="text-sm text-muted-foreground mt-1">Manage employee details and positions</p>
+          <h2 className="text-lg sm:text-xl font-semibold">Users</h2>
+          <p className="text-sm text-muted-foreground mt-1">Review user details and access levels</p>
+          {!canManageUsers && (
+            <p className="text-xs text-muted-foreground mt-1">View-only access. Editing controls are hidden.</p>
+          )}
         </div>
         {canExportUsers && (
           <div className="flex gap-2">
@@ -376,7 +495,7 @@ export function EmployeesSection() {
       </div>
 
       {/* Create Client Modal */}
-      {showCreateClient && (
+      {canManageUsers && showCreateClient && (
         <Card className="border-primary">
           <CardContent className="pt-6">
             <div className="space-y-4">
@@ -494,7 +613,7 @@ export function EmployeesSection() {
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           type="text"
-          placeholder="Search employees by name, email, or position..."
+          placeholder="Search users by name, email, or position..."
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value)
@@ -574,12 +693,12 @@ export function EmployeesSection() {
       )}
 
       {/* Bulk Actions Bar */}
-      {selectedIds.size > 0 && (
+      {selectedIds.size > 0 && canManageUsers && (
         <Card className="border-primary">
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <p className="text-sm font-medium">
-                {selectedIds.size} employee(s) selected
+                {selectedIds.size} user(s) selected
               </p>
               <div className="flex gap-2 flex-wrap">
                 <Button
@@ -587,7 +706,7 @@ export function EmployeesSection() {
                   variant="outline"
                   size="sm"
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  disabled={saving || deletingUserId !== null || !canDeleteUsers}
+                  disabled={saving || deletingUserId !== null || !canManageUsers}
                 >
                   {deletingUserId !== null ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -621,8 +740,8 @@ export function EmployeesSection() {
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground text-center py-8">
               {searchQuery || positionFilter || statusFilter !== 'all' || dateFromFilter || dateToFilter
-                ? 'No employees found matching your filters.'
-                : 'No employees yet.'}
+                ? 'No users found matching your filters.'
+                : 'No users yet.'}
             </p>
           </CardContent>
         </Card>
@@ -645,7 +764,7 @@ export function EmployeesSection() {
                               setValidationErrors({ ...validationErrors, name: '' })
                             }
                           }}
-                          placeholder="Employee name"
+                          placeholder="User name"
                           className={validationErrors.name ? 'border-destructive' : ''}
                         />
                         {validationErrors.name && (
@@ -664,7 +783,7 @@ export function EmployeesSection() {
                               setValidationErrors({ ...validationErrors, email: '' })
                             }
                           }}
-                          placeholder="Employee email"
+                          placeholder="User email"
                           className={validationErrors.email ? 'border-destructive' : ''}
                         />
                         {validationErrors.email && (
@@ -698,6 +817,64 @@ export function EmployeesSection() {
                           <p className="text-xs text-destructive">{validationErrors.birthday}</p>
                         )}
                       </div>
+                      <div className="space-y-2">
+                        <Label>Permissions</Label>
+                        <div className="space-y-2 rounded-md border p-3">
+                          {permissionGroups.map((group) => {
+                            const groupPermValues = group.permissions.map((p) => p.value)
+                            const checked = isGroupChecked(groupPermValues)
+                            const indeterminate = isGroupIndeterminate(groupPermValues)
+                            return (
+                              <div key={group.key} className="space-y-1 border-b last:border-b-0 pb-2 last:pb-0">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      ref={(input) => {
+                                        if (input) input.indeterminate = indeterminate
+                                      }}
+                                      onChange={() => toggleGroup(groupPermValues)}
+                                      className="h-4 w-4 rounded border-gray-300"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleGroupExpanded(group.key)}
+                                      className="flex items-center gap-1 text-sm font-medium"
+                                    >
+                                      {expandedPermissionGroups.has(group.key) ? (
+                                        <ChevronDown className="h-4 w-4" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4" />
+                                      )}
+                                      {group.label}
+                                    </button>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {groupPermValues.filter((p) => editData.permissions.includes(p)).length}/
+                                    {groupPermValues.length}
+                                  </span>
+                                </div>
+                                {expandedPermissionGroups.has(group.key) && (
+                                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {group.permissions.map((perm) => (
+                                      <label key={perm.value} className="flex items-center gap-2 text-sm ml-6">
+                                        <input
+                                          type="checkbox"
+                                          checked={editData.permissions.includes(perm.value)}
+                                          onChange={() => togglePermission(perm.value, groupPermValues)}
+                                          className="h-4 w-4 rounded border-gray-300"
+                                        />
+                                        <span>{perm.label}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                       <div className="flex gap-2">
                         <Button onClick={() => handleSave(employee.id)} disabled={saving} size="sm">
                           {saving ? (
@@ -720,42 +897,80 @@ export function EmployeesSection() {
                     </div>
                   ) : (
                     <div className="flex items-start gap-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(employee.id)}
-                        onChange={() => handleSelectOne(employee.id)}
-                        className="mt-1 h-4 w-4 rounded border-gray-300"
-                        disabled={!canDeleteUsers}
-                      />
-                      <div className="flex-1 flex items-start justify-between gap-4">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-base sm:text-lg">{employee.name}</h3>
+                      {canManageUsers && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(employee.id)}
+                          onChange={() => handleSelectOne(employee.id)}
+                          className="mt-1 h-4 w-4 rounded border-gray-300"
+                        />
+                      )}
+                      <div className="flex-1 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-base sm:text-lg">{employee.name}</h3>
+                              {employee.status && (
+                                <Badge variant="outline" className="text-[11px] capitalize">
+                                  {employee.status}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{employee.email}</p>
+                        {employee.position && (
+                          <p className="text-sm font-medium text-foreground">{employee.position}</p>
+                        )}
+                        {employee.bio && (
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{employee.bio}</p>
+                        )}
+                        {employee.clientCompanyId && (
+                          <p className="text-xs text-muted-foreground">Client company: {employee.clientCompanyId}</p>
+                        )}
+                            <p className="text-xs text-muted-foreground">
+                              Joined {formatDate(employee.createdAt)}
+                              {employee.updatedAt ? ` • Updated ${formatDate(employee.updatedAt)}` : ''}
+                            </p>
                           </div>
-                          <p className="text-sm text-muted-foreground">{employee.email}</p>
-                          {employee.position && (
-                            <p className="text-sm font-medium text-foreground">{employee.position}</p>
+                          {canManageUsers && (
+                            <div className="flex gap-2 flex-shrink-0">
+                              <Button onClick={() => startEdit(employee)} variant="outline" size="sm">
+                                <Edit2 className="mr-2 h-4 w-4" />
+                                <span className="hidden sm:inline">Edit</span>
+                              </Button>
+                              <Button
+                                onClick={() => handleDelete(employee.id)}
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                disabled={deletingUserId === employee.id}
+                              >
+                                {deletingUserId === employee.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                )}
+                                <span className="hidden sm:inline">Delete</span>
+                              </Button>
+                            </div>
                           )}
                         </div>
-                        <div className="flex gap-2 flex-shrink-0">
-                          <Button onClick={() => startEdit(employee)} variant="outline" size="sm" disabled={!canUpdateUsers}>
-                            <Edit2 className="mr-2 h-4 w-4" />
-                            <span className="hidden sm:inline">Edit</span>
-                          </Button>
-                          <Button
-                            onClick={() => handleDelete(employee.id)}
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            disabled={deletingUserId === employee.id || !canDeleteUsers}
-                          >
-                            {deletingUserId === employee.id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">Permissions</p>
+                          <div className="flex flex-wrap gap-2">
+                            {employee.permissions?.length ? (
+                              employee.permissions.map((permission) => (
+                                <Badge
+                                  key={`${employee.id}-${permission}`}
+                                  variant="secondary"
+                                  className="text-[11px] font-normal"
+                                >
+                                  {permission}
+                                </Badge>
+                              ))
                             ) : (
-                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span className="text-xs text-muted-foreground">No permissions assigned</span>
                             )}
-                            <span className="hidden sm:inline">Delete</span>
-                          </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -770,7 +985,7 @@ export function EmployeesSection() {
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
                 Showing {((currentPage - 1) * pageSize) + 1}-
-                {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} employees
+                {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} users
               </div>
               <div className="flex gap-2">
                 <Button
@@ -796,7 +1011,7 @@ export function EmployeesSection() {
           )}
 
           {/* Select All */}
-          {filteredEmployees.length > 0 && (
+          {canManageUsers && filteredEmployees.length > 0 && (
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"

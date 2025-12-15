@@ -174,7 +174,7 @@ export const GET_LIVEKIT_TOKEN = () => `/meet/token`
 
 // Media upload routes (for rich text editor)
 export const UPLOAD_MEDIA = () => `/media/upload`
-// Admin routes
-export const GET_ADMIN_STATS = () => `/admin/stats`
-export const GET_ADMIN_ACTIVITY = () => `/admin/activity`
-export const EXPORT_USERS = (format: 'csv' | 'json') => `/admin/export/users?format=${format}`
+// User management routes
+export const GET_USER_MANAGEMENT_STATS = () => `/user-management/stats`
+export const GET_USER_MANAGEMENT_ACTIVITY = () => `/user-management/activity`
+export const EXPORT_USERS = (format: 'csv' | 'json') => `/user-management/export/users?format=${format}`

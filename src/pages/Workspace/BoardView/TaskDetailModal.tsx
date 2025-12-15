@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_TICKET_BY_ID, GET_TICKETS_BY_BOARD, UPDATE_TICKET, GET_USERS, CREATE_COMMENT, ADD_RELATED_TICKET, REMOVE_RELATED_TICKET } from '@/utils/api.routes'
 import { useAuthStore } from '@/stores/auth.store'
-import { PERMISSIONS } from '@/constants/permissions'
 import type { Task, Column, Assignee, Priority } from './types'
 import type { Ticket } from '@/types/board'
+import type { GithubStatus } from './TaskDetailComponents/types'
 import {
   TaskDetailHeader,
   TaskTitleSection,
@@ -39,6 +39,8 @@ type TaskDetailModalProps = {
   }
   onNavigateToTask?: (taskKey: string) => void
   fullPage?: boolean
+  canEdit: boolean
+  canComment: boolean
 }
 
 // Helper function to convert Ticket to Task
@@ -96,6 +98,8 @@ export function TaskDetailModal({
   board,
   onNavigateToTask,
   fullPage = false,
+  canEdit,
+  canComment,
 }: TaskDetailModalProps) {
   // UI State
   const [descriptionExpanded, setDescriptionExpanded] = useState(true)
@@ -130,17 +134,16 @@ export function TaskDetailModal({
   const [updatingEpic, setUpdatingEpic] = useState(false)
   const [viewers, setViewers] = useState<(Assignee & { viewedAgainAt?: string })[]>([])
   const [availableTickets, setAvailableTickets] = useState<Ticket[]>([]) // For related tickets section and parent selection
-  const [githubBranches, setGithubBranches] = useState<Array<{ name: string; status: 'merged' | 'open' | 'closed'; pullRequestUrl?: string }>>([])
+  const [githubBranches, setGithubBranches] = useState<Array<{ name: string; status: GithubStatus; pullRequestUrl?: string }>>([])
   // Details settings are now read-only from board settings
   const detailsSettings = board?.settings?.ticketDetailsSettings || null
   
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const can = useAuthStore((state) => state.can)
-  const canUpdateTicket = can(PERMISSIONS.TICKET_UPDATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
-  const canCreateTicket = can(PERMISSIONS.TICKET_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
-  const canRelateTicket = can(PERMISSIONS.TICKET_RELATION) || can(PERMISSIONS.TICKET_FULL_ACCESS)
-  const canComment = can(PERMISSIONS.TICKET_COMMENT_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const canUpdateTicket = canEdit
+  const canCreateTicket = canEdit
+  const canRelateTicket = canEdit
+  const canCommentOnTicket = canComment
 
   // Function to fetch ticket details (non-blocking)
   const fetchTicketDetails = async (force = false): Promise<TicketDetailResponse | null> => {
@@ -985,7 +988,7 @@ export function TaskDetailModal({
     }
   }
 
-  const handleUpdateBranchStatus = async (branchName: string, status: 'merged' | 'open' | 'closed') => {
+  const handleUpdateBranchStatus = async (branchName: string, status: GithubStatus) => {
     if (!ticketDetails?.ticket.id || !canUpdateTicket) return
     
     const oldGithub = ticketDetails.ticket.github
@@ -1116,7 +1119,7 @@ export function TaskDetailModal({
   }
 
   const handleAddComment = async () => {
-    if (!canComment) return
+    if (!canCommentOnTicket) return
     if (!newComment.trim() || !ticketDetails?.ticket.id) return
 
     const commentContent = {
@@ -1565,7 +1568,7 @@ export function TaskDetailModal({
                     onTabChange={setActivityTab}
                     onCommentChange={setNewComment}
                     onAddComment={handleAddComment}
-                    canComment={canComment}
+                    canComment={canCommentOnTicket}
                   />
                 </>
               )}
@@ -1757,7 +1760,7 @@ export function TaskDetailModal({
                 onTabChange={setActivityTab}
                 onCommentChange={setNewComment}
                 onAddComment={handleAddComment}
-                canComment={canComment}
+                canComment={canCommentOnTicket}
               />
                 </>
               )}

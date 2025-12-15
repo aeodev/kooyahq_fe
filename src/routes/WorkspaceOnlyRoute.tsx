@@ -18,8 +18,11 @@ export function WorkspaceOnlyRoute({
     return fallback
   }
 
-  // If client tries to access non-workspace routes, redirect to workspace
-  if (user?.userType === 'client' && !location.pathname.startsWith('/workspace')) {
+  const canNavigateOutsideWorkspace = user?.permissions?.some((permission) =>
+    ['system:fullAccess', 'users:view', 'users:manage', 'projects:view', 'projects:manage', 'system:logs'].includes(permission),
+  )
+
+  if (user && !canNavigateOutsideWorkspace && !location.pathname.startsWith('/workspace')) {
     return <Navigate to="/workspace" replace />
   }
 

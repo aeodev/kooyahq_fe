@@ -180,7 +180,7 @@ export const useAuthStore = create<AuthStore>()(
         const { user } = get()
         if (!user) return false
         const perms = Array.isArray(user.permissions) ? user.permissions : []
-        if (perms.includes('system:fullAccess') || perms.includes('admin:fullAccess')) return true
+        if (perms.includes('system:fullAccess')) return true
         if (perms.includes(permission)) return true
         const targetPrefix = permission.split(':')[0]
         const prefixFull = `${targetPrefix}:fullAccess`

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Star, MoreHorizontal, ChevronLeft, ChevronRight, LayoutGrid, Zap, Pencil, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,7 @@ import { PERMISSIONS } from '@/constants/permissions'
 
 // Types for Board Display
 type BoardType = 'kanban' | 'sprint'
+type BoardRole = 'owner' | 'admin' | 'member' | 'viewer' | 'none'
 
 type BoardDisplay = {
   id: string
@@ -104,15 +105,10 @@ export function Workspace() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [selectedBoard, setSelectedBoard] = useState<BoardDisplay | null>(null)
+  const user = useAuthStore((state) => state.user)
   const can = useAuthStore((state) => state.can)
-  const canCreateBoard =
-    can(PERMISSIONS.BOARD_CREATE) ||
-    can(PERMISSIONS.BOARD_FULL_ACCESS) ||
-    can(PERMISSIONS.SYSTEM_FULL_ACCESS) ||
-    can(PERMISSIONS.ADMIN_FULL_ACCESS)
-  const canUpdateBoard = can(PERMISSIONS.BOARD_UPDATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
-  const canDeleteBoard = can(PERMISSIONS.BOARD_DELETE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
-  const canFavoriteBoard = can(PERMISSIONS.BOARD_FAVORITE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const hasBoardFullAccess = can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const canCreateBoard = hasBoardFullAccess || can(PERMISSIONS.BOARD_CREATE)
   // Fetch boards accessible to user (member or creator)
   const { 
     data: boards, 
@@ -132,6 +128,42 @@ export function Workspace() {
   useEffect(() => {
     fetchBoards()
   }, [fetchBoards])
+
+  const getBoardRole = useCallback(
+    (boardId: string): BoardRole => {
+      if (!user?.id) return 'none'
+      const target = boards.find((b) => b.id === boardId)
+      if (!target) return 'none'
+      if (target.createdBy === user.id) return 'owner'
+      const memberRole = target.members.find((m) => m.userId === user.id)?.role
+      return (memberRole as BoardRole) || 'none'
+    },
+    [boards, user?.id],
+  )
+
+  const canUpdateBoard = useCallback(
+    (boardId: string) => {
+      const role = getBoardRole(boardId)
+      return hasBoardFullAccess || role === 'owner' || role === 'admin'
+    },
+    [getBoardRole, hasBoardFullAccess],
+  )
+
+  const canDeleteBoard = useCallback(
+    (boardId: string) => {
+      const role = getBoardRole(boardId)
+      return hasBoardFullAccess || role === 'owner' || can(PERMISSIONS.BOARD_DELETE)
+    },
+    [can, getBoardRole, hasBoardFullAccess],
+  )
+
+  const canFavoriteBoard = useCallback(
+    (boardId: string) => {
+      const role = getBoardRole(boardId)
+      return hasBoardFullAccess || role !== 'none'
+    },
+    [getBoardRole, hasBoardFullAccess],
+  )
 
   // Socket connection for real-time updates
   const socket = useSocketStore((state) => state.socket)
@@ -248,7 +280,7 @@ export function Workspace() {
 
   // Toggle star - sync with backend
   const toggleStar = async (id: string) => {
-    if (!canFavoriteBoard) return
+    if (!canFavoriteBoard(id)) return
     const board = boards.find(b => b.id === id)
     if (!board) return
 
@@ -274,7 +306,7 @@ export function Workspace() {
 
   // Handle edit board
   const handleEditBoard = (board: BoardDisplay) => {
-    if (!canUpdateBoard) return
+    if (!canUpdateBoard(board.id)) return
     setSelectedBoard(board)
     setEditModalOpen(true)
   }
@@ -290,7 +322,7 @@ export function Workspace() {
 
   // Handle delete board
   const handleDeleteBoard = (board: BoardDisplay) => {
-    if (!canDeleteBoard) return
+    if (!canDeleteBoard(board.id)) return
     setSelectedBoard(board)
     setDeleteModalOpen(true)
   }
@@ -444,103 +476,108 @@ export function Workspace() {
               </tr>
             </thead>
             <tbody>
-              {paginatedBoards.map((board) => (
-                <tr
-                  key={board.id}
-                  onClick={() => handleBoardClick(board)}
-                  className="border-b border-border/30 hover:bg-accent/30 transition-colors group cursor-pointer"
-                >
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleStar(board.id)
-                      }}
-                      className="p-1 hover:bg-accent rounded transition-colors"
-                      aria-label={board.starred ? 'Unstar board' : 'Star board'}
-                      disabled={!canFavoriteBoard}
-                    >
-                      <Star
-                        className={cn(
-                          'h-4 w-4 transition-colors',
-                          starredBoards.has(board.id)
-                            ? 'fill-amber-400 text-amber-400'
-                            : 'text-muted-foreground hover:text-amber-400'
-                        )}
-                      />
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-sm">
-                        {board.icon}
-                      </div>
-                      <span className="font-medium text-foreground group-hover:text-primary transition-colors">
-                        {board.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground font-mono">
-                    {board.key}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {getBoardTypeIcon(board.type)}
-                      <span className="text-sm text-foreground capitalize">
-                        {board.type}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={cn(
-                          'flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white',
-                          board.lead.color
-                        )}
+              {paginatedBoards.map((board) => {
+                const canUpdate = canUpdateBoard(board.id)
+                const canDelete = canDeleteBoard(board.id)
+                const canFavorite = canFavoriteBoard(board.id)
+                return (
+                  <tr
+                    key={board.id}
+                    onClick={() => handleBoardClick(board)}
+                    className="border-b border-border/30 hover:bg-accent/30 transition-colors group cursor-pointer"
+                  >
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleStar(board.id)
+                        }}
+                        className="p-1 hover:bg-accent rounded transition-colors"
+                        aria-label={board.starred ? 'Unstar board' : 'Star board'}
+                        disabled={!canFavorite}
                       >
-                        {board.lead.initials}
+                        <Star
+                          className={cn(
+                            'h-4 w-4 transition-colors',
+                            starredBoards.has(board.id)
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'text-muted-foreground hover:text-amber-400'
+                          )}
+                        />
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-sm">
+                          {board.icon}
+                        </div>
+                        <span className="font-medium text-foreground group-hover:text-primary transition-colors">
+                          {board.name}
+                        </span>
                       </div>
-                      <span className="text-sm text-foreground">{board.lead.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    {(canUpdateBoard || canDeleteBoard) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            className="p-1.5 hover:bg-accent rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                            aria-label="More options"
-                          >
-                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {canUpdateBoard && (
-                            <DropdownMenuItem
-                              onClick={() => handleEditBoard(board)}
-                              className="cursor-pointer"
-                            >
-                              <Pencil className="h-4 w-4 mr-2" />
-                              Edit board
-                            </DropdownMenuItem>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground font-mono">
+                      {board.key}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {getBoardTypeIcon(board.type)}
+                        <span className="text-sm text-foreground capitalize">
+                          {board.type}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={cn(
+                            'flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white',
+                            board.lead.color
                           )}
-                          {canUpdateBoard && canDeleteBoard && <DropdownMenuSeparator />}
-                          {canDeleteBoard && (
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteBoard(board)}
-                              className="cursor-pointer text-destructive focus:text-destructive"
+                        >
+                          {board.lead.initials}
+                        </div>
+                        <span className="text-sm text-foreground">{board.lead.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      {(canUpdate || canDelete) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="p-1.5 hover:bg-accent rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                              aria-label="More options"
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete board
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {canUpdate && (
+                              <DropdownMenuItem
+                                onClick={() => handleEditBoard(board)}
+                                className="cursor-pointer"
+                              >
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Edit board
+                              </DropdownMenuItem>
+                            )}
+                            {canUpdate && canDelete && <DropdownMenuSeparator />}
+                            {canDelete && (
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteBoard(board)}
+                                className="cursor-pointer text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete board
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
               {paginatedBoards.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center">
@@ -579,49 +616,49 @@ export function Workspace() {
                   <p className="text-xs text-muted-foreground font-mono">{board.key}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => toggleStar(board.id)}
-                  className="p-2 hover:bg-accent rounded-lg transition-colors"
-                  aria-label={board.starred ? 'Unstar board' : 'Star board'}
-                  disabled={!canFavoriteBoard}
-                >
-                  <Star
-                    className={cn(
-                      'h-4 w-4',
-                      starredBoards.has(board.id)
-                        ? 'fill-amber-400 text-amber-400'
-                        : 'text-muted-foreground'
-                    )}
-                  />
-                </button>
-                {(canUpdateBoard || canDeleteBoard) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="p-2 hover:bg-accent rounded-lg transition-colors"
-                        aria-label="More options"
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => toggleStar(board.id)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+                aria-label={board.starred ? 'Unstar board' : 'Star board'}
+                disabled={!canFavoriteBoard(board.id)}
+              >
+                <Star
+                  className={cn(
+                    'h-4 w-4',
+                    starredBoards.has(board.id)
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-muted-foreground'
+                  )}
+                />
+              </button>
+              {(canUpdateBoard(board.id) || canDeleteBoard(board.id)) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="p-2 hover:bg-accent rounded-lg transition-colors"
+                      aria-label="More options"
+                    >
+                      <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {canUpdateBoard(board.id) && (
+                      <DropdownMenuItem
+                        onClick={() => handleEditBoard(board)}
+                        className="cursor-pointer"
                       >
-                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {canUpdateBoard && (
-                        <DropdownMenuItem
-                          onClick={() => handleEditBoard(board)}
-                          className="cursor-pointer"
-                        >
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit board
-                        </DropdownMenuItem>
-                      )}
-                      {canUpdateBoard && canDeleteBoard && <DropdownMenuSeparator />}
-                      {canDeleteBoard && (
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteBoard(board)}
-                          className="cursor-pointer text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit board
+                      </DropdownMenuItem>
+                    )}
+                    {canUpdateBoard(board.id) && canDeleteBoard(board.id) && <DropdownMenuSeparator />}
+                    {canDeleteBoard(board.id) && (
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteBoard(board)}
+                        className="cursor-pointer text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
                           Delete board
                         </DropdownMenuItem>
                       )}
@@ -720,31 +757,27 @@ export function Workspace() {
       />
 
       {/* Edit Board Modal */}
-      {canUpdateBoard && (
-        <EditBoardModal
-          open={editModalOpen}
-          onClose={() => {
-            setEditModalOpen(false)
-            setSelectedBoard(null)
-          }}
-          board={selectedBoard}
-          onSave={handleSaveEdit}
-        />
-      )}
+      <EditBoardModal
+        open={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false)
+          setSelectedBoard(null)
+        }}
+        board={selectedBoard}
+        onSave={handleSaveEdit}
+      />
 
       {/* Delete Confirmation Modal */}
-      {canDeleteBoard && (
-        <DeleteConfirmationModal
-          open={deleteModalOpen}
-          onClose={() => {
-            setDeleteModalOpen(false)
-            setSelectedBoard(null)
-          }}
-          boardName={selectedBoard?.name || ''}
-          boardId={selectedBoard?.id || ''}
-          onConfirm={handleConfirmDelete}
-        />
-      )}
+      <DeleteConfirmationModal
+        open={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false)
+          setSelectedBoard(null)
+        }}
+        boardName={selectedBoard?.name || ''}
+        boardId={selectedBoard?.id || ''}
+        onConfirm={handleConfirmDelete}
+      />
     </section>
   )
 }

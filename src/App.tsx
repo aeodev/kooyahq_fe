@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { DashboardLayout } from '@/components/layout/MainLayout'
 import { ThemeProvider } from '@/composables/useTheme'
@@ -14,14 +14,14 @@ import { Notifications } from '@/pages/Notifications'
 import { KooyaFeed } from '@/pages/KooyaFeed'
 import { Games } from '@/pages/Games'
 import { PlayGame } from '@/pages/Games/PlayGame'
-import { Admin } from '@/pages/Admin'
+import { UserManagement } from '@/pages/UserManagement'
 import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
 import { PreJoin } from '@/pages/Meet/PreJoin'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
-import { AdminRoute } from '@/routes/AdminRoute'
+import { UserManagementRoute } from '@/routes/UserManagementRoute'
 import { Toaster } from 'sonner'
 import { BoardView } from './pages/Workspace/BoardView'
 import { PERMISSIONS } from '@/constants/permissions'
@@ -53,10 +53,9 @@ function App() {
               <PrivateRoute fallback={null}>
                 <PermissionGate
                   anyOf={[
-                    PERMISSIONS.BOARD_READ,
+                    PERMISSIONS.BOARD_VIEW,
                     PERMISSIONS.BOARD_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -72,12 +71,9 @@ function App() {
               <PrivateRoute fallback={null}>
                 <PermissionGate
                   anyOf={[
-                    PERMISSIONS.BOARD_READ,
-                    PERMISSIONS.TICKET_READ,
+                    PERMISSIONS.BOARD_VIEW,
                     PERMISSIONS.BOARD_FULL_ACCESS,
-                    PERMISSIONS.TICKET_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -93,11 +89,9 @@ function App() {
               <PrivateRoute fallback={null}>
                 <PermissionGate
                   anyOf={[
-                    PERMISSIONS.TICKET_READ,
-                    PERMISSIONS.TICKET_FULL_ACCESS,
+                    PERMISSIONS.BOARD_VIEW,
                     PERMISSIONS.BOARD_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -116,7 +110,6 @@ function App() {
                     PERMISSIONS.TIME_ENTRY_READ,
                     PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -135,7 +128,6 @@ function App() {
                     PERMISSIONS.GALLERY_READ,
                     PERMISSIONS.GALLERY_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -154,7 +146,6 @@ function App() {
                     PERMISSIONS.AI_NEWS_READ,
                     PERMISSIONS.AI_NEWS_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -184,7 +175,6 @@ function App() {
                     PERMISSIONS.NOTIFICATION_FULL_ACCESS,
                     PERMISSIONS.NOTIFICATION_COUNT,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -203,7 +193,6 @@ function App() {
                     PERMISSIONS.POST_READ,
                     PERMISSIONS.POST_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -222,7 +211,6 @@ function App() {
                     PERMISSIONS.GAME_READ,
                     PERMISSIONS.GAME_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -241,7 +229,6 @@ function App() {
                     PERMISSIONS.GAME_PLAY,
                     PERMISSIONS.GAME_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -260,7 +247,6 @@ function App() {
                     PERMISSIONS.PRESENCE_READ,
                     PERMISSIONS.PRESENCE_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -271,17 +257,18 @@ function App() {
             }
           />
           <Route
-            path="/admin"
+            path="/user-management"
             element={
               <PrivateRoute fallback={null}>
-                <AdminRoute>
+                <UserManagementRoute>
                   <DashboardLayout>
-                    <Admin />
+                    <UserManagement />
                   </DashboardLayout>
-                </AdminRoute>
+                </UserManagementRoute>
               </PrivateRoute>
             }
           />
+          <Route path="/admin" element={<Navigate to="/user-management" replace />} />
           <Route
             path="/meet"
             element={
@@ -291,7 +278,6 @@ function App() {
                     PERMISSIONS.MEET_TOKEN,
                     PERMISSIONS.MEET_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -310,7 +296,6 @@ function App() {
                     PERMISSIONS.MEET_TOKEN,
                     PERMISSIONS.MEET_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <DashboardLayout>
@@ -329,7 +314,6 @@ function App() {
                     PERMISSIONS.MEET_TOKEN,
                     PERMISSIONS.MEET_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
-                    PERMISSIONS.ADMIN_FULL_ACCESS,
                   ]}
                 >
                   <PreJoin />

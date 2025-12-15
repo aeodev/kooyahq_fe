@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_USERS, UPDATE_EMPLOYEE, DELETE_EMPLOYEE, GET_ADMIN_STATS, CREATE_CLIENT } from '@/utils/api.routes'
+import { GET_USERS, UPDATE_EMPLOYEE, DELETE_EMPLOYEE, GET_USER_MANAGEMENT_STATS, CREATE_CLIENT } from '@/utils/api.routes'
 import type { User } from '@/types/user'
 
 export type Errors = {
@@ -159,7 +159,7 @@ export const useDeleteEmployee = () => {
   }
 }
 
-type AdminStats = {
+type UserManagementStats = {
   totalUsers: number
   totalAdmins: number
   totalRegularUsers: number
@@ -168,8 +168,8 @@ type AdminStats = {
   newUsersThisMonth: number
 }
 
-export const useAdminStats = () => {
-  const [data, setData] = useState<AdminStats | null>(null)
+export const useUserManagementStats = () => {
+  const [data, setData] = useState<UserManagementStats | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Errors | null>(null)
 
@@ -178,7 +178,7 @@ export const useAdminStats = () => {
     setLoading(true)
 
     try {
-      const response = await axiosInstance.get<{ status: string; data: AdminStats }>(GET_ADMIN_STATS())
+      const response = await axiosInstance.get<{ status: string; data: UserManagementStats }>(GET_USER_MANAGEMENT_STATS())
       setData(response.data.data)
       return response.data.data
     } catch (err) {
@@ -237,8 +237,6 @@ export const useCreateClient = () => {
     createClient,
   }
 }
-
-
 
 
 

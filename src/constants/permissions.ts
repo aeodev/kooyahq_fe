@@ -1,43 +1,19 @@
 export const PERMISSIONS = {
   SYSTEM_FULL_ACCESS: 'system:fullAccess',
-  ADMIN_FULL_ACCESS: 'admin:fullAccess',
-  ADMIN_READ: 'admin:read',
-  ADMIN_EXPORT: 'admin:export',
-  ADMIN_ACTIVITY_READ: 'admin-activity:read',
 
-  USER_FULL_ACCESS: 'user:fullAccess',
-  USER_READ: 'user:read',
-  USER_CREATE: 'user:create',
-  USER_UPDATE: 'user:update',
-  USER_DELETE: 'user:delete',
+  USERS_VIEW: 'users:view',
+  USERS_MANAGE: 'users:manage',
+
+  PROJECTS_VIEW: 'projects:view',
+  PROJECTS_MANAGE: 'projects:manage',
+
+  SYSTEM_LOGS: 'system:logs',
 
   BOARD_FULL_ACCESS: 'board:fullAccess',
-  BOARD_READ: 'board:read',
+  BOARD_VIEW: 'board:view',
   BOARD_CREATE: 'board:create',
   BOARD_UPDATE: 'board:update',
   BOARD_DELETE: 'board:delete',
-  BOARD_FAVORITE: 'board:favorite',
-  BOARD_ACTIVITY_READ: 'board-activity:read',
-  SPRINT_MANAGE: 'sprint:manage',
-
-  TICKET_FULL_ACCESS: 'ticket:fullAccess',
-  TICKET_READ: 'ticket:read',
-  TICKET_CREATE: 'ticket:create',
-  TICKET_UPDATE: 'ticket:update',
-  TICKET_DELETE: 'ticket:delete',
-  TICKET_RANK: 'ticket:rank',
-  TICKET_RELATION: 'ticket:relation',
-  TICKET_COMMENT_READ: 'ticket-comment:read',
-  TICKET_COMMENT_CREATE: 'ticket-comment:create',
-  TICKET_COMMENT_UPDATE: 'ticket-comment:update',
-  TICKET_COMMENT_DELETE: 'ticket-comment:delete',
-  TICKET_ACTIVITY_READ: 'ticket-activity:read',
-
-  PROJECT_FULL_ACCESS: 'project:fullAccess',
-  PROJECT_READ: 'project:read',
-  PROJECT_CREATE: 'project:create',
-  PROJECT_UPDATE: 'project:update',
-  PROJECT_DELETE: 'project:delete',
 
   ANNOUNCEMENT_FULL_ACCESS: 'announcement:fullAccess',
   ANNOUNCEMENT_READ: 'announcement:read',
@@ -107,48 +83,20 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
 export const PERMISSION_LIST: { value: Permission; label: string; description?: string }[] = [
   // System / Admin
   { value: PERMISSIONS.SYSTEM_FULL_ACCESS, label: 'System Full Access', description: 'Grants every permission' },
-  { value: PERMISSIONS.ADMIN_FULL_ACCESS, label: 'Admin Full Access' },
-  { value: PERMISSIONS.ADMIN_READ, label: 'Admin Read' },
-  { value: PERMISSIONS.ADMIN_EXPORT, label: 'Admin Export' },
-  { value: PERMISSIONS.ADMIN_ACTIVITY_READ, label: 'Admin Activity Read' },
 
-  // Users
-  { value: PERMISSIONS.USER_FULL_ACCESS, label: 'User Full Access' },
-  { value: PERMISSIONS.USER_READ, label: 'Read Users' },
-  { value: PERMISSIONS.USER_CREATE, label: 'Create Users' },
-  { value: PERMISSIONS.USER_UPDATE, label: 'Update Users' },
-  { value: PERMISSIONS.USER_DELETE, label: 'Delete Users' },
+  // User management (global)
+  { value: PERMISSIONS.USERS_VIEW, label: 'View Users', description: 'View user list and details' },
+  { value: PERMISSIONS.USERS_MANAGE, label: 'Manage Users', description: 'Create, edit, and delete users' },
+  { value: PERMISSIONS.PROJECTS_VIEW, label: 'View Projects' },
+  { value: PERMISSIONS.PROJECTS_MANAGE, label: 'Manage Projects' },
+  { value: PERMISSIONS.SYSTEM_LOGS, label: 'View System Logs', description: 'Access activity logs' },
 
   // Workspaces & Boards
   { value: PERMISSIONS.BOARD_FULL_ACCESS, label: 'Board Full Access' },
-  { value: PERMISSIONS.BOARD_READ, label: 'Read Boards' },
+  { value: PERMISSIONS.BOARD_VIEW, label: 'View Boards' },
   { value: PERMISSIONS.BOARD_CREATE, label: 'Create Boards' },
   { value: PERMISSIONS.BOARD_UPDATE, label: 'Update Boards' },
   { value: PERMISSIONS.BOARD_DELETE, label: 'Delete Boards' },
-  { value: PERMISSIONS.BOARD_FAVORITE, label: 'Favorite Boards' },
-  { value: PERMISSIONS.BOARD_ACTIVITY_READ, label: 'Board Activity Read' },
-  { value: PERMISSIONS.SPRINT_MANAGE, label: 'Manage Sprints' },
-
-  // Tickets
-  { value: PERMISSIONS.TICKET_FULL_ACCESS, label: 'Ticket Full Access' },
-  { value: PERMISSIONS.TICKET_READ, label: 'Read Tickets' },
-  { value: PERMISSIONS.TICKET_CREATE, label: 'Create Tickets' },
-  { value: PERMISSIONS.TICKET_UPDATE, label: 'Update Tickets' },
-  { value: PERMISSIONS.TICKET_DELETE, label: 'Delete Tickets' },
-  { value: PERMISSIONS.TICKET_RANK, label: 'Rank Tickets' },
-  { value: PERMISSIONS.TICKET_RELATION, label: 'Manage Ticket Relations' },
-  { value: PERMISSIONS.TICKET_COMMENT_READ, label: 'Read Ticket Comments' },
-  { value: PERMISSIONS.TICKET_COMMENT_CREATE, label: 'Create Ticket Comments' },
-  { value: PERMISSIONS.TICKET_COMMENT_UPDATE, label: 'Update Ticket Comments' },
-  { value: PERMISSIONS.TICKET_COMMENT_DELETE, label: 'Delete Ticket Comments' },
-  { value: PERMISSIONS.TICKET_ACTIVITY_READ, label: 'Ticket Activity Read' },
-
-  // Projects
-  { value: PERMISSIONS.PROJECT_FULL_ACCESS, label: 'Project Full Access' },
-  { value: PERMISSIONS.PROJECT_READ, label: 'Read Projects' },
-  { value: PERMISSIONS.PROJECT_CREATE, label: 'Create Projects' },
-  { value: PERMISSIONS.PROJECT_UPDATE, label: 'Update Projects' },
-  { value: PERMISSIONS.PROJECT_DELETE, label: 'Delete Projects' },
 
   // Announcements
   { value: PERMISSIONS.ANNOUNCEMENT_FULL_ACCESS, label: 'Announcement Full Access' },

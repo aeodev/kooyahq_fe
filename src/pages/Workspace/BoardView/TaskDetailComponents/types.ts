@@ -1,5 +1,5 @@
 import type { Task, Column, Assignee, Comment, Priority } from '../types'
-import type { Ticket } from '@/types/board'
+import type { Ticket, GithubStatus } from '@/types/board'
 
 export type TicketDetailResponse = {
   ticket: Ticket
@@ -31,6 +31,6 @@ export type TicketDetailResponse = {
   }
 }
 
-export type { Task, Column, Assignee, Comment, Priority, Ticket }
+export type { Task, Column, Assignee, Comment, Priority, Ticket, GithubStatus }
 
 

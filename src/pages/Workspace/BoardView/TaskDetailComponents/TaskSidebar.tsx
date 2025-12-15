@@ -9,7 +9,7 @@ import {
 import type { Task, Column } from '../types'
 import { TaskDetailFields } from './TaskDetailFields'
 import { GitHubBranches } from './GitHubBranches'
-import type { TicketDetailResponse } from './types'
+import type { TicketDetailResponse, GithubStatus } from './types'
 
 type TaskSidebarProps = {
   editedTask: Task
@@ -24,7 +24,7 @@ type TaskSidebarProps = {
   setNewTag: (tag: string) => void
   datePickerOpen: 'dueDate' | 'startDate' | 'endDate' | null
   setDatePickerOpen: (date: 'dueDate' | 'startDate' | 'endDate' | null) => void
-  githubBranches: Array<{ name: string; status: 'merged' | 'open' | 'closed'; pullRequestUrl?: string }>
+  githubBranches: Array<{ name: string; status: GithubStatus; pullRequestUrl?: string }>
   newBranchName: string
   setNewBranchName: (name: string) => void
   availableTicketsForParent: Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
@@ -38,7 +38,7 @@ type TaskSidebarProps = {
   getAvailableParents: () => Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
   onNavigateToTask?: (taskKey: string) => void
   onAddBranch: () => void
-  onUpdateBranchStatus: (branchName: string, status: 'merged' | 'open' | 'closed') => void
+  onUpdateBranchStatus: (branchName: string, status: GithubStatus) => void
   onUpdatePullRequestUrl?: (branchName: string, pullRequestUrl: string) => void
 }
 

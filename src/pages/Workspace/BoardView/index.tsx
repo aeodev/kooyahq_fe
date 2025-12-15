@@ -334,15 +334,20 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: 'priority', label: 'Priority' },
 ]
 
+const resolveBoardRole = (board: ApiBoardType | null | undefined, userId?: string): 'owner' | 'admin' | 'member' | 'viewer' | 'none' => {
+  if (!board || !userId) return 'none'
+  if (board.createdBy === userId) return 'owner'
+  const member = board.members?.find((m) => m.userId === userId)
+  return (member?.role as 'admin' | 'member' | 'viewer') ?? 'none'
+}
+
 export function BoardView() {
   const { boardKey } = useParams<{ boardKey: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const can = useAuthStore((state) => state.can)
   const currentUser = useAuthStore((state) => state.user)
-  const canBoardUpdate = can(PERMISSIONS.BOARD_UPDATE) || can(PERMISSIONS.BOARD_FULL_ACCESS)
-  const canTicketCreate = can(PERMISSIONS.TICKET_CREATE) || can(PERMISSIONS.TICKET_FULL_ACCESS)
-  const canTicketRank = can(PERMISSIONS.TICKET_RANK) || can(PERMISSIONS.TICKET_FULL_ACCESS)
+  const hasBoardFullAccess = can(PERMISSIONS.BOARD_FULL_ACCESS)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
@@ -413,6 +418,14 @@ export function BoardView() {
   
   // Fetch board from API
   const [apiBoard, setApiBoard] = useState<ApiBoardType | null>(null)
+  const boardRole = useMemo(
+    () => resolveBoardRole(apiBoard, currentUser?.id),
+    [apiBoard, currentUser?.id]
+  )
+  const canBoardUpdate = hasBoardFullAccess || boardRole === 'owner' || boardRole === 'admin'
+  const canTicketCreate =
+    hasBoardFullAccess || boardRole === 'owner' || boardRole === 'admin' || boardRole === 'member'
+  const canTicketRank = canTicketCreate
   const [isLoading, setIsLoading] = useState(true)
   const [boardError, setBoardError] = useState<{ statusCode?: number; message: string } | null>(null)
   const [apiTickets, setApiTickets] = useState<Ticket[]>([])
@@ -2448,6 +2461,8 @@ export function BoardView() {
           boardId={apiBoard && isApiBoardType(apiBoard) ? apiBoard.id : undefined}
           board={apiBoard && isApiBoardType(apiBoard) ? apiBoard : undefined}
           onNavigateToTask={handleNavigateToTask}
+          canEdit={canTicketCreate}
+          canComment={canTicketCreate}
         />
       )}
 
@@ -2460,6 +2475,8 @@ export function BoardView() {
           selectedColumnId={createTaskColumnId}
           boardId={apiBoard.id}
           assignees={assigneesFromApi.length > 0 ? assigneesFromApi : MOCK_ASSIGNEES}
+          canCreate={canTicketCreate}
+          canRead={hasBoardFullAccess || boardRole !== 'none'}
           onSuccess={() => {
             // Refetch tickets after creation
             if (apiBoard && isApiBoardType(apiBoard)) {

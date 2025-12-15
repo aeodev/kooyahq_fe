@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
@@ -7,6 +7,15 @@ import type { Board as ApiBoardType } from '@/types/board'
 import { TaskDetailModal } from './TaskDetailModal'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Task, Column } from './types'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
+
+const resolveBoardRole = (board: ApiBoardType | null, userId?: string): 'owner' | 'admin' | 'member' | 'viewer' | 'none' => {
+  if (!board || !userId) return 'none'
+  if (board.createdBy === userId) return 'owner'
+  const member = board.members?.find((m) => m.userId === userId)
+  return (member?.role as 'admin' | 'member' | 'viewer') ?? 'none'
+}
 
 export function TicketDetailPage() {
   const { boardKey, ticketKey } = useParams<{ boardKey: string; ticketKey: string }>()
@@ -16,6 +25,12 @@ export function TicketDetailPage() {
   const [columns, setColumns] = useState<Column[]>([])
   const [boardId, setBoardId] = useState<string | undefined>()
   const [board, setBoard] = useState<ApiBoardType | null>(null)
+  const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
+  const hasBoardFullAccess = can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const boardRole = useMemo(() => resolveBoardRole(board, user?.id), [board, user?.id])
+  const canEditTicket =
+    hasBoardFullAccess || boardRole === 'owner' || boardRole === 'admin' || boardRole === 'member'
 
   useEffect(() => {
     if (!boardKey || !ticketKey) return
@@ -218,6 +233,8 @@ export function TicketDetailPage() {
           board={board || undefined}
           onNavigateToTask={handleNavigateToTask}
           fullPage={true}
+          canEdit={canEditTicket}
+          canComment={canEditTicket}
         />
       </div>
     </div>

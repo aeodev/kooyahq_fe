@@ -116,7 +116,7 @@ export type Ticket = {
   github?: {
     branchName?: string
     pullRequestUrl?: string
-    status?: 'open' | 'merged' | 'closed'
+    status?: GithubStatus
   }
   viewedBy?: Array<{
     userId: string
@@ -125,6 +125,17 @@ export type Ticket = {
   }>
   relatedTickets?: string[]
 }
+
+export type GithubStatus =
+  | 'open'
+  | 'merged'
+  | 'closed'
+  | 'requested_pr'
+  | 'merging_pr'
+  | 'merged_pr'
+  | 'deploying'
+  | 'deployed'
+  | 'failed'
 
 export type Comment = {
   id: string
