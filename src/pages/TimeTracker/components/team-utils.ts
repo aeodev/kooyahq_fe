@@ -1,4 +1,5 @@
 import type { TimeEntry } from '@/types/time-entry'
+import type { User } from '@/types/user'
 import { formatDuration, formatTimeRange, calculateActiveDuration } from './utils'
 
 export type TeamMember = {
@@ -31,21 +32,24 @@ export type UserData = {
 
 export function transformEntriesToTeamMembers(
   entries: TimeEntry[],
-  users: UserData[],
+  users: User[],
   currentUserId: string | undefined,
   timerDuration: string,
   now: Date
 ): TeamMember[] {
-  const membersMap = new Map<string, TimeEntry[]>()
+  // Group entries by user
+  const entriesMap = new Map<string, TimeEntry[]>()
   entries.forEach((entry) => {
-    const existing = membersMap.get(entry.userId) || []
+    const existing = entriesMap.get(entry.userId) || []
     existing.push(entry)
-    membersMap.set(entry.userId, existing)
+    entriesMap.set(entry.userId, existing)
   })
 
-  return Array.from(membersMap.entries()).map(([userId, userEntries]) => {
-    const firstEntry = userEntries[0]
+  // Create team members for ALL users (not just those with entries)
+  return users.map((user) => {
+    const userEntries = entriesMap.get(user.id) || []
     const activeEntry = userEntries.find(e => e.isActive)
+    
     const totalMinutes = userEntries.reduce((sum, e) => {
       if (e.isActive && e.startTime) {
         const start = new Date(e.startTime)
@@ -59,18 +63,16 @@ export function transformEntriesToTeamMembers(
       return sum + e.duration
     }, 0)
 
-    const userData = users.find((u) => u.id === userId)
-
     return {
-      id: userId,
-      name: firstEntry.userName,
-      email: firstEntry.userEmail,
-      position: userData?.position,
-      profilePic: userData?.profilePic,
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      position: user.position,
+      profilePic: user.profilePic,
       status: activeEntry ? ('active' as const) : ('inactive' as const),
       todayHours: formatDuration(totalMinutes),
       activeTimer: activeEntry ? {
-        duration: userId === currentUserId ? timerDuration : calculateActiveDuration(activeEntry, now),
+        duration: user.id === currentUserId ? timerDuration : calculateActiveDuration(activeEntry, now),
         projects: activeEntry.projects,
         task: activeEntry.tasks[activeEntry.tasks.length - 1]?.text || '',
       } : undefined,
@@ -82,5 +84,10 @@ export function transformEntriesToTeamMembers(
         time: formatTimeRange(e.startTime, e.endTime),
       })),
     }
+  }).sort((a, b) => {
+    // Sort: active first, then by hours worked
+    if (a.status === 'active' && b.status !== 'active') return -1
+    if (a.status !== 'active' && b.status === 'active') return 1
+    return 0
   })
 }

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Plus, ChevronDown } from 'lucide-react'
+import { Plus, ChevronDown, Square, Pause, Play } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,23 +18,37 @@ type ActiveTimerCardProps = {
   tasks: TaskItem[]
   isPaused: boolean
   onStop: () => void
+  onPause?: () => void
+  onResume?: () => void
   onQuickAddTask?: (task: string) => void
   selectedProjects: string[]
   activeProject: string
   onSwitchProject: (project: string) => void
   controlsDisabled?: boolean
+  onAdd?: () => void
+  onEndDay?: () => void
+  showEndDay?: boolean
+  disableAdd?: boolean
+  disableEndDay?: boolean
 }
 
 export function ActiveTimerCard({ 
   duration, 
   tasks, 
   isPaused, 
-  onStop, 
+  onStop,
+  onPause,
+  onResume,
   onQuickAddTask,
   selectedProjects,
   activeProject,
   onSwitchProject,
   controlsDisabled = false,
+  onAdd,
+  onEndDay,
+  showEndDay = true,
+  disableAdd = false,
+  disableEndDay = false,
 }: ActiveTimerCardProps) {
   const [quickTask, setQuickTask] = useState('')
   const hasMultipleProjects = selectedProjects.length > 1
@@ -52,77 +66,79 @@ export function ActiveTimerCard({
   }
 
   return (
-    <Card className="border-primary/50 bg-primary/5 backdrop-blur-sm">
-      <CardHeader className="pb-5">
-        <div className="flex items-center justify-between">
-          <div className="space-y-3">
-            <CardTitle className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
-              <span className={`h-2.5 w-2.5 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500'} ${isPaused ? '' : 'animate-pulse'}`}></span>
-              {isPaused ? 'Paused Timer' : 'Active Timer'}
+    <Card className="border-primary/50 bg-primary/5 backdrop-blur-sm h-full">
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+              <span className={`h-2 w-2 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500'} ${isPaused ? '' : 'animate-pulse'}`}></span>
+              {isPaused ? 'Paused' : 'Active'}
             </CardTitle>
             <p className="text-3xl font-bold text-primary tracking-tight">{duration}</p>
           </div>
           <Button 
             variant="destructive" 
             onClick={onStop} 
-            size="lg"
+            size="sm"
             disabled={controlsDisabled}
-            className="h-11 px-6 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+            className="h-9 px-4 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200 gap-1.5"
           >
+            <Square className="h-3.5 w-3.5" />
             Stop
           </Button>
         </div>
-        <div className="mt-6 space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-muted-foreground leading-5">Project</p>
-              {hasMultipleProjects && (
-                <span className="text-xs text-muted-foreground">
-                  {selectedProjects.indexOf(activeProject) + 1} of {selectedProjects.length}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs font-medium px-3 py-1">
-                {activeProject}
-              </Badge>
-              {hasMultipleProjects && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-7 text-xs" disabled={controlsDisabled}>
-                      Switch <ChevronDown className="h-3 w-3 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {otherProjects.map((project) => (
-                      <DropdownMenuItem
-                        key={project}
-                        onClick={() => onSwitchProject(project)}
-                        className="cursor-pointer"
-                      >
-                        {project}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Project Info */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Project</p>
+            {hasMultipleProjects && (
+              <span className="text-xs text-muted-foreground">
+                {selectedProjects.indexOf(activeProject) + 1}/{selectedProjects.length}
+              </span>
+            )}
           </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground leading-5">Current Task</p>
-            <p className="text-sm font-normal text-foreground leading-5">{latestTask || 'No task'}</p>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs font-medium px-2.5 py-0.5">
+              {activeProject}
+            </Badge>
+            {hasMultipleProjects && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-6 text-xs px-2" disabled={controlsDisabled}>
+                    Switch <ChevronDown className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {otherProjects.map((project) => (
+                    <DropdownMenuItem
+                      key={project}
+                      onClick={() => onSwitchProject(project)}
+                      className="cursor-pointer"
+                    >
+                      {project}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
-      </CardHeader>
-      {onQuickAddTask && (
-        <CardContent className="pt-0">
+
+        {/* Current Task */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Current Task</p>
+          <p className="text-sm font-normal text-foreground leading-5 line-clamp-2">{latestTask || 'No task'}</p>
+        </div>
+
+        {/* Quick Add Task */}
+        {onQuickAddTask && (
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Add Task:</span>
-            </div>
+            <p className="text-xs font-medium text-muted-foreground">Add Task</p>
             <div className="flex gap-2">
               <Input
-                placeholder="What are you working on now?"
+                placeholder="What are you working on?"
                 value={quickTask}
                 onChange={(e) => setQuickTask(e.target.value)}
                 onKeyDown={(e) => {
@@ -131,23 +147,69 @@ export function ActiveTimerCard({
                   }
                 }}
                 disabled={controlsDisabled}
-                className="flex-1"
+                className="flex-1 h-9 text-sm"
               />
               <Button
                 onClick={handleQuickAdd}
                 disabled={!quickTask.trim() || controlsDisabled}
-                size="default"
+                size="sm"
+                className="h-9 px-3"
               >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Task
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Task will update for current project: {activeProject}
-            </p>
           </div>
-        </CardContent>
-      )}
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 pt-2">
+          {isPaused ? (
+            onResume && (
+              <Button
+                variant="outline"
+                onClick={onResume}
+                disabled={controlsDisabled}
+                className="flex-1 h-9 text-sm font-medium gap-1.5"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Resume
+              </Button>
+            )
+          ) : (
+            onPause && (
+              <Button
+                variant="outline"
+                onClick={onPause}
+                disabled={controlsDisabled}
+                className="flex-1 h-9 text-sm font-medium gap-1.5"
+              >
+                <Pause className="h-3.5 w-3.5" />
+                Pause
+              </Button>
+            )
+          )}
+          {onAdd && (
+            <Button
+              variant="outline"
+              onClick={onAdd}
+              disabled={controlsDisabled || disableAdd}
+              className="flex-1 h-9 text-sm font-medium"
+            >
+              Add Manual
+            </Button>
+          )}
+          {showEndDay && onEndDay && (
+            <Button
+              variant="outline"
+              onClick={onEndDay}
+              disabled={controlsDisabled || disableEndDay}
+              className="flex-1 h-9 text-sm font-medium"
+            >
+              End Day
+            </Button>
+          )}
+        </div>
+      </CardContent>
     </Card>
   )
 }

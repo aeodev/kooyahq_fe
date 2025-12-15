@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocketStore } from '@/stores/socket.store'
 import { Loader2 } from 'lucide-react'
@@ -18,6 +18,8 @@ export function KooyaFeed() {
   const socket = useSocketStore((state) => state.socket)
   const { posts, loading: isLoading, fetchPosts, createPost, deletePost, updatePost, votePoll } = usePosts()
   const { activeUsers, setActiveUsers, fetchActiveUsers } = useActiveUsers()
+  const fetchPostsRef = useRef(fetchPosts)
+  const fetchActiveUsersRef = useRef(fetchActiveUsers)
   const [filter, setFilter] = useState<'all' | 'media' | 'polls'>('all')
   const canReadPosts = can(PERMISSIONS.POST_READ) || can(PERMISSIONS.POST_FULL_ACCESS)
   const canCreatePosts = can(PERMISSIONS.POST_CREATE) || can(PERMISSIONS.POST_FULL_ACCESS)
@@ -33,13 +35,20 @@ export function KooyaFeed() {
   })
 
   useEffect(() => {
-    if (user && canReadPosts) {
-      fetchPosts()
-      if (canReadGames) {
-        fetchActiveUsers()
-      }
+    fetchPostsRef.current = fetchPosts
+  }, [fetchPosts])
+
+  useEffect(() => {
+    fetchActiveUsersRef.current = fetchActiveUsers
+  }, [fetchActiveUsers])
+
+  useEffect(() => {
+    if (!user || !canReadPosts) return
+    fetchPostsRef.current()
+    if (canReadGames) {
+      fetchActiveUsersRef.current()
     }
-  }, [user, fetchPosts, fetchActiveUsers, canReadPosts, canReadGames])
+  }, [user?.id, canReadPosts, canReadGames])
 
   useEffect(() => {
     // Listen for active users updates via socket
