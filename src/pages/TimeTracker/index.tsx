@@ -3,12 +3,12 @@ import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useProjectTaskStore } from '@/stores/project-task.store'
 import { useTimerDuration } from '@/hooks/time-entry.hooks'
-import { useUsers } from '@/hooks/user.hooks'
+import { useTeamUsers } from '@/hooks/user.hooks'
 import { useProjects } from '@/hooks/project.hooks'
 import { ActiveTimerCard } from './components/ActiveTimerCard'
 import { StartTimerForm } from './components/StartTimerForm'
 import { QuickActions } from './components/QuickActions'
-import { TodayOverview } from './components/TodayOverview'
+import { TodaySummary } from './components/TodaySummary'
 import { EntryList } from './components/EntryList'
 import { AllTeamView } from './components/AllTeamView'
 import { AnalyticsView } from './components/AnalyticsView'
@@ -90,7 +90,7 @@ export function TimeTracker() {
   const timerDuration = useTimerDuration(activeTimer)
   
   const [loggingManual, setLoggingManual] = useState(false)
-  const { users } = useUsers()
+  const { users, fetchUsers } = useTeamUsers()
 
   const user = useAuthStore((state) => state.user)
   const isLoading = useAuthStore((state) => state.isLoading)
@@ -106,6 +106,13 @@ export function TimeTracker() {
     }
   }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus, canReadEntries])
 
+
+  // Fetch users for position and profile data
+  useEffect(() => {
+    if (user && !isLoading && activeTab === 'all' && canReadEntries) {
+      fetchUsers()
+    }
+  }, [user, isLoading, activeTab, fetchUsers, canReadEntries])
 
   // Fetch immediately when switching to "All" tab
   useEffect(() => {
@@ -272,24 +279,12 @@ export function TimeTracker() {
     }
   }
 
-  // Calculate today's totals - include active timer if not already in entries
-  const todayMyEntries = useMemo(() => {
+  // Calculate today's totals
+  const todayMyEntries = myEntries.filter((entry) => {
+    const entryDate = new Date(entry.createdAt)
     const today = new Date()
-    const filtered = myEntries.filter((entry) => {
-      const entryDate = new Date(entry.createdAt)
-      return entryDate.toDateString() === today.toDateString()
-    })
-    
-    // Add active timer if it exists and isn't already in the list
-    if (activeTimer && !filtered.some(e => e.id === activeTimer.id)) {
-      const timerDate = new Date(activeTimer.createdAt)
-      if (timerDate.toDateString() === today.toDateString()) {
-        return [activeTimer, ...filtered]
-      }
-    }
-    
-    return filtered
-  }, [myEntries, activeTimer])
+    return entryDate.toDateString() === today.toDateString()
+  })
 
   // Check if there are overtime entries
   const hasOvertimeEntries = todayMyEntries.some((entry) => entry.isOvertime)
@@ -425,45 +420,27 @@ export function TimeTracker() {
       {/* Tab Content */}
       {activeTab === 'you' && (
         <div className="space-y-6">
-          {/* Active Timer - Two Column Layout */}
+          {/* Active Timer Card */}
           {activeTimer && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Column: Active Timer Card */}
-              <ActiveTimerCard
-                duration={timerDuration}
-                projects={activeTimer.projects}
-                tasks={activeTimer.tasks || []}
-                isPaused={activeTimer.isPaused}
-                onStop={handleStop}
-                onPause={handlePause}
-                onResume={handleResume}
-                selectedProjects={selectedProjects}
-                activeProject={activeProject || activeTimer.projects[0]}
-                onSwitchProject={handleSwitchProject}
-                onQuickAddTask={handleQuickAddTask}
-                controlsDisabled={!canUpdateEntries}
-                onAdd={() => canCreateEntries && setShowManualModal(true)}
-                onEndDay={handleEndDay}
-                showEndDay={showEndDayButton}
-                disableAdd={!canCreateEntries}
-                disableEndDay={!canUpdateEntries}
-              />
-              
-              {/* Right Column: Today's Overview */}
-              <TodayOverview
-                totalHours={todayTotal}
-                entryCount={todayMyEntries.length}
-                recentEntries={displayEntries}
-              />
-            </div>
+            <ActiveTimerCard
+              duration={timerDuration}
+              projects={activeTimer.projects}
+              tasks={activeTimer.tasks || []}
+              isPaused={activeTimer.isPaused}
+              onStop={handleStop}
+              selectedProjects={selectedProjects}
+              activeProject={activeProject || activeTimer.projects[0]}
+              onSwitchProject={handleSwitchProject}
+              onQuickAddTask={handleQuickAddTask}
+              controlsDisabled={!canUpdateEntries}
+            />
           )}
 
-          {/* Two-Column Layout: Start Timer + Today's Overview */}
+          {/* Start Timer Section */}
           {!activeTimer && (
-            <>
+            <div className="space-y-6">
               {canControlTimer ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left Column: Start Timer Form */}
+                <>
                   <StartTimerForm
                     projects={projects}
                     selectedProjects={selectedProjects}
@@ -475,20 +452,22 @@ export function TimeTracker() {
                     onSetProjectTask={setProjectTask}
                     activeProject={activeProject}
                     disabled={!canCreateEntries}
+                  />
+
+                  {/* Quick Actions */}
+                  <QuickActions
+                    isTimerRunning={false}
+                    isPaused={false}
+                    onPause={handlePause}
+                    onResume={handleResume}
                     onAdd={() => canCreateEntries && setShowManualModal(true)}
                     onEndDay={handleEndDay}
                     showEndDay={showEndDayButton}
+                    disabled={!canUpdateEntries}
                     disableAdd={!canCreateEntries}
                     disableEndDay={!canUpdateEntries}
                   />
-                  
-                  {/* Right Column: Today's Overview */}
-                  <TodayOverview
-                    totalHours={todayTotal}
-                    entryCount={todayMyEntries.length}
-                    recentEntries={displayEntries}
-                  />
-                </div>
+                </>
               ) : (
                 <Card>
                   <CardContent className="pt-6">
@@ -498,10 +477,26 @@ export function TimeTracker() {
                   </CardContent>
                 </Card>
               )}
-            </>
+            </div>
           )}
 
-          {/* Modals */}
+          {/* Quick Actions - Show when timer is running */}
+          {activeTimer && (
+            <QuickActions
+              isTimerRunning={!!activeTimer}
+              isPaused={activeTimer?.isPaused || false}
+              onPause={handlePause}
+              onResume={handleResume}
+              onAdd={() => canCreateEntries && setShowManualModal(true)}
+              onEndDay={handleEndDay}
+              showEndDay={showEndDayButton}
+              disabled={!canUpdateEntries}
+              disableAdd={!canCreateEntries}
+              disableEndDay={!canUpdateEntries}
+            />
+          )}
+
+          {/* Manual Entry Modal */}
           {canCreateEntries && (
             <ManualEntryModal
               projects={projects}
@@ -512,6 +507,7 @@ export function TimeTracker() {
             />
           )}
 
+          {/* End Day Modal */}
           {canUpdateEntries && (
             <EndDayModal
               open={showEndDayModal}
@@ -522,18 +518,18 @@ export function TimeTracker() {
             />
           )}
 
+          {/* Overtime Confirmation Modal */}
           <OvertimeConfirmationModal
             open={showOvertimeModal}
             onClose={handleOvertimeCancel}
             onConfirm={handleOvertimeConfirm}
           />
 
-          {/* Today's Activity with integrated summary */}
-          <EntryList 
-            entries={displayEntries} 
-            totalHours={todayTotal}
-            entryCount={todayMyEntries.length}
-          />
+          {/* Today's Summary */}
+          <TodaySummary totalHours={todayTotal} entryCount={todayMyEntries.length} />
+
+          {/* Today's Activity */}
+          <EntryList entries={displayEntries} />
         </div>
       )}
 
