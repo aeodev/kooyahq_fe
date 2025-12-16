@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight, Clock4, Bell, Calendar as CalendarIcon,
-  MessageSquare, Globe, Sparkles, Gamepad2, Play, Megaphone
+  MessageSquare, Globe, Sparkles, Gamepad2, Play, Megaphone,
+  TrendingUp, Target, Zap, Trophy, History
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -426,7 +427,7 @@ export function Home() {
       )}
 
       {/* Key Metrics Row */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {canReadTimeEntries && (
           <Card>
             <CardHeader className="pb-3">
@@ -531,10 +532,10 @@ export function Home() {
       </div>
 
       {/* Quick Access Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {canReadTimeEntries && (
-          <Card className="hover:shadow-lg transition-shadow flex flex-col h-[340px]">
-            <CardHeader>
+          <Card className="hover:shadow-lg transition-shadow flex flex-col min-h-[200px]">
+            <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Clock4 className="h-5 w-5 text-primary" />
                 <CardTitle>Time Tracker</CardTitle>
@@ -574,8 +575,8 @@ export function Home() {
         )}
 
         {canReadPosts && (
-          <Card className="hover:shadow-lg transition-shadow flex flex-col h-[340px]">
-            <CardHeader>
+          <Card className="hover:shadow-lg transition-shadow flex flex-col min-h-[200px]">
+            <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-primary" />
                 <CardTitle>Feed</CardTitle>
@@ -611,8 +612,8 @@ export function Home() {
         )}
 
         {canViewPresence && (
-          <Card className="hover:shadow-lg transition-shadow flex flex-col h-[340px]">
-            <CardHeader>
+          <Card className="hover:shadow-lg transition-shadow flex flex-col min-h-[200px]">
+            <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Globe className="h-5 w-5 text-primary" />
                 <CardTitle>Presence</CardTitle>
@@ -655,8 +656,8 @@ export function Home() {
         )}
 
         {canViewAINews && (
-          <Card className="hover:shadow-lg transition-shadow flex flex-col h-[340px]">
-            <CardHeader>
+          <Card className="hover:shadow-lg transition-shadow flex flex-col min-h-[200px]">
+            <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <CardTitle>AI News</CardTitle>
@@ -666,11 +667,11 @@ export function Home() {
             <CardContent className="flex-1 flex flex-col space-y-3">
               <div className="flex-1">
                 {latestNewsItem ? (
-                  <p className="font-medium text-sm line-clamp-4 leading-relaxed">
+                  <p className="font-medium text-sm line-clamp-3 leading-relaxed">
                     {latestNewsItem.title}
                   </p>
                 ) : (
-                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-12 w-full" />
                 )}
               </div>
               <Button asChild className="w-full mt-auto">
@@ -683,8 +684,8 @@ export function Home() {
         )}
 
         {canReadGames && (
-          <Card className="hover:shadow-lg transition-shadow flex flex-col h-[340px]">
-            <CardHeader>
+          <Card className="hover:shadow-lg transition-shadow flex flex-col min-h-[200px]">
+            <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Gamepad2 className="h-5 w-5 text-primary" />
                 <CardTitle>Games</CardTitle>
@@ -692,7 +693,7 @@ export function Home() {
               <CardDescription>Play with teammates</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col space-y-3">
-              <div className="flex-1 space-y-3">
+              <div className="flex-1 space-y-2">
                 {availableGames.length > 0 ? (
                   <>
                     {availableGames
@@ -702,7 +703,7 @@ export function Home() {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{game.name}</p>
                             <p className="text-xs text-muted-foreground line-clamp-1">
-                              {game.description || (game.type === 'tic-tac-toe' ? 'Classic 3x3 strategy' : 'Test your reaction speed')}
+                              {game.description || (game.type === 'tic-tac-toe' ? 'Classic 3x3 grid strategy game' : 'Test your reaction speed')}
                             </p>
                           </div>
                           <Button asChild size="sm" variant="outline" className="ml-2">
@@ -718,8 +719,8 @@ export function Home() {
                   </>
                 ) : (
                   <div className="space-y-2">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
                   </div>
                 )}
               </div>
@@ -731,12 +732,63 @@ export function Home() {
             </CardContent>
           </Card>
         )}
+
+        {/* Recent Activity */}
+        {canReadTimeEntries && (
+          <Card className="hover:shadow-lg transition-shadow flex flex-col min-h-[200px]">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" />
+                <CardTitle>Recent Activity</CardTitle>
+              </div>
+              <CardDescription>Your latest time entries</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col space-y-3">
+              <div className="flex-1 space-y-2">
+                {todayEntries.length > 0 ? (
+                  <>
+                    {todayEntries.slice(0, 3).map((entry) => (
+                      <div key={entry.id} className="flex items-center justify-between p-2 rounded-lg border border-border/50 bg-card/30">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {entry.tasks[entry.tasks.length - 1]?.text || 'No task'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {entry.isActive ? 'In progress' : `${Math.floor(entry.duration / 60)}h ${entry.duration % 60}m`}
+                          </p>
+                        </div>
+                        {entry.isActive && (
+                          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse ml-2" />
+                        )}
+                      </div>
+                    ))}
+                    {todayEntries.length > 3 && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        +{todayEntries.length - 3} more entries
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                    No entries today
+                  </div>
+                )}
+              </div>
+              <Button asChild className="w-full mt-auto">
+                <Link to="/time-tracker">
+                  View All Entries <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Activity Section */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="flex flex-col h-[500px]">
-          <CardHeader>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Calendar */}
+        <Card className="flex flex-col sm:col-span-2 lg:col-span-1">
+          <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5 text-primary" />
               <CardTitle>Calendar</CardTitle>
@@ -747,6 +799,114 @@ export function Home() {
           </CardContent>
         </Card>
 
+        {/* Weekly Progress */}
+        {canViewTimeAnalytics && (
+          <Card className="flex flex-col">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <CardTitle>Weekly Progress</CardTitle>
+              </div>
+              <CardDescription>Your productivity this week</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock4 className="h-3 w-3" />
+                    <span>Hours Logged</span>
+                  </div>
+                  <p className="text-2xl font-bold text-primary">
+                    {analytics ? `${Math.round(analytics.totalHours * 10) / 10}h` : '0h'}
+                  </p>
+                </div>
+                <div className="space-y-1 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Target className="h-3 w-3" />
+                    <span>Entries</span>
+                  </div>
+                  <p className="text-2xl font-bold text-green-600">{todayEntries.length}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Daily goal progress</span>
+                  <span className="font-medium">{analytics ? Math.min(Math.round((analytics.totalHours / 8) * 100), 100) : 0}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-green-500 transition-all duration-500"
+                    style={{ width: `${analytics ? Math.min((analytics.totalHours / 8) * 100, 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Quick Actions */}
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-amber-500" />
+              <CardTitle>Quick Actions</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 space-y-2">
+            {canReadTimeEntries && !activeTimer?.isActive && (
+              <Button asChild variant="outline" className="w-full justify-start gap-3 h-11">
+                <Link to="/time-tracker">
+                  <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Play className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium text-sm">Start Timer</p>
+                    <p className="text-xs text-muted-foreground">Begin tracking your work</p>
+                  </div>
+                </Link>
+              </Button>
+            )}
+            {canReadPosts && (
+              <Button asChild variant="outline" className="w-full justify-start gap-3 h-11">
+                <Link to="/feed">
+                  <div className="h-7 w-7 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium text-sm">Share Update</p>
+                    <p className="text-xs text-muted-foreground">Post to the team feed</p>
+                  </div>
+                </Link>
+              </Button>
+            )}
+            {canReadGames && (
+              <Button asChild variant="outline" className="w-full justify-start gap-3 h-11">
+                <Link to="/games">
+                  <div className="h-7 w-7 rounded-full bg-purple-500/10 flex items-center justify-center">
+                    <Trophy className="h-3.5 w-3.5 text-purple-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium text-sm">Play a Game</p>
+                    <p className="text-xs text-muted-foreground">Challenge your teammates</p>
+                  </div>
+                </Link>
+              </Button>
+            )}
+            {canViewPresence && (
+              <Button asChild variant="outline" className="w-full justify-start gap-3 h-11">
+                <Link to="/presence">
+                  <div className="h-7 w-7 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <Globe className="h-3.5 w-3.5 text-green-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium text-sm">View Presence</p>
+                    <p className="text-xs text-muted-foreground">See who's online</p>
+                  </div>
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </section>
   )
