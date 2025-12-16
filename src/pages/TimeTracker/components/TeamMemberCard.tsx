@@ -29,9 +29,10 @@ type TeamMemberCardProps = {
 
 export function TeamMemberCard({ member }: TeamMemberCardProps) {
   return (
-    <Card className="hover:shadow-xl transition-all duration-300">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-4">
+    <Card className="hover:shadow-xl transition-all duration-300 max-h-[320px] flex flex-col">
+      <CardContent className="p-4 flex flex-col flex-1 overflow-hidden">
+        {/* Header - Fixed */}
+        <div className="flex items-start justify-between mb-3 flex-shrink-0">
           <div className="flex items-center gap-3">
             {member.profilePic && member.profilePic !== 'undefined' && member.profilePic.trim() !== '' ? (
               <img
@@ -55,49 +56,58 @@ export function TeamMemberCard({ member }: TeamMemberCardProps) {
               </div>
             )}
             <div>
-              <p className="font-medium">{member.name}</p>
+              <p className="font-medium text-sm">{member.name}</p>
               {member.position && (
-                <p className="text-xs font-medium text-foreground mt-0.5">{member.position}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{member.position}</p>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${member.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+            <span className={`h-2 w-2 rounded-full ${member.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
             <span className="text-sm font-semibold">{member.todayHours}</span>
           </div>
         </div>
 
+        {/* Active Timer - Fixed */}
         {member.activeTimer && (
-          <div className="mb-4 p-3 rounded-xl bg-primary/5 backdrop-blur-sm border border-primary/20 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium">Active Timer</p>
-              <p className="text-lg font-bold text-primary">{member.activeTimer.duration}</p>
+          <div className="mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/20 flex-shrink-0">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-medium text-muted-foreground">Active</p>
+              <p className="text-sm font-bold text-primary">{member.activeTimer.duration}</p>
             </div>
-            <p className="text-xs text-muted-foreground mb-1">{member.activeTimer.task}</p>
-            <div className="flex flex-wrap gap-1">
-              {member.activeTimer.projects.map((project) => (
-                <Badge key={project} variant="secondary" className="text-xs">
+            <p className="text-xs text-foreground truncate">{member.activeTimer.task}</p>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {member.activeTimer.projects.slice(0, 2).map((project) => (
+                <Badge key={project} variant="secondary" className="text-[10px] px-1.5 py-0">
                   {project}
                 </Badge>
               ))}
+              {member.activeTimer.projects.length > 2 && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  +{member.activeTimer.projects.length - 2}
+                </Badge>
+              )}
             </div>
           </div>
         )}
 
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Recent Activity</p>
-          {member.entries.slice(0, 3).map((entry) => (
-            <div key={entry.id} className="flex items-center justify-between text-sm">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm truncate">{entry.task}</p>
-                <p className="text-xs text-muted-foreground">{entry.project} · {entry.time}</p>
+        {/* Recent Activity - Scrollable */}
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <p className="text-xs font-medium text-muted-foreground mb-2 flex-shrink-0">Recent Activity</p>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            {member.entries.map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between text-sm py-1">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs truncate">{entry.task || 'No task'}</p>
+                  <p className="text-[10px] text-muted-foreground">{entry.project}</p>
+                </div>
+                <p className="text-xs font-medium ml-2 flex-shrink-0">{entry.duration}</p>
               </div>
-              <p className="text-sm font-medium ml-2">{entry.duration}</p>
-            </div>
-          ))}
-          {member.entries.length === 0 && (
-            <p className="text-xs text-muted-foreground">No activity today</p>
-          )}
+            ))}
+            {member.entries.length === 0 && (
+              <p className="text-xs text-muted-foreground py-2">No activity today</p>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
