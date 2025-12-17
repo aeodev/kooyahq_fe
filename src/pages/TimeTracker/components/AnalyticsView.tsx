@@ -20,31 +20,72 @@ import {
   Award,
   Timer,
   ChevronRight,
-  Sparkles,
+  ChevronDown,
   Moon
 } from 'lucide-react'
+
+// Collapsible Section Component
+function CollapsibleSection({
+  title,
+  icon: Icon,
+  badge,
+  defaultOpen = true,
+  children
+}: {
+  title: string
+  icon: React.ElementType
+  badge?: React.ReactNode
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+
+  return (
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-4 hover:bg-accent/30 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-primary" />
+          <span className="text-base font-semibold text-foreground">{title}</span>
+          {badge}
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
+          {children}
+        </div>
+      )}
+    </Card>
+  )
+}
 
 // Progress Ring Component
 function ProgressRing({ 
   progress, 
-  size = 80, 
-  strokeWidth = 8,
-  color = 'hsl(var(--primary))',
-  showLabel = true
+  size = 72, 
+  strokeWidth = 6,
 }: { 
   progress: number
   size?: number
   strokeWidth?: number
-  color?: string
-  showLabel?: boolean
 }) {
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
   const offset = circumference - (Math.min(progress, 100) / 100) * circumference
+  const gradientId = `ring-${Math.random().toString(36).substr(2, 9)}`
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="transform -rotate-90">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="rgb(16, 185, 129)" />
+            <stop offset="100%" stopColor="rgb(20, 184, 166)" />
+          </linearGradient>
+        </defs>
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -52,13 +93,14 @@ function ProgressRing({
           fill="none"
           stroke="hsl(var(--muted))"
           strokeWidth={strokeWidth}
+          className="opacity-30"
         />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={color}
+          stroke={`url(#${gradientId})`}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -66,23 +108,15 @@ function ProgressRing({
           className="transition-all duration-1000 ease-out"
         />
       </svg>
-      {showLabel && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-bold text-foreground">{Math.round(progress)}%</span>
-        </div>
-      )}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-sm font-bold text-foreground tabular-nums">{Math.round(progress)}%</span>
+      </div>
     </div>
   )
 }
 
-// Sparkline Chart Component
-function SparklineChart({ 
-  data, 
-  height = 40
-}: { 
-  data: number[]
-  height?: number
-}) {
+// Sparkline Chart
+function SparklineChart({ data, height = 40 }: { data: number[]; height?: number }) {
   if (data.length === 0) return null
   
   const max = Math.max(...data, 1)
@@ -94,67 +128,35 @@ function SparklineChart({
   const pointsArray = data.map((value, index) => {
     const x = padding + (index / (data.length - 1 || 1)) * (width - padding * 2)
     const y = height - padding - ((value - min) / range) * (height - padding * 2 - 4)
-    return { x, y, value }
+    return { x, y }
   })
   
   const points = pointsArray.map(p => `${p.x},${p.y}`).join(' ')
   const areaPoints = `${padding},${height - padding} ${points} ${width - padding},${height - padding}`
-  
-  // Get last point for the indicator dot
-  const lastPoint = pointsArray[pointsArray.length - 1]
+  const gradientId = `sparkline-${Math.random().toString(36).substr(2, 9)}`
 
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
       <defs>
-        <linearGradient id="sparklineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.05" />
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="rgb(16, 185, 129)" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="rgb(16, 185, 129)" stopOpacity="0.05" />
         </linearGradient>
       </defs>
-      
-      {/* Area fill with gradient */}
-      <polygon
-        points={areaPoints}
-        fill="url(#sparklineGradient)"
-        className="transition-all duration-500"
-      />
-      
-      {/* Line */}
+      <polygon points={areaPoints} fill={`url(#${gradientId})`} />
       <polyline
         points={points}
         fill="none"
-        stroke="hsl(var(--primary))"
+        stroke="rgb(16, 185, 129)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="transition-all duration-500"
       />
-      
-      {/* End point indicator */}
-      {lastPoint && (
-        <>
-          <circle
-            cx={lastPoint.x}
-            cy={lastPoint.y}
-            r="3"
-            fill="hsl(var(--primary))"
-            className="transition-all duration-500"
-          />
-          <circle
-            cx={lastPoint.x}
-            cy={lastPoint.y}
-            r="5"
-            fill="hsl(var(--primary))"
-            opacity="0.3"
-            className="transition-all duration-500"
-          />
-        </>
-      )}
     </svg>
   )
 }
 
-// Activity Heatmap Component
+// Activity Heatmap
 function ActivityHeatmap({ data }: { data: Array<{ date: string; hours: number }> }) {
   const weeks = useMemo(() => {
     const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -173,11 +175,8 @@ function ActivityHeatmap({ data }: { data: Array<{ date: string; hours: number }
       currentWeek.push({ ...item, dayOfWeek })
     })
     
-    if (currentWeek.length > 0) {
-      weeksArray.push(currentWeek)
-    }
-    
-    return weeksArray.slice(-8) // Last 8 weeks
+    if (currentWeek.length > 0) weeksArray.push(currentWeek)
+    return weeksArray.slice(-8)
   }, [data])
 
   const maxHours = Math.max(...data.map(d => d.hours), 1)
@@ -185,20 +184,20 @@ function ActivityHeatmap({ data }: { data: Array<{ date: string; hours: number }
   const getIntensityClass = (hours: number) => {
     const ratio = hours / maxHours
     if (hours === 0) return 'bg-muted/30'
-    if (ratio < 0.25) return 'bg-primary/20'
-    if (ratio < 0.5) return 'bg-primary/40'
-    if (ratio < 0.75) return 'bg-primary/60'
-    return 'bg-primary/90'
+    if (ratio < 0.25) return 'bg-emerald-500/20'
+    if (ratio < 0.5) return 'bg-emerald-500/40'
+    if (ratio < 0.75) return 'bg-emerald-500/60'
+    return 'bg-emerald-500/90'
   }
 
-  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
   return (
     <div className="space-y-2">
       <div className="flex gap-1">
-        <div className="w-8 flex flex-col gap-1 text-[10px] text-muted-foreground">
+        <div className="w-6 flex flex-col gap-1 text-xs text-muted-foreground">
           {dayLabels.map((day, i) => (
-            <div key={day} className="h-3 flex items-center">{i % 2 === 1 ? day : ''}</div>
+            <div key={i} className="h-4 flex items-center justify-center">{day}</div>
           ))}
         </div>
         <div className="flex-1 flex gap-1">
@@ -209,7 +208,7 @@ function ActivityHeatmap({ data }: { data: Array<{ date: string; hours: number }
                 return (
                   <div
                     key={dayIndex}
-                    className={`h-3 rounded-sm transition-all duration-200 hover:ring-2 hover:ring-primary/50 cursor-pointer ${getIntensityClass(dayData?.hours || 0)}`}
+                    className={`h-4 rounded transition-all duration-200 hover:ring-2 hover:ring-primary/50 cursor-pointer ${getIntensityClass(dayData?.hours || 0)}`}
                     title={dayData ? `${new Date(dayData.date).toLocaleDateString()}: ${formatHours(dayData.hours)}` : 'No data'}
                   />
                 )
@@ -218,11 +217,11 @@ function ActivityHeatmap({ data }: { data: Array<{ date: string; hours: number }
           ))}
         </div>
       </div>
-      <div className="flex items-center justify-end gap-2 text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
         <span>Less</span>
-        <div className="flex gap-0.5">
-          {['bg-muted/30', 'bg-primary/20', 'bg-primary/40', 'bg-primary/60', 'bg-primary/90'].map((cls) => (
-            <div key={cls} className={`w-3 h-3 rounded-sm ${cls}`} />
+        <div className="flex gap-1">
+          {['bg-muted/30', 'bg-emerald-500/20', 'bg-emerald-500/40', 'bg-emerald-500/60', 'bg-emerald-500/90'].map((cls) => (
+            <div key={cls} className={`w-4 h-4 rounded ${cls}`} />
           ))}
         </div>
         <span>More</span>
@@ -231,35 +230,22 @@ function ActivityHeatmap({ data }: { data: Array<{ date: string; hours: number }
   )
 }
 
-// Bar Chart Component
-function BarChart({ 
-  data, 
-  maxValue 
-}: { 
-  data: Array<{ label: string; value: number }>
-  maxValue?: number 
-}) {
+// Bar Chart
+function BarChart({ data, maxValue }: { data: Array<{ label: string; value: number }>; maxValue?: number }) {
   const max = maxValue || Math.max(...data.map(d => d.value), 1)
-  const barColors = [
-    'bg-primary',
-    'bg-sky-500', 
-    'bg-violet-500',
-    'bg-orange-500',
-    'bg-pink-500',
-    'bg-teal-500'
-  ]
+  const colors = ['bg-emerald-500', 'bg-sky-500', 'bg-violet-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500']
   
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-4">
       {data.map((item, index) => (
-        <div key={index} className="space-y-1">
+        <div key={index} className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-foreground font-medium truncate max-w-[60%]">{item.label}</span>
-            <span className="text-[12px] text-muted-foreground tabular-nums">{formatHours(item.value)}</span>
+            <span className="text-sm text-foreground font-medium truncate max-w-[60%]">{item.label}</span>
+            <span className="text-sm text-muted-foreground tabular-nums">{formatHours(item.value)}</span>
           </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+          <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-700 ease-out ${barColors[index % barColors.length]}`}
+              className={`h-full rounded-full transition-all duration-700 ease-out ${colors[index % colors.length]}`}
               style={{ width: `${(item.value / max) * 100}%` }}
             />
           </div>
@@ -269,7 +255,7 @@ function BarChart({
   )
 }
 
-// Stat Card Component
+// Stat Card
 function StatCard({
   title,
   value,
@@ -288,34 +274,32 @@ function StatCard({
   sparklineData?: number[]
 }) {
   return (
-    <Card className="border-border overflow-hidden">
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
       <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex items-start justify-between mb-4">
           <div className="p-2 rounded-lg bg-primary/10 text-primary">
             <Icon className="h-4 w-4" />
           </div>
           {trend && (
-            <div className={`flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-              trend === 'up' 
-                ? 'text-primary bg-primary/10' 
-                : trend === 'down' 
-                  ? 'text-destructive bg-destructive/10' 
-                  : 'text-muted-foreground bg-muted'
+            <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
+              trend === 'up' ? 'text-emerald-600 bg-emerald-500/10' : 
+              trend === 'down' ? 'text-red-600 bg-red-500/10' : 
+              'text-muted-foreground bg-muted'
             }`}>
-              {trend === 'up' ? <TrendingUp className="h-2.5 w-2.5" /> : trend === 'down' ? <TrendingDown className="h-2.5 w-2.5" /> : null}
+              {trend === 'up' ? <TrendingUp className="h-3 w-3" /> : trend === 'down' ? <TrendingDown className="h-3 w-3" /> : null}
               {trendValue}
             </div>
           )}
         </div>
         
-        <div className="space-y-0.5">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">{title}</p>
-          <p className="text-2xl font-semibold text-foreground tracking-tight leading-none">{value}</p>
-          {subtitle && <p className="text-[11px] text-muted-foreground mt-1">{subtitle}</p>}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground font-medium">{title}</p>
+          <p className="text-2xl font-bold text-foreground tabular-nums">{value}</p>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
         </div>
 
         {sparklineData && sparklineData.length > 1 && (
-          <div className="mt-3 -mx-1 -mb-1">
+          <div className="mt-4 -mx-1 -mb-1">
             <SparklineChart data={sparklineData} height={40} />
           </div>
         )}
@@ -324,7 +308,7 @@ function StatCard({
   )
 }
 
-// Leaderboard Item Component
+// Leaderboard Item
 function LeaderboardItem({
   rank,
   name,
@@ -336,31 +320,28 @@ function LeaderboardItem({
   name: string
   value: string
   subtext?: string
-  badge?: { text: string; variant: 'default' | 'secondary' | 'outline' }
+  badge?: { text: string }
 }) {
-  const rankStyles = {
+  const rankStyles: Record<number, string> = {
     1: 'bg-amber-500/20 text-amber-600 ring-1 ring-amber-500/30',
     2: 'bg-slate-400/20 text-slate-600 ring-1 ring-slate-400/30',
     3: 'bg-orange-500/20 text-orange-600 ring-1 ring-orange-500/30',
   }
 
   return (
-    <div className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-card hover:bg-accent/30 transition-colors">
-      <div className="flex items-center gap-2.5">
-        <div className={`flex items-center justify-center h-7 w-7 rounded-lg text-xs font-bold ${
-          rankStyles[rank as keyof typeof rankStyles] || 'bg-muted text-muted-foreground'
+    <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-card hover:bg-accent/30 transition-colors">
+      <div className="flex items-center gap-4">
+        <div className={`flex items-center justify-center h-8 w-8 rounded-lg text-sm font-bold ${
+          rankStyles[rank] || 'bg-muted text-muted-foreground'
         }`}>
           {rank}
         </div>
         <div>
-          <p className="text-[13px] font-medium text-foreground leading-tight">{name}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {subtext && <p className="text-[11px] text-muted-foreground">{subtext}</p>}
+          <p className="text-sm font-medium text-foreground">{name}</p>
+          <div className="flex items-center gap-2 mt-1">
+            {subtext && <p className="text-xs text-muted-foreground">{subtext}</p>}
             {badge && (
-              <Badge 
-                variant={badge.variant} 
-                className="text-[9px] px-1 py-0 h-4 bg-amber-500/10 text-amber-600 border-amber-500/30"
-              >
+              <Badge className="text-xs px-2 py-0 bg-amber-500/10 text-amber-600 border-0">
                 {badge.text}
               </Badge>
             )}
@@ -380,21 +361,14 @@ export function AnalyticsView() {
     date.setDate(date.getDate() - 15)
     return date.toISOString().split('T')[0]
   })
-  const [endDate, setEndDate] = useState(() => {
-    const date = new Date()
-    return date.toISOString().split('T')[0]
-  })
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
 
   useEffect(() => {
-    if (startDate && endDate) {
-      fetchAnalytics(startDate, endDate)
-    }
+    if (startDate && endDate) fetchAnalytics(startDate, endDate)
   }, [startDate, endDate, fetchAnalytics])
 
   const handleApply = () => {
-    if (startDate && endDate && startDate <= endDate) {
-      fetchAnalytics(startDate, endDate)
-    }
+    if (startDate && endDate && startDate <= endDate) fetchAnalytics(startDate, endDate)
   }
 
   const quickRange = (days: number) => {
@@ -405,60 +379,27 @@ export function AnalyticsView() {
     setEndDate(end.toISOString().split('T')[0])
   }
 
-  // Calculate insights
   const insights = useMemo(() => {
     if (!data) return null
-
-    const avgHoursPerDay = data.byDay.length > 0 
-      ? data.totalHours / data.byDay.length 
-      : 0
-    
-    const avgEntriesPerDay = data.byDay.length > 0
-      ? data.totalEntries / data.byDay.length
-      : 0
-
-    const mostProductiveDay = data.byDay.reduce(
-      (max, day) => day.hours > (max?.hours || 0) ? day : max,
-      null as { date: string; hours: number } | null
-    )
-
-    const overtimePercentage = data.totalEntries > 0
-      ? (data.totalOvertimeEntries / data.totalEntries) * 100
-      : 0
-
-    const topProject = data.byProject[0]
-    const topContributor = data.byUser[0]
-
     return {
-      avgHoursPerDay,
-      avgEntriesPerDay,
-      mostProductiveDay,
-      overtimePercentage,
-      topProject,
-      topContributor,
+      avgHoursPerDay: data.byDay.length > 0 ? data.totalHours / data.byDay.length : 0,
+      avgEntriesPerDay: data.byDay.length > 0 ? data.totalEntries / data.byDay.length : 0,
+      mostProductiveDay: data.byDay.reduce((max, day) => day.hours > (max?.hours || 0) ? day : max, null as { date: string; hours: number } | null),
+      overtimePercentage: data.totalEntries > 0 ? (data.totalOvertimeEntries / data.totalEntries) * 100 : 0,
+      topProject: data.byProject[0],
+      topContributor: data.byUser[0],
     }
   }, [data])
 
-  // Daily hours trend for sparkline
-  const dailyHoursTrend = useMemo(() => {
-    if (!data) return []
-    return data.byDay.slice(-14).map(d => d.hours)
-  }, [data])
-
-  // Daily entries trend for sparkline
-  const dailyEntriesTrend = useMemo(() => {
-    if (!data) return []
-    return data.byDay.slice(-14).map(d => d.entries)
-  }, [data])
+  const dailyHoursTrend = useMemo(() => data?.byDay.slice(-14).map(d => d.hours) || [], [data])
+  const dailyEntriesTrend = useMemo(() => data?.byDay.slice(-14).map(d => d.entries) || [], [data])
 
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center p-12">
         <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-          </div>
-          <p className="text-muted-foreground">Loading analytics...</p>
+          <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading analytics...</p>
         </div>
       </div>
     )
@@ -467,14 +408,14 @@ export function AnalyticsView() {
   if (error) {
     return (
       <div className="flex items-center justify-center p-12">
-        <Card className="max-w-md border-destructive/50 bg-destructive/5">
+        <Card className="max-w-md border-red-500/50 bg-red-500/5">
           <CardContent className="p-6 text-center">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
-              <Activity className="h-6 w-6 text-destructive" />
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
+              <Activity className="h-6 w-6 text-red-500" />
             </div>
-            <p className="text-destructive font-medium">Error loading analytics</p>
-            <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
-            <Button onClick={handleApply} variant="outline" className="mt-4">
+            <p className="text-sm font-medium text-red-600">Error loading analytics</p>
+            <p className="text-xs text-muted-foreground mt-1">{error.message}</p>
+            <Button onClick={handleApply} variant="outline" size="sm" className="mt-4">
               Try Again
             </Button>
           </CardContent>
@@ -483,22 +424,18 @@ export function AnalyticsView() {
     )
   }
 
-  if (!data) {
-    return null
-  }
+  if (!data) return null
 
-  const productivityRanks = data.byUser
-    .map((user, index) => ({
-      rank: index + 1,
-      name: user.userName,
-      hours: formatHours(user.hours),
-      entries: user.entries,
-      overtimeEntries: user.overtimeEntries,
-    }))
-    .slice(0, 10)
+  const productivityRanks = data.byUser.map((user, index) => ({
+    rank: index + 1,
+    name: user.userName,
+    hours: formatHours(user.hours),
+    entries: user.entries,
+    overtimeEntries: user.overtimeEntries,
+  })).slice(0, 10)
 
   const overtimeRanks = data.byUser
-    .filter((user) => user.overtimeEntries > 0)
+    .filter(user => user.overtimeEntries > 0)
     .sort((a, b) => b.overtimeHours - a.overtimeHours)
     .map((user, index) => ({
       rank: index + 1,
@@ -506,51 +443,46 @@ export function AnalyticsView() {
       overtimeEntries: user.overtimeEntries,
       overtimeHours: formatHours(user.overtimeHours),
       totalEntries: user.entries,
-    }))
-    .slice(0, 10)
+    })).slice(0, 10)
 
-  const projectData = data.byProject.slice(0, 6).map((p) => ({
-    label: p.project,
-    value: p.hours,
-  }))
-
+  const projectData = data.byProject.slice(0, 6).map(p => ({ label: p.project, value: p.hours }))
   const totalProjectHours = data.byProject.reduce((sum, p) => sum + p.hours, 0)
 
   return (
     <div className="space-y-6">
       {/* Date Range Selector */}
-      <Card className="border-border">
+      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
         <div className="p-4">
-          <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4">
             <div className="flex-1">
-              <div className="flex items-center gap-1.5 mb-2.5">
+              <div className="flex items-center gap-2 mb-4">
                 <Calendar className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-semibold text-foreground">Date Range</h3>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor="startDate" className="text-[10px] text-muted-foreground uppercase tracking-wide">Start</Label>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="startDate" className="text-xs text-muted-foreground">Start</Label>
                   <Input
                     id="startDate"
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full h-9 text-[13px]"
+                    className="h-10 text-sm"
                   />
                 </div>
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor="endDate" className="text-[10px] text-muted-foreground uppercase tracking-wide">End</Label>
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="endDate" className="text-xs text-muted-foreground">End</Label>
                   <Input
                     id="endDate"
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full h-9 text-[13px]"
+                    className="h-10 text-sm"
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button onClick={handleApply} size="sm" className="w-full sm:w-auto h-9">
-                    <ChevronRight className="h-3.5 w-3.5 mr-0.5" />
+                  <Button onClick={handleApply} size="sm" className="h-10 px-4 gap-1">
+                    <ChevronRight className="h-4 w-4" />
                     Apply
                   </Button>
                 </div>
@@ -558,7 +490,7 @@ export function AnalyticsView() {
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-1.5 mt-3">
+          <div className="flex flex-wrap gap-2 mt-4">
             {[
               { label: '7d', days: 7 },
               { label: '15d', days: 15 },
@@ -571,7 +503,7 @@ export function AnalyticsView() {
                 variant="outline"
                 size="sm"
                 onClick={() => quickRange(days)}
-                className="h-7 px-2.5 text-[11px]"
+                className="h-8 px-4 text-xs"
               >
                 {label}
               </Button>
@@ -610,43 +542,31 @@ export function AnalyticsView() {
         />
       </div>
 
-      {/* Activity Heatmap */}
+      {/* Activity Heatmap - Collapsible */}
       {data.byDay.length > 0 && (
-        <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
-              Activity Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <ActivityHeatmap data={data.byDay} />
-          </CardContent>
-        </Card>
+        <CollapsibleSection title="Activity Overview" icon={Activity} defaultOpen={true}>
+          <ActivityHeatmap data={data.byDay} />
+        </CollapsibleSection>
       )}
 
       {/* Insights Cards */}
       {insights && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {insights.mostProductiveDay && (
-            <Card className="border-border">
-              <CardContent className="p-3.5">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="p-1.5 rounded-lg bg-muted">
+            <Card className="border-border/50 bg-card/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="p-2 rounded-lg bg-muted/50">
                     <Flame className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Best Day</p>
-                    <p className="text-[13px] font-medium text-foreground truncate">
-                      {new Date(insights.mostProductiveDay.date).toLocaleDateString('en-US', { 
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Best Day</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {new Date(insights.mostProductiveDay.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </p>
                   </div>
                 </div>
-                <p className="text-xl font-semibold text-foreground">
+                <p className="text-2xl font-bold text-foreground tabular-nums">
                   {formatHours(insights.mostProductiveDay.hours)}
                 </p>
               </CardContent>
@@ -654,48 +574,40 @@ export function AnalyticsView() {
           )}
 
           {insights.topProject && (
-            <Card className="border-border">
-              <CardContent className="p-3.5">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="p-1.5 rounded-lg bg-muted">
+            <Card className="border-border/50 bg-card/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="p-2 rounded-lg bg-muted/50">
                     <Briefcase className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Top Project</p>
-                    <p className="text-[13px] font-medium text-foreground truncate">{insights.topProject.project}</p>
+                    <p className="text-xs text-muted-foreground">Top Project</p>
+                    <p className="text-sm font-medium text-foreground truncate">{insights.topProject.project}</p>
                   </div>
                 </div>
-                <div className="flex items-baseline gap-1.5">
-                  <p className="text-xl font-semibold text-foreground">
-                    {formatHours(insights.topProject.hours)}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    · {insights.topProject.contributors} people
-                  </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold text-foreground tabular-nums">{formatHours(insights.topProject.hours)}</p>
+                  <p className="text-xs text-muted-foreground">· {insights.topProject.contributors} people</p>
                 </div>
               </CardContent>
             </Card>
           )}
 
           {insights.topContributor && (
-            <Card className="border-border">
-              <CardContent className="p-3.5">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="p-1.5 rounded-lg bg-muted">
+            <Card className="border-border/50 bg-card/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="p-2 rounded-lg bg-muted/50">
                     <Award className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Top Person</p>
-                    <p className="text-[13px] font-medium text-foreground truncate">{insights.topContributor.userName}</p>
+                    <p className="text-xs text-muted-foreground">Top Person</p>
+                    <p className="text-sm font-medium text-foreground truncate">{insights.topContributor.userName}</p>
                   </div>
                 </div>
-                <div className="flex items-baseline gap-1.5">
-                  <p className="text-xl font-semibold text-foreground">
-                    {formatHours(insights.topContributor.hours)}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    · {insights.topContributor.entries} entries
-                  </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold text-foreground tabular-nums">{formatHours(insights.topContributor.hours)}</p>
+                  <p className="text-xs text-muted-foreground">· {insights.topContributor.entries} entries</p>
                 </div>
               </CardContent>
             </Card>
@@ -703,19 +615,15 @@ export function AnalyticsView() {
         </div>
       )}
 
-      {/* Two Column Layout: Leaderboard + Projects */}
+      {/* Leaderboard + Projects - Two Column */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Most Productive */}
         {productivityRanks.length > 0 && (
-          <Card className="border-border">
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
-                Most Productive
-                <Badge variant="secondary" className="ml-auto text-[10px] h-5">Top 10</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1.5 px-4 pb-4">
+          <CollapsibleSection 
+            title="Most Productive" 
+            icon={Target} 
+            badge={<Badge variant="secondary" className="text-xs ml-2">Top 10</Badge>}
+          >
+            <div className="space-y-2">
               {productivityRanks.map((person) => (
                 <LeaderboardItem
                   key={person.rank}
@@ -723,183 +631,152 @@ export function AnalyticsView() {
                   name={person.name}
                   value={person.hours}
                   subtext={`${person.entries} entries`}
-                  badge={person.overtimeEntries > 0 ? { 
-                    text: `${person.overtimeEntries} OT`, 
-                    variant: 'outline' 
-                  } : undefined}
+                  badge={person.overtimeEntries > 0 ? { text: `${person.overtimeEntries} OT` } : undefined}
                 />
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </CollapsibleSection>
         )}
 
-        {/* Project Distribution */}
         {projectData.length > 0 && (
-          <Card className="border-border">
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-primary" />
-                Project Hours
-                <Badge variant="secondary" className="ml-auto text-[10px] h-5">Top 6</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <BarChart data={projectData} />
-              
-              {/* Project Distribution Visual */}
-              <div className="mt-4 pt-3 border-t border-border">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Distribution</p>
-                <div className="flex h-2 rounded-full overflow-hidden bg-muted">
-                  {data.byProject.slice(0, 5).map((project, index) => {
-                    const percentage = (project.hours / totalProjectHours) * 100
-                    const colors = ['bg-primary', 'bg-sky-500', 'bg-violet-500', 'bg-orange-500', 'bg-pink-500']
-                    return (
-                      <div
-                        key={project.project}
-                        className={`${colors[index]} transition-all duration-500`}
-                        style={{ width: `${percentage}%` }}
-                        title={`${project.project}: ${formatHours(project.hours)} (${percentage.toFixed(1)}%)`}
-                      />
-                    )
-                  })}
-                </div>
-                <div className="flex flex-wrap gap-2.5 mt-2.5">
-                  {data.byProject.slice(0, 5).map((project, index) => {
-                    const colors = ['bg-primary', 'bg-sky-500', 'bg-violet-500', 'bg-orange-500', 'bg-pink-500']
-                    const percentage = Math.round((project.hours / totalProjectHours) * 100)
-                    return (
-                      <div key={project.project} className="flex items-center gap-1 text-[11px]">
-                        <div className={`w-1.5 h-1.5 rounded-full ${colors[index]}`} />
-                        <span className="text-muted-foreground truncate max-w-[80px]">{project.project}</span>
-                        <span className="font-medium text-foreground">{percentage}%</span>
-                      </div>
-                    )
-                  })}
-                </div>
+          <CollapsibleSection 
+            title="Project Hours" 
+            icon={Briefcase} 
+            badge={<Badge variant="secondary" className="text-xs ml-2">Top 6</Badge>}
+          >
+            <BarChart data={projectData} />
+            
+            {/* Distribution */}
+            <div className="mt-6 pt-4 border-t border-border/50">
+              <p className="text-xs text-muted-foreground mb-2">Distribution</p>
+              <div className="flex h-2 rounded-full overflow-hidden bg-muted/30">
+                {data.byProject.slice(0, 5).map((project, index) => {
+                  const percentage = (project.hours / totalProjectHours) * 100
+                  const colors = ['bg-emerald-500', 'bg-sky-500', 'bg-violet-500', 'bg-orange-500', 'bg-pink-500']
+                  return (
+                    <div
+                      key={project.project}
+                      className={`${colors[index]} transition-all duration-500`}
+                      style={{ width: `${percentage}%` }}
+                      title={`${project.project}: ${formatHours(project.hours)}`}
+                    />
+                  )
+                })}
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex flex-wrap gap-4 mt-4">
+                {data.byProject.slice(0, 5).map((project, index) => {
+                  const colors = ['bg-emerald-500', 'bg-sky-500', 'bg-violet-500', 'bg-orange-500', 'bg-pink-500']
+                  const percentage = Math.round((project.hours / totalProjectHours) * 100)
+                  return (
+                    <div key={project.project} className="flex items-center gap-2 text-xs">
+                      <div className={`w-2 h-2 rounded-full ${colors[index]}`} />
+                      <span className="text-muted-foreground truncate max-w-[100px]">{project.project}</span>
+                      <span className="font-medium text-foreground">{percentage}%</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </CollapsibleSection>
         )}
       </div>
 
       {/* Overtime Section */}
       {overtimeRanks.length > 0 && (
-        <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Moon className="h-4 w-4 text-amber-500" />
-              Overtime Work
-              <Badge className="ml-auto text-[10px] h-5 bg-amber-500/10 text-amber-600 border-amber-500/30">
-                {data.totalOvertimeEntries} entries
-              </Badge>
-            </CardTitle>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Team members with overtime in this period
-            </p>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-              {overtimeRanks.map((person) => (
-                <div
-                  key={person.rank}
-                  className="flex items-center justify-between p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-amber-500/20 text-xs font-bold text-amber-600">
-                      {person.rank}
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-medium text-foreground leading-tight">{person.name}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-[11px] text-muted-foreground">{person.totalEntries} total</p>
-                        <Badge className="text-[9px] px-1 py-0 h-4 bg-amber-500/10 text-amber-600 border-amber-500/30">
-                          {person.overtimeEntries} OT
-                        </Badge>
-                      </div>
-                    </div>
+        <CollapsibleSection 
+          title="Overtime Work" 
+          icon={Moon} 
+          badge={<Badge className="text-xs ml-2 bg-amber-500/10 text-amber-600 border-0">{data.totalOvertimeEntries} entries</Badge>}
+          defaultOpen={false}
+        >
+          <p className="text-xs text-muted-foreground mb-4">Team members with overtime in this period</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {overtimeRanks.map((person) => (
+              <div
+                key={person.rank}
+                className="flex items-center justify-between p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-amber-500/20 text-sm font-bold text-amber-600">
+                    {person.rank}
                   </div>
-                  <div className="text-right">
-                    <p className="text-base font-semibold text-amber-600 tabular-nums">{person.overtimeHours}</p>
-                    <p className="text-[9px] text-muted-foreground">overtime</p>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{person.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground">{person.totalEntries} total</p>
+                      <Badge className="text-xs px-2 py-0 bg-amber-500/10 text-amber-600 border-0">
+                        {person.overtimeEntries} OT
+                      </Badge>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="text-right">
+                  <p className="text-base font-semibold text-amber-600 tabular-nums">{person.overtimeHours}</p>
+                  <p className="text-xs text-muted-foreground">overtime</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CollapsibleSection>
       )}
 
       {/* Daily Breakdown */}
       {data.byDay.length > 0 && (
-        <Card className="border-border">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Daily Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="space-y-1.5 max-h-[350px] overflow-y-auto pr-1">
-              {[...data.byDay].reverse().slice(0, 15).map((day) => {
-                const date = new Date(day.date)
-                const isToday = date.toDateString() === new Date().toDateString()
-                const dayProgress = (day.hours / 8) * 100
-                
-                return (
-                  <div
-                    key={day.date}
-                    className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
-                      isToday 
-                        ? 'border-primary bg-primary/5' 
-                        : 'border-border bg-card hover:bg-accent/30'
-                    }`}
-                  >
-                    <div className="w-16 flex-shrink-0">
-                      <p className={`text-[13px] font-medium leading-tight ${isToday ? 'text-primary' : 'text-foreground'}`}>
-                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </p>
-                    </div>
-                    
-                    <div className="flex-1">
-                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all duration-500"
-                          style={{ width: `${Math.min(dayProgress, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="w-16 text-right flex-shrink-0">
-                      <p className="text-[13px] font-semibold tabular-nums leading-tight">{formatHours(day.hours)}</p>
-                      <p className="text-[10px] text-muted-foreground">{day.entries} entries</p>
-                    </div>
-
-                    {isToday && (
-                      <Badge variant="secondary" className="text-[9px] h-4 px-1">
-                        Today
-                      </Badge>
-                    )}
+        <CollapsibleSection title="Daily Breakdown" icon={Calendar} defaultOpen={false}>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+            {[...data.byDay].reverse().slice(0, 15).map((day) => {
+              const date = new Date(day.date)
+              const isToday = date.toDateString() === new Date().toDateString()
+              const dayProgress = (day.hours / 8) * 100
+              
+              return (
+                <div
+                  key={day.date}
+                  className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
+                    isToday ? 'border-primary bg-primary/5' : 'border-border/50 bg-card hover:bg-accent/30'
+                  }`}
+                >
+                  <div className="w-16 flex-shrink-0">
+                    <p className={`text-sm font-medium ${isToday ? 'text-primary' : 'text-foreground'}`}>
+                      {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
                   </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  
+                  <div className="flex-1">
+                    <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500"
+                        style={{ width: `${Math.min(dayProgress, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="w-20 text-right flex-shrink-0">
+                    <p className="text-sm font-semibold tabular-nums">{formatHours(day.hours)}</p>
+                    <p className="text-xs text-muted-foreground">{day.entries} entries</p>
+                  </div>
+
+                  {isToday && (
+                    <Badge variant="secondary" className="text-xs">Today</Badge>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </CollapsibleSection>
       )}
 
       {data.totalEntries === 0 && (
-        <Card className="border-border">
-          <CardContent className="py-10 px-6 text-center">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted/50 flex items-center justify-center">
+        <Card className="border-border/50">
+          <CardContent className="py-12 px-6 text-center">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-muted/50 flex items-center justify-center">
               <Timer className="h-6 w-6 text-muted-foreground" />
             </div>
             <p className="text-sm font-medium text-foreground">No entries found</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Try adjusting the date range
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Try adjusting the date range</p>
           </CardContent>
         </Card>
       )}
