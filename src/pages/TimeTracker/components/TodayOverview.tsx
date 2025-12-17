@@ -2,11 +2,12 @@ import { Clock, ListTodo, Calendar, TrendingUp, Flame, Target, Timer } from 'luc
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useMemo } from 'react'
+import type { TaskItem } from '@/types/time-entry'
 
 type Entry = {
   id: string
   project: string
-  tasks: { task: string; timestamp?: string }[]
+  tasks: TaskItem[]
   duration: string
   time: string
   isOvertime?: boolean
@@ -216,7 +217,7 @@ export function TodayOverview({
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-1 pl-4">
-                        {entry.tasks.length > 0 ? entry.tasks[0].task : 'No task'}
+                        {entry.tasks.length > 0 ? entry.tasks[0].text : 'No task'}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
