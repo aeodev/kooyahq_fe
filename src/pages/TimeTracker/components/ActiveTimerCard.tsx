@@ -3,13 +3,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Plus, ChevronDown, Square, Pause, Play, FolderPlus } from 'lucide-react'
+import { Plus, Square, Pause, Play, FolderPlus } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import type { TaskItem } from '@/types/time-entry'
@@ -58,7 +57,6 @@ export function ActiveTimerCard({
 }: ActiveTimerCardProps) {
   const [quickTask, setQuickTask] = useState('')
   const hasMultipleProjects = selectedProjects.length > 1
-  const otherProjects = selectedProjects.filter(p => p !== activeProject)
   const availableToAdd = allProjects.filter(p => !selectedProjects.includes(p))
 
   const latestTask = tasks.length > 0 ? tasks[tasks.length - 1].text : ''
@@ -115,74 +113,71 @@ export function ActiveTimerCard({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              {hasMultipleProjects ? 'Projects' : 'Project'}
+              {hasMultipleProjects ? 'Projects' : 'Project'} {hasMultipleProjects && `(${selectedProjects.length})`}
             </p>
             {hasMultipleProjects && (
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {selectedProjects.indexOf(activeProject) + 1}/{selectedProjects.length}
+              <span className="text-xs text-muted-foreground">
+                Click to switch
               </span>
             )}
           </div>
+          
+          {/* All Projects - Visible & Clickable */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge className="text-sm font-medium px-3 py-1 bg-foreground/10 text-foreground border-0 hover:bg-foreground/20">
-              {activeProject}
-            </Badge>
-            {otherProjects.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                +{otherProjects.length} more
-              </span>
-            )}
+            {selectedProjects.map((project) => {
+              const isActive = project === activeProject
+              return (
+                <button
+                  key={project}
+                  onClick={() => !isActive && !controlsDisabled && onSwitchProject(project)}
+                  disabled={controlsDisabled}
+                  className={`
+                    text-sm font-medium px-3 py-1.5 rounded-lg transition-all duration-200
+                    ${isActive 
+                      ? 'bg-emerald-500/20 text-emerald-600 ring-2 ring-emerald-500/30 shadow-sm' 
+                      : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground cursor-pointer'
+                    }
+                    ${controlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+                  `}
+                >
+                  {isActive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />}
+                  {project}
+                </button>
+              )
+            })}
             
-            {/* Switch & Add Projects Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 text-xs px-2 hover:bg-foreground/10" disabled={controlsDisabled}>
-                  {hasMultipleProjects ? 'Manage' : 'Add'} <ChevronDown className="h-3 w-3 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 max-h-64 overflow-y-auto">
-                {otherProjects.length > 0 && (
-                  <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">Switch to</DropdownMenuLabel>
-                    {otherProjects.map((project) => (
-                      <DropdownMenuItem
-                        key={project}
-                        onClick={() => onSwitchProject(project)}
-                        className="cursor-pointer text-sm"
-                      >
-                        {project}
-                      </DropdownMenuItem>
-                    ))}
-                    {availableToAdd.length > 0 && <DropdownMenuSeparator />}
-                  </>
-                )}
-                
-                {availableToAdd.length > 0 && onAddProject && (
-                  <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
-                      <FolderPlus className="h-3 w-3" />
-                      Add Project
-                    </DropdownMenuLabel>
-                    {availableToAdd.map((project) => (
-                      <DropdownMenuItem
-                        key={project}
-                        onClick={() => onAddProject(project)}
-                        className="cursor-pointer text-sm"
-                      >
-                        <Plus className="h-3 w-3 mr-2 text-muted-foreground" />
-                        {project}
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-                
-                {availableToAdd.length === 0 && otherProjects.length === 0 && (
-                  <div className="px-2 py-2 text-xs text-muted-foreground">
-                    No other projects available
-                  </div>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Add Project Dropdown */}
+            {availableToAdd.length > 0 && onAddProject && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-2 text-muted-foreground hover:text-foreground hover:bg-foreground/10 gap-1" 
+                    disabled={controlsDisabled}
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span className="text-xs">Add</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 max-h-64 overflow-y-auto">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
+                    <FolderPlus className="h-3 w-3" />
+                    Add Project
+                  </DropdownMenuLabel>
+                  {availableToAdd.map((project) => (
+                    <DropdownMenuItem
+                      key={project}
+                      onClick={() => onAddProject(project)}
+                      className="cursor-pointer text-sm"
+                    >
+                      <Plus className="h-3 w-3 mr-2 text-muted-foreground" />
+                      {project}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
