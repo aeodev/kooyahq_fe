@@ -1,30 +1,161 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, ChevronRight, Edit2, Save, X, Loader2, Trash2, Search, Download, ChevronLeft, Filter, X as XIcon, UserPlus } from 'lucide-react'
-import { useEmployees, useUpdateEmployee, useDeleteEmployee, useCreateClient } from '@/hooks/user-management.hooks'
+import { Modal } from '@/components/ui/modal'
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Edit2,
+  Filter,
+  Loader2,
+  Search,
+  Trash2,
+  UserPlus,
+  X,
+  XCircle,
+} from 'lucide-react'
+import { useEmployees, useUpdateEmployee, useDeleteEmployee, useCreateUser } from '@/hooks/user-management.hooks'
 import type { User } from '@/types/user'
 import { toast } from 'sonner'
 import axiosInstance from '@/utils/axios.instance'
 import { EXPORT_USERS } from '@/utils/api.routes'
-import { PERMISSION_LIST } from '@/constants/permissions'
+import { PERMISSION_LIST, PERMISSIONS } from '@/constants/permissions'
 
 type UsersSectionProps = {
   canViewUsers: boolean
   canManageUsers: boolean
 }
 
+const MAX_USERS_FETCH = 500
+const SEARCH_DEBOUNCE_MS = 300
+
+const STATUS_OPTIONS: Array<{ value: 'online' | 'busy' | 'away' | 'offline'; label: string }> = [
+  { value: 'away', label: 'Away' },
+  { value: 'busy', label: 'Busy' },
+  { value: 'offline', label: 'Offline' },
+  { value: 'online', label: 'Online' },
+]
+
+const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissions: string[] }> = [
+  {
+    label: 'Super Admin',
+    description: 'Every permission enabled',
+    permissions: PERMISSION_LIST.map((p) => p.value),
+  },
+  {
+    label: 'Admin',
+    description: 'Manage users, projects, content, and boards',
+    permissions: [
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.PROJECTS_MANAGE,
+      PERMISSIONS.SYSTEM_LOGS,
+      PERMISSIONS.BOARD_FULL_ACCESS,
+      PERMISSIONS.ANNOUNCEMENT_FULL_ACCESS,
+      PERMISSIONS.AI_NEWS_FULL_ACCESS,
+      PERMISSIONS.GALLERY_FULL_ACCESS,
+      PERMISSIONS.MEDIA_FULL_ACCESS,
+      PERMISSIONS.POST_FULL_ACCESS,
+      PERMISSIONS.NOTIFICATION_FULL_ACCESS,
+      PERMISSIONS.PRESENCE_FULL_ACCESS,
+      PERMISSIONS.MEET_FULL_ACCESS,
+      PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
+      PERMISSIONS.GAME_FULL_ACCESS,
+      PERMISSIONS.LINK_PREVIEW_FETCH,
+      PERMISSIONS.CESIUM_TOKEN,
+    ],
+  },
+  {
+    label: 'Employee',
+    description: 'Read access plus common contributor actions',
+    permissions: [
+      PERMISSIONS.USERS_VIEW,
+      PERMISSIONS.PROJECTS_VIEW,
+      PERMISSIONS.BOARD_VIEW,
+      PERMISSIONS.ANNOUNCEMENT_READ,
+      PERMISSIONS.AI_NEWS_READ,
+      PERMISSIONS.GALLERY_READ,
+      PERMISSIONS.MEDIA_UPLOAD,
+      PERMISSIONS.MEDIA_READ,
+      PERMISSIONS.POST_READ,
+      PERMISSIONS.POST_REACT,
+      PERMISSIONS.POST_POLL_VOTE,
+      PERMISSIONS.NOTIFICATION_READ,
+      PERMISSIONS.NOTIFICATION_COUNT,
+      PERMISSIONS.PRESENCE_READ,
+      PERMISSIONS.MEET_TOKEN,
+      PERMISSIONS.TIME_ENTRY_READ,
+      PERMISSIONS.TIME_ENTRY_ANALYTICS,
+      PERMISSIONS.TIME_ENTRY_CREATE,
+      PERMISSIONS.TIME_ENTRY_UPDATE,
+      PERMISSIONS.GAME_READ,
+      PERMISSIONS.GAME_PLAY,
+    ],
+  },
+  {
+    label: 'User',
+    description: 'Minimal collaboration access',
+    permissions: [
+      PERMISSIONS.POST_READ,
+      PERMISSIONS.POST_REACT,
+      PERMISSIONS.POST_POLL_VOTE,
+      PERMISSIONS.NOTIFICATION_READ,
+      PERMISSIONS.NOTIFICATION_COUNT,
+      PERMISSIONS.PRESENCE_READ,
+      PERMISSIONS.MEET_TOKEN,
+    ],
+  },
+]
+
+const formatDate = (value?: string) => {
+  if (!value) return 'N/A'
+  const date = new Date(value)
+  return date.toLocaleDateString()
+}
+
+const normalizeText = (value?: string | null) => (value || '').trim().toLowerCase()
+
 export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps) {
   const canExportUsers = canManageUsers
-  const { data: employees, pagination, loading, error, fetchEmployees } = useEmployees()
+  const { data: employees, loading, error, fetchEmployees } = useEmployees()
   const { updateEmployee, loading: updating } = useUpdateEmployee()
   const { deleteEmployee } = useDeleteEmployee()
-  const { createClient, loading: creatingClient } = useCreateClient()
+  const { createUser, loading: creatingUser } = useCreateUser()
 
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [positionFilter, setPositionFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'busy' | 'away' | 'offline'>('all')
+  const [dateFromFilter, setDateFromFilter] = useState('')
+  const [dateToFilter, setDateToFilter] = useState('')
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false)
+  const [createUserData, setCreateUserData] = useState<{
+    name: string
+    email: string
+    password: string
+    position: string
+    birthday: string
+    permissions: string[]
+  }>({
+    name: '',
+    email: '',
+    password: '',
+    position: '',
+    birthday: '',
+    permissions: [],
+  })
+  const [createValidationErrors, setCreateValidationErrors] = useState<Record<string, string>>({})
+  const [createPermissionSearch, setCreatePermissionSearch] = useState('')
+
+  const [editingEmployee, setEditingEmployee] = useState<User | null>(null)
   const [editData, setEditData] = useState<{
     name: string
     email: string
@@ -38,27 +169,11 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     birthday: '',
     permissions: [],
   })
-  const [editingEmployee, setEditingEmployee] = useState<User | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
-  const [positionFilter, setPositionFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'busy' | 'away' | 'offline'>('all')
-  const [dateFromFilter, setDateFromFilter] = useState('')
-  const [dateToFilter, setDateToFilter] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(20)
-  const [showCreateClient, setShowCreateClient] = useState(false)
-  const [clientForm, setClientForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    clientCompanyId: '',
-  })
-  const [clientFormErrors, setClientFormErrors] = useState<Record<string, string>>({})
   const [expandedPermissionGroups, setExpandedPermissionGroups] = useState<Set<string>>(new Set())
+  const [permissionSearch, setPermissionSearch] = useState('')
+
+  const [confirmDelete, setConfirmDelete] = useState<{ mode: 'single' | 'bulk'; user?: User | null } | null>(null)
 
   const permissionGroups = useMemo(() => {
     const groups: Record<string, { label: string; permissions: { value: string; label: string }[] }> = {}
@@ -73,30 +188,65 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       }
       groups[prefix].permissions.push({ value, label })
     })
-    return Object.entries(groups).map(([key, group]) => ({ key, ...group }))
+    return Object.entries(groups)
+      .map(([key, group]) => ({
+        key,
+        ...group,
+        permissions: group.permissions.sort((a, b) => a.label.localeCompare(b.label)),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
   }, [])
+
+  const permissionGroupMap = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    permissionGroups.forEach((group) => {
+      map[group.key] = group.permissions.map((p) => p.value)
+    })
+    return map
+  }, [permissionGroups])
+
+  const permissionLookup = useMemo(() => new Set(PERMISSION_LIST.map((p) => p.value)), [])
 
   useEffect(() => {
     if (!canViewUsers) return
-    fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
-  }, [currentPage, searchQuery, fetchEmployees, canViewUsers])
+    fetchEmployees({ page: 1, limit: MAX_USERS_FETCH })
+  }, [fetchEmployees, canViewUsers])
 
-  // Filter employees based on filters
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(normalizeText(searchInput)), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
+  const positionOptions = useMemo(() => {
+    const unique = new Set(
+      employees
+        .map((emp) => emp.position)
+        .filter((value): value is string => !!value && value.trim().length > 0)
+    )
+    return ['all', ...Array.from(unique).sort((a, b) => a.localeCompare(b))]
+  }, [employees])
+
   const filteredEmployees = useMemo(() => {
-    let filtered = employees
+    let list = [...employees]
 
-    if (positionFilter) {
-      const query = positionFilter.toLowerCase()
-      filtered = filtered.filter((emp) => emp.position?.toLowerCase().includes(query))
+    if (debouncedSearch) {
+      list = list.filter((emp) => {
+        const searchTarget = `${normalizeText(emp.name)} ${normalizeText(emp.email)} ${normalizeText(emp.position)}`
+        return searchTarget.includes(debouncedSearch)
+      })
+    }
+
+    if (positionFilter !== 'all') {
+      list = list.filter((emp) => normalizeText(emp.position) === normalizeText(positionFilter))
     }
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((emp) => emp.status === statusFilter)
+      list = list.filter((emp) => emp.status === statusFilter)
     }
 
     if (dateFromFilter) {
       const fromDate = new Date(dateFromFilter)
-      filtered = filtered.filter((emp) => {
+      list = list.filter((emp) => {
         const createdAt = new Date(emp.createdAt)
         return createdAt >= fromDate
       })
@@ -105,16 +255,20 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     if (dateToFilter) {
       const toDate = new Date(dateToFilter)
       toDate.setHours(23, 59, 59, 999)
-      filtered = filtered.filter((emp) => {
+      list = list.filter((emp) => {
         const createdAt = new Date(emp.createdAt)
         return createdAt <= toDate
       })
     }
 
-    return filtered
-  }, [employees, positionFilter, statusFilter, dateFromFilter, dateToFilter])
+    return list.sort((a, b) => {
+      const nameA = normalizeText(a.name) || normalizeText(a.email)
+      const nameB = normalizeText(b.name) || normalizeText(b.email)
+      return nameA.localeCompare(nameB)
+    })
+  }, [employees, debouncedSearch, positionFilter, statusFilter, dateFromFilter, dateToFilter])
 
-  const validateForm = (): boolean => {
+  const validateUserForm = (): boolean => {
     const errors: Record<string, string> = {}
 
     if (!editData.name.trim()) {
@@ -142,9 +296,154 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     return Object.keys(errors).length === 0
   }
 
-  const startEdit = (employee: User) => {
+  const validateCreateUserForm = (): boolean => {
+    const errors: Record<string, string> = {}
+
+    if (!createUserData.name.trim()) {
+      errors.name = 'Name is required'
+    }
+
+    if (!createUserData.email.trim()) {
+      errors.email = 'Email is required'
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(createUserData.email)) {
+        errors.email = 'Invalid email format'
+      }
+    }
+
+    if (!createUserData.password || createUserData.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters'
+    }
+
+    if (createUserData.birthday) {
+      const birthdayDate = new Date(createUserData.birthday)
+      const today = new Date()
+      if (birthdayDate > today) {
+        errors.birthday = 'Birthday cannot be in the future'
+      }
+    }
+
+    setCreateValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const applyPermissionDependencies = (updated: Set<string>, permission: string, checked: boolean) => {
+    const [prefix, action] = permission.split(':')
+    const groupPerms = permissionGroupMap[prefix] || []
+
+    if (checked) {
+      updated.add(permission)
+      if (action === 'fullAccess') {
+        groupPerms.forEach((perm) => updated.add(perm))
+      }
+      if ((action === 'manage' || action === 'update') && permissionLookup.has(`${prefix}:view`)) {
+        updated.add(`${prefix}:view`)
+      }
+    } else {
+      updated.delete(permission)
+      if (action === 'view') {
+        Array.from(updated).forEach((perm) => {
+          if (perm.startsWith(`${prefix}:`) && (perm.endsWith('manage') || perm.endsWith('update') || perm.endsWith('fullAccess'))) {
+            updated.delete(perm)
+          }
+        })
+      }
+      if (action === 'fullAccess') {
+        groupPerms.forEach((perm) => updated.delete(perm))
+      }
+    }
+  }
+
+  const normalizePermissionsWithDependencies = (perms: string[]) => {
+    const updated = new Set<string>()
+    perms.forEach((perm) => applyPermissionDependencies(updated, perm, true))
+    return Array.from(updated)
+  }
+
+  const togglePermission = (permission: string) => {
+    setEditData((prev) => {
+      const updated = new Set(prev.permissions)
+      const shouldCheck = !updated.has(permission)
+      applyPermissionDependencies(updated, permission, shouldCheck)
+      return { ...prev, permissions: Array.from(updated) }
+    })
+  }
+
+  const toggleGroup = (permissions: string[]) => {
+    setEditData((prev) => {
+      const updated = new Set(prev.permissions)
+      const hasAll = permissions.every((perm) => updated.has(perm))
+      permissions.forEach((perm) => {
+        applyPermissionDependencies(updated, perm, !hasAll)
+      })
+      return { ...prev, permissions: Array.from(updated) }
+    })
+  }
+
+  const toggleCreatePermission = (permission: string) => {
+    setCreateUserData((prev) => {
+      const updated = new Set(prev.permissions)
+      const shouldCheck = !updated.has(permission)
+      applyPermissionDependencies(updated, permission, shouldCheck)
+      return { ...prev, permissions: Array.from(updated) }
+    })
+  }
+
+  const toggleCreateGroup = (permissions: string[]) => {
+    setCreateUserData((prev) => {
+      const updated = new Set(prev.permissions)
+      const hasAll = permissions.every((perm) => updated.has(perm))
+      permissions.forEach((perm) => {
+        applyPermissionDependencies(updated, perm, !hasAll)
+      })
+      return { ...prev, permissions: Array.from(updated) }
+    })
+  }
+
+  const isGroupChecked = (permissions: string[], sourcePermissions: string[] = editData.permissions) =>
+    permissions.length > 0 && permissions.every((perm) => sourcePermissions.includes(perm))
+  const isGroupIndeterminate = (permissions: string[], sourcePermissions: string[] = editData.permissions) => {
+    const selectedCount = permissions.filter((perm) => sourcePermissions.includes(perm)).length
+    return selectedCount > 0 && selectedCount < permissions.length
+  }
+
+  const toggleGroupExpanded = (key: string) => {
+    setExpandedPermissionGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
     if (!canManageUsers) return
-    setEditingId(employee.id)
+    if (selectedIds.size === filteredEmployees.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredEmployees.map((emp) => emp.id)))
+    }
+  }
+
+  const handleSelectOne = (id: string) => {
+    if (!canManageUsers) return
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const openEditModal = (employee: User) => {
+    if (!canManageUsers) return
     setEditingEmployee(employee)
     setEditData({
       name: employee.name,
@@ -154,22 +453,19 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       permissions: employee.permissions || [],
     })
     setValidationErrors({})
+    setExpandedPermissionGroups(new Set())
+    setPermissionSearch('')
   }
 
-  const cancelEdit = () => {
-    setEditingId(null)
+  const closeEditModal = () => {
     setEditingEmployee(null)
     setEditData({ name: '', email: '', position: '', birthday: '', permissions: [] })
     setValidationErrors({})
   }
 
-  const handleSave = async (employeeId: string) => {
-    if (!canManageUsers) return
-    if (!validateForm()) {
-      return
-    }
-
-    if (!editingEmployee) return
+  const handleSave = async () => {
+    if (!canManageUsers || !editingEmployee) return
+    if (!validateUserForm()) return
 
     const updates: {
       name?: string
@@ -188,31 +484,31 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     if (editData.position.trim() !== (editingEmployee.position || '')) {
       updates.position = editData.position.trim() || undefined
     }
-    const currentBirthday = editingEmployee.birthday
-    const currentBirthdayDate = currentBirthday ? currentBirthday.split('T')[0] : ''
-    if (editData.birthday !== currentBirthdayDate) {
+    const currentBirthday = editingEmployee.birthday ? editingEmployee.birthday.split('T')[0] : ''
+    if (editData.birthday !== currentBirthday) {
       updates.birthday = editData.birthday ? editData.birthday : undefined
     }
     const currentPerms = Array.isArray(editingEmployee.permissions) ? editingEmployee.permissions : []
     const newPerms = Array.isArray(editData.permissions) ? editData.permissions : []
+    const normalizedPerms = normalizePermissionsWithDependencies(newPerms)
+    const normalizedCurrentPerms = normalizePermissionsWithDependencies(currentPerms)
     const permsChanged =
-      newPerms.length !== currentPerms.length ||
-      newPerms.some((perm) => !currentPerms.includes(perm)) ||
-      currentPerms.some((perm) => !newPerms.includes(perm))
+      normalizedPerms.length !== normalizedCurrentPerms.length ||
+      normalizedPerms.some((perm) => !normalizedCurrentPerms.includes(perm)) ||
+      normalizedCurrentPerms.some((perm) => !normalizedPerms.includes(perm))
     if (permsChanged) {
-      updates.permissions = newPerms
+      updates.permissions = normalizedPerms
     }
     if (Object.keys(updates).length === 0) {
-      cancelEdit()
+      closeEditModal()
       return
     }
 
-    const result = await updateEmployee(employeeId, updates)
-
+    const result = await updateEmployee(editingEmployee.id, updates)
     if (result) {
       toast.success('User updated successfully')
-      cancelEdit()
-      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
+      closeEditModal()
+      fetchEmployees({ page: 1, limit: MAX_USERS_FETCH })
     } else {
       toast.error('Failed to update user')
     }
@@ -220,71 +516,43 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
 
   const handleDelete = async (employeeId: string) => {
     if (!canManageUsers) return
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return
-    }
-
     setDeletingUserId(employeeId)
     try {
       const success = await deleteEmployee(employeeId)
-
       if (success) {
         toast.success('User deleted successfully')
-        if (editingId === employeeId) {
-          cancelEdit()
-        }
-        fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(employeeId)
+          return next
+        })
+        fetchEmployees({ page: 1, limit: MAX_USERS_FETCH })
       } else {
         toast.error('Failed to delete user')
       }
     } finally {
       setDeletingUserId(null)
+      setConfirmDelete(null)
     }
-  }
-
-  const handleSelectAll = () => {
-    if (!canManageUsers) return
-    if (selectedIds.size === filteredEmployees.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(filteredEmployees.map((e) => e.id)))
-    }
-  }
-
-  const handleSelectOne = (id: string) => {
-    if (!canManageUsers) return
-    const newSelected = new Set(selectedIds)
-    if (newSelected.has(id)) {
-      newSelected.delete(id)
-    } else {
-      newSelected.add(id)
-    }
-    setSelectedIds(newSelected)
   }
 
   const handleBulkDelete = async () => {
-    if (!canManageUsers) return
-    if (selectedIds.size === 0) return
-
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} user(s)? This action cannot be undone.`)) {
-      return
-    }
-
+    if (!canManageUsers || selectedIds.size === 0) return
     setDeletingUserId('bulk')
     try {
       const promises = Array.from(selectedIds).map((id) => deleteEmployee(id))
       const results = await Promise.all(promises)
       const successCount = results.filter((r) => r).length
-
       if (successCount > 0) {
         toast.success(`${successCount} user(s) deleted successfully`)
         setSelectedIds(new Set())
-        fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
+        fetchEmployees({ page: 1, limit: MAX_USERS_FETCH })
       } else {
         toast.error('Failed to delete users')
       }
     } finally {
       setDeletingUserId(null)
+      setConfirmDelete(null)
     }
   }
 
@@ -318,144 +586,51 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       }
 
       toast.success(`Users exported as ${format.toUpperCase()}`)
-    } catch (err: any) {
+    } catch (error) {
+      console.error('Failed to export users', error)
       toast.error('Failed to export users')
     }
   }
 
+  const resetCreateUserForm = () => {
+    setShowCreateUserModal(false)
+    setCreateUserData({ name: '', email: '', password: '', position: '', birthday: '', permissions: [] })
+    setCreateValidationErrors({})
+    setCreatePermissionSearch('')
+    setExpandedPermissionGroups(new Set())
+  }
+
+  const handleCreateUser = async () => {
+    if (!canManageUsers) return
+    if (!validateCreateUserForm()) return
+
+    const normalizedPerms = normalizePermissionsWithDependencies(createUserData.permissions)
+    const result = await createUser({
+      name: createUserData.name.trim(),
+      email: createUserData.email.trim(),
+      password: createUserData.password,
+      position: createUserData.position.trim() || undefined,
+      birthday: createUserData.birthday || undefined,
+      permissions: normalizedPerms,
+    })
+
+    if (result) {
+      toast.success('User created successfully')
+      resetCreateUserForm()
+      fetchEmployees({ page: 1, limit: MAX_USERS_FETCH })
+    } else {
+      toast.error('Failed to create user')
+    }
+  }
+
   const clearFilters = () => {
-    setPositionFilter('')
+    setPositionFilter('all')
     setStatusFilter('all')
     setDateFromFilter('')
     setDateToFilter('')
   }
 
-  const validateClientForm = (): boolean => {
-    const errors: Record<string, string> = {}
-
-    if (!clientForm.name.trim()) {
-      errors.name = 'Name is required'
-    }
-
-    if (!clientForm.email.trim()) {
-      errors.email = 'Email is required'
-    } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(clientForm.email)) {
-        errors.email = 'Invalid email format'
-      }
-    }
-
-    if (!clientForm.password) {
-      errors.password = 'Password is required'
-    } else if (clientForm.password.length < 8) {
-      errors.password = 'Password must be at least 8 characters long'
-    }
-
-    setClientFormErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-
-  const handleCreateClient = async () => {
-    if (!canManageUsers) return
-    if (!validateClientForm()) {
-      return
-    }
-
-    const result = await createClient({
-      name: clientForm.name.trim(),
-      email: clientForm.email.trim(),
-      password: clientForm.password,
-      clientCompanyId: clientForm.clientCompanyId.trim() || undefined,
-    })
-
-    if (result) {
-      toast.success('Client created successfully')
-      setShowCreateClient(false)
-      setClientForm({ name: '', email: '', password: '', clientCompanyId: '' })
-      setClientFormErrors({})
-      fetchEmployees({ page: currentPage, limit: pageSize, search: searchQuery || undefined })
-    } else {
-      toast.error('Failed to create client')
-    }
-  }
-
-  const formatDate = (value?: string) => {
-    if (!value) return 'N/A'
-    const date = new Date(value)
-    return date.toLocaleDateString()
-  }
-
-  const togglePermission = (permission: string, groupPermissions: string[]) => {
-    setEditData((prev) => {
-      const current = new Set(prev.permissions)
-      const isFullAccess = permission.endsWith(':fullAccess')
-      const currentlyChecked = current.has(permission)
-
-      if (isFullAccess) {
-        if (currentlyChecked) {
-          groupPermissions.forEach((perm) => current.delete(perm))
-        } else {
-          groupPermissions.forEach((perm) => current.add(perm))
-        }
-      } else {
-        if (currentlyChecked) {
-          current.delete(permission)
-        } else {
-          current.add(permission)
-        }
-        // If a child is unchecked, also ensure prefix fullAccess is off
-        const [prefix] = permission.split(':')
-        const fullAccessKey = `${prefix}:fullAccess`
-        if (!currentlyChecked && current.has(fullAccessKey)) {
-          // keep fullAccess if already present
-        }
-        if (currentlyChecked && current.has(fullAccessKey)) {
-          // unchecking a child should not uncheck fullAccess automatically
-        }
-      }
-
-      return { ...prev, permissions: Array.from(current) }
-    })
-  }
-
-  const toggleGroup = (permissions: string[]) => {
-    setEditData((prev) => {
-      const current = new Set(prev.permissions)
-      const hasAll = permissions.every((perm) => current.has(perm))
-      if (hasAll) {
-        permissions.forEach((perm) => current.delete(perm))
-      } else {
-        permissions.forEach((perm) => current.add(perm))
-      }
-      return { ...prev, permissions: Array.from(current) }
-    })
-  }
-
-  const isGroupChecked = (permissions: string[]) => {
-    if (!permissions.length) return false
-    return permissions.every((perm) => editData.permissions.includes(perm))
-  }
-
-  const isGroupIndeterminate = (permissions: string[]) => {
-    const selectedCount = permissions.filter((perm) => editData.permissions.includes(perm)).length
-    return selectedCount > 0 && selectedCount < permissions.length
-  }
-
-  const toggleGroupExpanded = (key: string) => {
-    setExpandedPermissionGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
-  }
-
   const saving = updating || deletingUserId !== null
-  const totalPages = pagination?.totalPages || 1
 
   if (!canViewUsers) {
     return (
@@ -469,208 +644,108 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header with Export */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h2 className="text-lg sm:text-xl font-semibold">Users</h2>
-          <p className="text-sm text-muted-foreground mt-1">Review user details and access levels</p>
+          <p className="text-sm text-muted-foreground mt-1">Minimal table view for user access and roles</p>
           {!canManageUsers && (
             <p className="text-xs text-muted-foreground mt-1">View-only access. Editing controls are hidden.</p>
           )}
         </div>
-        {canExportUsers && (
-          <div className="flex gap-2">
-            <Button onClick={() => handleExport('csv')} variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Export CSV</span>
-              <span className="sm:hidden">CSV</span>
+        <div className="flex flex-wrap gap-2">
+          {canExportUsers && (
+            <>
+              <Button onClick={() => handleExport('csv')} variant="outline" size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
+              <Button onClick={() => handleExport('json')} variant="outline" size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                JSON
+              </Button>
+            </>
+          )}
+          {canManageUsers && (
+            <Button
+              onClick={() => {
+                setCreateUserData({ name: '', email: '', password: '', position: '', birthday: '', permissions: [] })
+                setCreateValidationErrors({})
+                setCreatePermissionSearch('')
+                setExpandedPermissionGroups(new Set())
+                setShowCreateUserModal(true)
+              }}
+              size="sm"
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Register User
             </Button>
-            <Button onClick={() => handleExport('json')} variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Export JSON</span>
-              <span className="sm:hidden">JSON</span>
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Create Client Modal */}
-      {canManageUsers && showCreateClient && (
-        <Card className="border-primary">
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Create Client</h3>
-                <Button onClick={() => {
-                  setShowCreateClient(false)
-                  setClientForm({ name: '', email: '', password: '', clientCompanyId: '' })
-                  setClientFormErrors({})
-                }} variant="ghost" size="sm">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="client-name">Name *</Label>
-                  <Input
-                    id="client-name"
-                    value={clientForm.name}
-                    onChange={(e) => {
-                      setClientForm({ ...clientForm, name: e.target.value })
-                      if (clientFormErrors.name) {
-                        setClientFormErrors({ ...clientFormErrors, name: '' })
-                      }
-                    }}
-                    placeholder="Client name"
-                    className={clientFormErrors.name ? 'border-destructive' : ''}
-                  />
-                  {clientFormErrors.name && (
-                    <p className="text-xs text-destructive">{clientFormErrors.name}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="client-email">Email *</Label>
-                  <Input
-                    id="client-email"
-                    type="email"
-                    value={clientForm.email}
-                    onChange={(e) => {
-                      setClientForm({ ...clientForm, email: e.target.value })
-                      if (clientFormErrors.email) {
-                        setClientFormErrors({ ...clientFormErrors, email: '' })
-                      }
-                    }}
-                    placeholder="client@example.com"
-                    className={clientFormErrors.email ? 'border-destructive' : ''}
-                  />
-                  {clientFormErrors.email && (
-                    <p className="text-xs text-destructive">{clientFormErrors.email}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="client-password">Password *</Label>
-                  <Input
-                    id="client-password"
-                    type="password"
-                    value={clientForm.password}
-                    onChange={(e) => {
-                      setClientForm({ ...clientForm, password: e.target.value })
-                      if (clientFormErrors.password) {
-                        setClientFormErrors({ ...clientFormErrors, password: '' })
-                      }
-                    }}
-                    placeholder="Minimum 8 characters"
-                    className={clientFormErrors.password ? 'border-destructive' : ''}
-                  />
-                  {clientFormErrors.password && (
-                    <p className="text-xs text-destructive">{clientFormErrors.password}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="client-company">Company ID (Optional)</Label>
-                  <Input
-                    id="client-company"
-                    value={clientForm.clientCompanyId}
-                    onChange={(e) => setClientForm({ ...clientForm, clientCompanyId: e.target.value })}
-                    placeholder="Company identifier"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleCreateClient} disabled={creatingClient} size="sm">
-                    {creatingClient ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Create Client
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setShowCreateClient(false)
-                      setClientForm({ name: '', email: '', password: '', clientCompanyId: '' })
-                      setClientFormErrors({})
-                    }}
-                    variant="outline"
-                    size="sm"
-                    disabled={creatingClient}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="text"
-          placeholder="Search users by name, email, or position..."
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value)
-            setCurrentPage(1)
-          }}
-          className="pl-10"
-        />
-      </div>
-
-      {/* Advanced Filters */}
-      <div className="flex items-center justify-between">
-        <Button
-          onClick={() => setShowFilters(!showFilters)}
-          variant="outline"
-          size="sm"
-        >
-          <Filter className="mr-2 h-4 w-4" />
-          Filters
-        </Button>
-        {(positionFilter || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
-          <Button onClick={clearFilters} variant="ghost" size="sm">
-            <XIcon className="mr-2 h-4 w-4" />
-            Clear Filters
+      <div className="flex flex-col md:flex-row md:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by name, email, or position"
+            className="pl-10"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowFilters((prev) => !prev)}>
+            <Filter className="mr-2 h-4 w-4" />
+            Filters
           </Button>
-        )}
+          {(positionFilter !== 'all' || statusFilter !== 'all' || dateFromFilter || dateToFilter) && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <X className="mr-2 h-4 w-4" />
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
 
       {showFilters && (
         <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <CardContent className="pt-6 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="position-filter">Position</Label>
-                <Input
+                <select
                   id="position-filter"
                   value={positionFilter}
                   onChange={(e) => setPositionFilter(e.target.value)}
-                  placeholder="Filter by position"
-                />
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {positionOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option === 'all' ? 'All positions' : option}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status-filter">Status</Label>
                 <select
                   id="status-filter"
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as 'all' | 'online' | 'busy' | 'away' | 'offline')
+                  }
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="all">All Status</option>
-                  <option value="online">Online</option>
-                  <option value="busy">Busy</option>
-                  <option value="away">Away</option>
-                  <option value="offline">Offline</option>
+                  <option value="all">All statuses</option>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="date-from">Date From</Label>
+                <Label htmlFor="date-from">Created from</Label>
                 <Input
                   id="date-from"
                   type="date"
@@ -679,7 +754,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="date-to">Date To</Label>
+                <Label htmlFor="date-to">Created to</Label>
                 <Input
                   id="date-to"
                   type="date"
@@ -688,32 +763,40 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              If you set only a start date, results show from that date forward. If you set only an end date, results show up to that date.
+            </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && canManageUsers && (
-        <Card className="border-primary">
+        <Card className="border-primary/60 bg-primary/5">
           <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <p className="text-sm font-medium">
-                {selectedIds.size} user(s) selected
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p className="text-sm font-medium">{selectedIds.size} user(s) selected</p>
               <div className="flex gap-2 flex-wrap">
                 <Button
-                  onClick={handleBulkDelete}
                   variant="outline"
                   size="sm"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  disabled={saving || deletingUserId !== null || !canManageUsers}
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setConfirmDelete({ mode: 'bulk' })}
+                  disabled={deletingUserId !== null}
                 >
-                  {deletingUserId !== null ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {deletingUserId === 'bulk' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
                   ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete selected
+                    </>
                   )}
-                  Delete Selected
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} disabled={deletingUserId !== null}>
+                  Clear selection
                 </Button>
               </div>
             </div>
@@ -732,300 +815,583 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center justify-center min-h-[320px]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : filteredEmployees.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground text-center py-8">
-              {searchQuery || positionFilter || statusFilter !== 'all' || dateFromFilter || dateToFilter
-                ? 'No users found matching your filters.'
-                : 'No users yet.'}
-            </p>
-          </CardContent>
-        </Card>
       ) : (
-        <>
-          <div className="space-y-4">
-            {filteredEmployees.map((employee) => (
-              <Card key={employee.id}>
-                <CardContent className="pt-6">
-                  {editingId === employee.id ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`name-${employee.id}`}>Name *</Label>
-                        <Input
-                          id={`name-${employee.id}`}
-                          value={editData.name}
-                          onChange={(e) => {
-                            setEditData({ ...editData, name: e.target.value })
-                            if (validationErrors.name) {
-                              setValidationErrors({ ...validationErrors, name: '' })
-                            }
-                          }}
-                          placeholder="User name"
-                          className={validationErrors.name ? 'border-destructive' : ''}
-                        />
-                        {validationErrors.name && (
-                          <p className="text-xs text-destructive">{validationErrors.name}</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`email-${employee.id}`}>Email *</Label>
-                        <Input
-                          id={`email-${employee.id}`}
-                          type="email"
-                          value={editData.email}
-                          onChange={(e) => {
-                            setEditData({ ...editData, email: e.target.value })
-                            if (validationErrors.email) {
-                              setValidationErrors({ ...validationErrors, email: '' })
-                            }
-                          }}
-                          placeholder="User email"
-                          className={validationErrors.email ? 'border-destructive' : ''}
-                        />
-                        {validationErrors.email && (
-                          <p className="text-xs text-destructive">{validationErrors.email}</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`position-${employee.id}`}>Position</Label>
-                        <Input
-                          id={`position-${employee.id}`}
-                          value={editData.position}
-                          onChange={(e) => setEditData({ ...editData, position: e.target.value })}
-                          placeholder="e.g., Software Engineer, Product Manager"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`birthday-${employee.id}`}>Birthday</Label>
-                        <Input
-                          id={`birthday-${employee.id}`}
-                          type="date"
-                          value={editData.birthday}
-                          onChange={(e) => {
-                            setEditData({ ...editData, birthday: e.target.value })
-                            if (validationErrors.birthday) {
-                              setValidationErrors({ ...validationErrors, birthday: '' })
-                            }
-                          }}
-                          className={validationErrors.birthday ? 'border-destructive' : ''}
-                        />
-                        {validationErrors.birthday && (
-                          <p className="text-xs text-destructive">{validationErrors.birthday}</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Permissions</Label>
-                        <div className="space-y-2 rounded-md border p-3">
-                          {permissionGroups.map((group) => {
-                            const groupPermValues = group.permissions.map((p) => p.value)
-                            const checked = isGroupChecked(groupPermValues)
-                            const indeterminate = isGroupIndeterminate(groupPermValues)
-                            return (
-                              <div key={group.key} className="space-y-1 border-b last:border-b-0 pb-2 last:pb-0">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      ref={(input) => {
-                                        if (input) input.indeterminate = indeterminate
-                                      }}
-                                      onChange={() => toggleGroup(groupPermValues)}
-                                      className="h-4 w-4 rounded border-gray-300"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleGroupExpanded(group.key)}
-                                      className="flex items-center gap-1 text-sm font-medium"
-                                    >
-                                      {expandedPermissionGroups.has(group.key) ? (
-                                        <ChevronDown className="h-4 w-4" />
-                                      ) : (
-                                        <ChevronRight className="h-4 w-4" />
-                                      )}
-                                      {group.label}
-                                    </button>
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {groupPermValues.filter((p) => editData.permissions.includes(p)).length}/
-                                    {groupPermValues.length}
-                                  </span>
-                                </div>
-                                {expandedPermissionGroups.has(group.key) && (
-                                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {group.permissions.map((perm) => (
-                                      <label key={perm.value} className="flex items-center gap-2 text-sm ml-6">
-                                        <input
-                                          type="checkbox"
-                                          checked={editData.permissions.includes(perm.value)}
-                                          onChange={() => togglePermission(perm.value, groupPermValues)}
-                                          className="h-4 w-4 rounded border-gray-300"
-                                        />
-                                        <span>{perm.label}</span>
-                                      </label>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={() => handleSave(employee.id)} disabled={saving} size="sm">
-                          {saving ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="mr-2 h-4 w-4" />
-                              Save
-                            </>
-                          )}
-                        </Button>
-                        <Button onClick={cancelEdit} variant="outline" size="sm" disabled={saving}>
-                          <X className="mr-2 h-4 w-4" />
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredEmployees.length} user{filteredEmployees.length === 1 ? '' : 's'}
+              </p>
+              {canManageUsers && filteredEmployees.length > 0 && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    checked={selectedIds.size === filteredEmployees.length && filteredEmployees.length > 0}
+                    onChange={handleSelectAll}
+                  />
+                  <span className="cursor-pointer" onClick={handleSelectAll}>
+                    Select all
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b">
+                    {canManageUsers && <th className="py-2 pr-3 font-medium"> </th>}
+                    <th className="py-2 pr-3 font-medium">Name</th>
+                    <th className="py-2 pr-3 font-medium">Email</th>
+                    <th className="py-2 pr-3 font-medium">Position</th>
+                    <th className="py-2 pr-3 font-medium">Status</th>
+                    <th className="py-2 pr-3 font-medium">Created</th>
+                    <th className="py-2 pr-3 font-medium">Permissions</th>
+                    {canManageUsers && <th className="py-2 pl-2 font-medium text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.length === 0 ? (
+                    <tr>
+                      <td colSpan={canManageUsers ? 8 : 6} className="py-6 text-center text-muted-foreground">
+                        {debouncedSearch || positionFilter !== 'all' || statusFilter !== 'all' || dateFromFilter || dateToFilter
+                          ? 'No users match your filters.'
+                          : 'No users yet.'}
+                      </td>
+                    </tr>
                   ) : (
-                    <div className="flex items-start gap-4">
-                      {canManageUsers && (
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(employee.id)}
-                          onChange={() => handleSelectOne(employee.id)}
-                          className="mt-1 h-4 w-4 rounded border-gray-300"
-                        />
-                      )}
-                      <div className="flex-1 space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                          <div className="space-y-1 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-semibold text-base sm:text-lg">{employee.name}</h3>
-                              {employee.status && (
-                                <Badge variant="outline" className="text-[11px] capitalize">
-                                  {employee.status}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground">{employee.email}</p>
-                        {employee.position && (
-                          <p className="text-sm font-medium text-foreground">{employee.position}</p>
+                    filteredEmployees.map((employee) => (
+                      <tr key={employee.id} className="border-b last:border-0">
+                        {canManageUsers && (
+                          <td className="py-3 pr-3 align-top">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-gray-300"
+                              checked={selectedIds.has(employee.id)}
+                              onChange={() => handleSelectOne(employee.id)}
+                            />
+                          </td>
                         )}
-                        {employee.bio && (
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{employee.bio}</p>
-                        )}
-                        {employee.clientCompanyId && (
-                          <p className="text-xs text-muted-foreground">Client company: {employee.clientCompanyId}</p>
-                        )}
-                            <p className="text-xs text-muted-foreground">
-                              Joined {formatDate(employee.createdAt)}
-                              {employee.updatedAt ? ` • Updated ${formatDate(employee.updatedAt)}` : ''}
-                            </p>
+                        <td className="py-3 pr-3 align-top">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{employee.name}</span>
+                            <span className="text-xs text-muted-foreground">ID: {employee.id}</span>
                           </div>
-                          {canManageUsers && (
-                            <div className="flex gap-2 flex-shrink-0">
-                              <Button onClick={() => startEdit(employee)} variant="outline" size="sm">
-                                <Edit2 className="mr-2 h-4 w-4" />
-                                <span className="hidden sm:inline">Edit</span>
+                        </td>
+                        <td className="py-3 pr-3 align-top text-muted-foreground">{employee.email}</td>
+                        <td className="py-3 pr-3 align-top">{employee.position || '—'}</td>
+                        <td className="py-3 pr-3 align-top">
+                          {employee.status ? (
+                            <Badge variant="outline" className="capitalize">
+                              {employee.status}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 align-top text-muted-foreground">{formatDate(employee.createdAt)}</td>
+                        <td className="py-3 pr-3 align-top">
+                          {employee.permissions?.length ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="secondary" className="text-[11px]">
+                                {employee.permissions.length} perm{employee.permissions.length === 1 ? '' : 's'}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground truncate max-w-[160px]" title={employee.permissions.join(', ')}>
+                                {employee.permissions.slice(0, 2).join(', ')}
+                                {employee.permissions.length > 2 ? '…' : ''}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">None</span>
+                          )}
+                        </td>
+                        {canManageUsers && (
+                          <td className="py-3 pl-2 align-top text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => openEditModal(employee)}>
+                                <Edit2 className="h-4 w-4 mr-2" />
+                                Edit
                               </Button>
                               <Button
-                                onClick={() => handleDelete(employee.id)}
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setConfirmDelete({ mode: 'single', user: employee })}
                                 disabled={deletingUserId === employee.id}
                               >
                                 {deletingUserId === employee.id ? (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 )}
-                                <span className="hidden sm:inline">Delete</span>
                               </Button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create User Modal */}
+      <Modal open={showCreateUserModal} onClose={resetCreateUserForm} maxWidth="5xl" className="max-h-[90vh]">
+        <div className="p-6 space-y-6 overflow-y-auto">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">Create User</h3>
+              <p className="text-sm text-muted-foreground">Set profile, password, and permissions</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={resetCreateUserForm}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="create-name">Name</Label>
+                <Input
+                  id="create-name"
+                  value={createUserData.name}
+                  onChange={(e) => {
+                    setCreateUserData({ ...createUserData, name: e.target.value })
+                    if (createValidationErrors.name) setCreateValidationErrors((prev) => ({ ...prev, name: '' }))
+                  }}
+                  className={createValidationErrors.name ? 'border-destructive' : ''}
+                />
+                {createValidationErrors.name && <p className="text-xs text-destructive">{createValidationErrors.name}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-email">Email</Label>
+                <Input
+                  id="create-email"
+                  type="email"
+                  value={createUserData.email}
+                  onChange={(e) => {
+                    setCreateUserData({ ...createUserData, email: e.target.value })
+                    if (createValidationErrors.email) setCreateValidationErrors((prev) => ({ ...prev, email: '' }))
+                  }}
+                  className={createValidationErrors.email ? 'border-destructive' : ''}
+                />
+                {createValidationErrors.email && <p className="text-xs text-destructive">{createValidationErrors.email}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-password">Password</Label>
+                <Input
+                  id="create-password"
+                  type="password"
+                  value={createUserData.password}
+                  onChange={(e) => {
+                    setCreateUserData({ ...createUserData, password: e.target.value })
+                    if (createValidationErrors.password) setCreateValidationErrors((prev) => ({ ...prev, password: '' }))
+                  }}
+                  placeholder="Minimum 8 characters"
+                  className={createValidationErrors.password ? 'border-destructive' : ''}
+                />
+                {createValidationErrors.password && <p className="text-xs text-destructive">{createValidationErrors.password}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-position">Position</Label>
+                <Input
+                  id="create-position"
+                  value={createUserData.position}
+                  onChange={(e) => setCreateUserData({ ...createUserData, position: e.target.value })}
+                  placeholder="e.g., Product Manager"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-birthday">Birthday</Label>
+                <Input
+                  id="create-birthday"
+                  type="date"
+                  value={createUserData.birthday}
+                  onChange={(e) => {
+                    setCreateUserData({ ...createUserData, birthday: e.target.value })
+                    if (createValidationErrors.birthday) setCreateValidationErrors((prev) => ({ ...prev, birthday: '' }))
+                  }}
+                  className={createValidationErrors.birthday ? 'border-destructive' : ''}
+                />
+                {createValidationErrors.birthday && <p className="text-xs text-destructive">{createValidationErrors.birthday}</p>}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Manage/update permissions automatically keep the matching view permission on.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <Label>Permissions</Label>
+                  <p className="text-xs text-muted-foreground">Use a template, then fine-tune below</p>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-end">
+                  {PERMISSION_TEMPLATES.map((template) => (
+                    <Button
+                      key={template.label}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const normalized = normalizePermissionsWithDependencies(template.permissions)
+                        setCreateUserData((prev) => ({
+                          ...prev,
+                          permissions: normalized,
+                        }))
+                      }}
+                    >
+                      {template.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={createPermissionSearch}
+                    onChange={(e) => setCreatePermissionSearch(e.target.value)}
+                    placeholder="Search permissions"
+                    className="pl-10"
+                  />
+                </div>
+                <div className="space-y-2 rounded-md border p-3">
+                  {permissionGroups
+                    .filter((group) => {
+                      if (!createPermissionSearch.trim()) return true
+                      const query = normalizeText(createPermissionSearch)
+                      return (
+                        normalizeText(group.label).includes(query) ||
+                        group.permissions.some((perm) => normalizeText(perm.label).includes(query))
+                      )
+                    })
+                    .map((group) => {
+                      const groupPermValues = group.permissions.map((p) => p.value)
+                      const checked = isGroupChecked(groupPermValues, createUserData.permissions)
+                      const indeterminate = isGroupIndeterminate(groupPermValues, createUserData.permissions)
+                      const expanded = expandedPermissionGroups.has(group.key)
+                      const groupSelectedCount = groupPermValues.filter((p) => createUserData.permissions.includes(p)).length
+
+                      return (
+                        <div key={group.key} className="border rounded-md p-3 bg-muted/20">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                ref={(input) => {
+                                  if (input) input.indeterminate = indeterminate
+                                }}
+                                onChange={() => toggleCreateGroup(groupPermValues)}
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => toggleGroupExpanded(group.key)}
+                                className="flex items-center gap-1 text-sm font-medium"
+                              >
+                                {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                {group.label}
+                              </button>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {groupSelectedCount}/{groupPermValues.length}
+                            </span>
+                          </div>
+                          {expanded && (
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {group.permissions.map((perm) => (
+                                <label key={perm.value} className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={createUserData.permissions.includes(perm.value)}
+                                    onChange={() => toggleCreatePermission(perm.value)}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                  />
+                                  <span>{perm.label}</span>
+                                </label>
+                              ))}
                             </div>
                           )}
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground">Permissions</p>
-                          <div className="flex flex-wrap gap-2">
-                            {employee.permissions?.length ? (
-                              employee.permissions.map((permission) => (
-                                <Badge
-                                  key={`${employee.id}-${permission}`}
-                                  variant="secondary"
-                                  className="text-[11px] font-normal"
-                                >
-                                  {permission}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No permissions assigned</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                      )
+                    })}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Pagination */}
-          {pagination && totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * pageSize) + 1}-
-                {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} users
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={resetCreateUserForm}
+              disabled={creatingUser}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateUser} disabled={creatingUser}>
+              {creatingUser ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create user'
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit User Modal */}
+      <Modal open={!!editingEmployee} onClose={closeEditModal} maxWidth="5xl" className="max-h-[90vh]">
+        {editingEmployee && (
+          <div className="p-6 space-y-6 overflow-y-auto">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Edit {editingEmployee.name}</h3>
+                <p className="text-sm text-muted-foreground">Update profile details and permissions</p>
               </div>
               <div className="flex gap-2">
-                <Button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1 || loading}
-                  variant="outline"
-                  size="sm"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <Button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages || loading}
-                  variant="outline"
-                  size="sm"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
+                <Button variant="ghost" size="icon" onClick={closeEditModal}>
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-          )}
 
-          {/* Select All */}
-          {canManageUsers && filteredEmployees.length > 0 && (
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={selectedIds.size === filteredEmployees.length && filteredEmployees.length > 0}
-                onChange={handleSelectAll}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <Label className="text-sm text-muted-foreground cursor-pointer">
-                Select all ({filteredEmployees.length})
-              </Label>
+            <div className="grid lg:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={editData.name}
+                    onChange={(e) => {
+                      setEditData({ ...editData, name: e.target.value })
+                      if (validationErrors.name) setValidationErrors((prev) => ({ ...prev, name: '' }))
+                    }}
+                    className={validationErrors.name ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.name && <p className="text-xs text-destructive">{validationErrors.name}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editData.email}
+                    onChange={(e) => {
+                      setEditData({ ...editData, email: e.target.value })
+                      if (validationErrors.email) setValidationErrors((prev) => ({ ...prev, email: '' }))
+                    }}
+                    className={validationErrors.email ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.email && <p className="text-xs text-destructive">{validationErrors.email}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-position">Position</Label>
+                  <Input
+                    id="edit-position"
+                    value={editData.position}
+                    onChange={(e) => setEditData({ ...editData, position: e.target.value })}
+                    placeholder="e.g., Product Manager"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-birthday">Birthday</Label>
+                  <Input
+                    id="edit-birthday"
+                    type="date"
+                    value={editData.birthday}
+                    onChange={(e) => {
+                      setEditData({ ...editData, birthday: e.target.value })
+                      if (validationErrors.birthday) setValidationErrors((prev) => ({ ...prev, birthday: '' }))
+                    }}
+                    className={validationErrors.birthday ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.birthday && <p className="text-xs text-destructive">{validationErrors.birthday}</p>}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Manage/update permissions automatically keep the matching view permission on.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <Label>Permissions</Label>
+                    <p className="text-xs text-muted-foreground">Use a template, then fine-tune below</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {PERMISSION_TEMPLATES.map((template) => (
+                      <Button
+                        key={template.label}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const normalized = normalizePermissionsWithDependencies(template.permissions)
+                          setEditData((prev) => ({
+                            ...prev,
+                            permissions: normalized,
+                          }))
+                        }}
+                      >
+                        {template.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={permissionSearch}
+                      onChange={(e) => setPermissionSearch(e.target.value)}
+                      placeholder="Search permissions"
+                      className="pl-10"
+                    />
+                  </div>
+                  <div className="space-y-2 rounded-md border p-3">
+                    {permissionGroups
+                      .filter((group) => {
+                        if (!permissionSearch.trim()) return true
+                        const query = normalizeText(permissionSearch)
+                        return (
+                          normalizeText(group.label).includes(query) ||
+                          group.permissions.some((perm) => normalizeText(perm.label).includes(query))
+                        )
+                      })
+                      .map((group) => {
+                        const groupPermValues = group.permissions.map((p) => p.value)
+                        const checked = isGroupChecked(groupPermValues)
+                        const indeterminate = isGroupIndeterminate(groupPermValues)
+                        const expanded = expandedPermissionGroups.has(group.key)
+                        const groupSelectedCount = groupPermValues.filter((p) => editData.permissions.includes(p)).length
+
+                        return (
+                          <div key={group.key} className="border rounded-md p-3 bg-muted/20">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  ref={(input) => {
+                                    if (input) input.indeterminate = indeterminate
+                                  }}
+                                  onChange={() => toggleGroup(groupPermValues)}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => toggleGroupExpanded(group.key)}
+                                  className="flex items-center gap-1 text-sm font-medium"
+                                >
+                                  {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                  {group.label}
+                                </button>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {groupSelectedCount}/{groupPermValues.length}
+                              </span>
+                            </div>
+                            {expanded && (
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {group.permissions.map((perm) => (
+                                  <label key={perm.value} className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={editData.permissions.includes(perm.value)}
+                                      onChange={() => togglePermission(perm.value)}
+                                      className="h-4 w-4 rounded border-gray-300"
+                                    />
+                                    <span>{perm.label}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </>
-      )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeEditModal} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save changes'
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} maxWidth="sm">
+        {confirmDelete && (
+          <div className="p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <XCircle className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Delete user{confirmDelete.mode === 'bulk' ? 's' : ''}?</h3>
+                <p className="text-sm text-muted-foreground">
+                  {confirmDelete.mode === 'bulk'
+                    ? `This will delete ${selectedIds.size} selected user(s).`
+                    : `This will delete ${confirmDelete.user?.name || 'this user'}.`}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmDelete(null)} disabled={deletingUserId !== null}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() =>
+                  confirmDelete.mode === 'bulk'
+                    ? handleBulkDelete()
+                    : confirmDelete.user
+                      ? handleDelete(confirmDelete.user.id)
+                      : undefined
+                }
+                disabled={deletingUserId !== null}
+              >
+                {deletingUserId ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

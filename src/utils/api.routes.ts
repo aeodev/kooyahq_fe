@@ -37,6 +37,7 @@ export const PROFILE = () => `/auth/me`
 
 // User routes
 export const GET_USERS = () => `/users`
+export const CREATE_USER = () => `/users`
 export const GET_USER_BY_ID = (userId: string) => `/users/${userId}`
 export const UPDATE_EMPLOYEE = (userId: string) => `/users/${userId}`
 export const DELETE_EMPLOYEE = (userId: string) => `/users/${userId}`

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_USERS, UPDATE_EMPLOYEE, DELETE_EMPLOYEE, GET_USER_MANAGEMENT_STATS, CREATE_CLIENT } from '@/utils/api.routes'
+import { GET_USERS, UPDATE_EMPLOYEE, DELETE_EMPLOYEE, GET_USER_MANAGEMENT_STATS, CREATE_CLIENT, CREATE_USER } from '@/utils/api.routes'
 import type { User } from '@/types/user'
 
 export type Errors = {
@@ -238,6 +238,48 @@ export const useCreateClient = () => {
   }
 }
 
+type CreateUserInput = {
+  name: string
+  email: string
+  password: string
+  position?: string
+  birthday?: string
+  status?: string
+  permissions?: string[]
+  bio?: string
+}
 
+export const useCreateUser = () => {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Errors | null>(null)
+
+  const createUser = useCallback(
+    async (input: CreateUserInput): Promise<User | null> => {
+      setError(null)
+      setLoading(true)
+
+      try {
+        const response = await axiosInstance.post<{ status: string; data: User }>(
+          CREATE_USER(),
+          input
+        )
+        return response.data.data
+      } catch (err) {
+        const normalized = normalizeError(err)
+        setError(normalized)
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
+
+  return {
+    loading,
+    error,
+    createUser,
+  }
+}
 
 
