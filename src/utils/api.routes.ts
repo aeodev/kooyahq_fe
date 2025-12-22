@@ -104,12 +104,20 @@ export const UPDATE_TIME_ENTRY = (id: string) => `/time-entries/${id}`
 export const DELETE_TIME_ENTRY = (id: string) => `/time-entries/${id}`
 
 // Gallery routes (admin only)
-export const GET_GALLERY_ITEMS = () => `/gallery`
+export const GET_GALLERY_ITEMS = (params?: { page?: number; limit?: number; search?: string; sort?: string }) => {
+  const query = new URLSearchParams()
+  if (params?.page) query.append('page', params.page.toString())
+  if (params?.limit) query.append('limit', params.limit.toString())
+  if (params?.search) query.append('search', params.search)
+  if (params?.sort) query.append('sort', params.sort)
+  return `/gallery${query.toString() ? `?${query.toString()}` : ''}`
+}
 export const GET_GALLERY_ITEM = (id: string) => `/gallery/${id}`
 export const CREATE_GALLERY_ITEM = () => `/gallery`
 export const CREATE_GALLERY_MULTIPLE = () => `/gallery/multiple`
 export const UPDATE_GALLERY_ITEM = (id: string) => `/gallery/${id}`
 export const DELETE_GALLERY_ITEM = (id: string) => `/gallery/${id}`
+export const DELETE_GALLERY_ITEMS_BATCH = () => `/gallery/batch`
 
 // AI News routes
 export const GET_AI_NEWS = () => `/ai-news`
