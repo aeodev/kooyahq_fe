@@ -1,10 +1,12 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/utils/cn'
-import { Loader2, Newspaper, Bell } from 'lucide-react'
+import { Loader2, Newspaper, Bell, RefreshCw } from 'lucide-react'
 import { LazyNewsCard } from './LazyNewsCard'
 import { useAINews } from '@/hooks/ai-news.hooks'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 import type { NewsFilter } from '@/types/ai-news'
 
 const FILTERS: { value: NewsFilter; label: string }[] = [
@@ -23,6 +25,13 @@ export function AINews() {
   const filterContainerRef = useRef<HTMLDivElement>(null)
   const filterButtonRefs = useRef<Map<NewsFilter, HTMLButtonElement>>(new Map())
   const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  
+  const can = useAuthStore((state) => state.can)
+  const canRefreshNews = useMemo(
+    () => can(PERMISSIONS.AI_NEWS_REFRESH) || can(PERMISSIONS.AI_NEWS_FULL_ACCESS),
+    [can]
+  )
   
   const {
     items,
@@ -36,6 +45,7 @@ export function AINews() {
     setFilter,
     loadMore,
     showPendingItems,
+    fetchNews: fetchNewsFromStore,
   } = useAINews()
 
   // Update indicator position when filter changes
@@ -70,6 +80,16 @@ export function AINews() {
     }
   }, [hasMore, loadingMore, loading, loadMore])
 
+  const handleRefresh = useCallback(async () => {
+    if (!canRefreshNews || isRefreshing) return
+    setIsRefreshing(true)
+    try {
+      await fetchNewsFromStore(true)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [canRefreshNews, isRefreshing, fetchNewsFromStore])
+
   // Infinite scroll
   useEffect(() => {
     const target = observerRef.current
@@ -92,14 +112,36 @@ export function AINews() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-    
-          AI News
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Stay ahead with curated AI insights and breakthroughs
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            AI News
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Stay ahead with curated AI insights and breakthroughs
+          </p>
+        </div>
+        {canRefreshNews && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing || loading}
+            className="shrink-0"
+          >
+            {isRefreshing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Error */}

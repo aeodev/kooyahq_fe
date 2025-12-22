@@ -1,19 +1,26 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Video, VideoOff, Mic, MicOff, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 export function PreJoin() {
   const { meetId } = useParams<{ meetId: string }>()
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
   const [isVideoEnabled, setIsVideoEnabled] = useState(true)
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+
+  const canJoinMeet = useMemo(
+    () => can(PERMISSIONS.MEET_TOKEN) || can(PERMISSIONS.MEET_FULL_ACCESS),
+    [can]
+  )
 
   // Prevent navigation if user tries to access /join directly
   useEffect(() => {
@@ -70,6 +77,9 @@ export function PreJoin() {
   }
 
   const handleJoin = () => {
+    if (!canJoinMeet) {
+      return
+    }
     if (meetId) {
       streamRef.current?.getTracks().forEach((track) => track.stop())
       navigate(`/meet/${meetId}/join`, {
@@ -174,10 +184,20 @@ export function PreJoin() {
             <Button onClick={handleCancel} variant="outline" className="flex-1">
               Cancel
             </Button>
-            <Button onClick={handleJoin} className="flex-1">
+            <Button 
+              onClick={handleJoin} 
+              className="flex-1"
+              disabled={!canJoinMeet}
+              title={!canJoinMeet ? "You don't have permission to join meetings" : undefined}
+            >
               Join Now
             </Button>
           </div>
+          {!canJoinMeet && (
+            <p className="text-sm text-destructive text-center">
+              You don't have permission to join meetings. Please contact an administrator.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

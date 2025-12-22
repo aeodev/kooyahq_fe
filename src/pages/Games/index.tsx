@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,14 +12,21 @@ import { MatchHistoryView } from './components/MatchHistoryView'
 import { GameInvitationModal } from '@/components/games/GameInvitationModal'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocketStore } from '@/stores/socket.store'
+import { PERMISSIONS } from '@/constants/permissions'
 import type { ActiveUser } from '@/types/game'
 
 export function Games() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const can = useAuthStore((state) => state.can)
   const socket = useSocketStore((state) => state.socket)
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'games' | 'leaderboard' | 'history'>('games')
+
+  const canPlayGames = useMemo(
+    () => can(PERMISSIONS.GAME_PLAY) || can(PERMISSIONS.GAME_FULL_ACCESS),
+    [can]
+  )
 
   const { gameTypes, fetchGameTypes } = useGameTypes()
   const { matches, loading, fetchMatches } = useGameMatches()
@@ -98,14 +105,25 @@ export function Games() {
                       <CardDescription>{gameType.description}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <Button
-                        onClick={() => handleStartGame(gameType.type)}
-                        className="w-full"
-                        variant="default"
-                      >
-                        Play
-                      </Button>
-                      {(gameType.type === 'tic-tac-toe' || gameType.type === 'rock-paper-scissors') && (
+                      {canPlayGames ? (
+                        <Button
+                          onClick={() => handleStartGame(gameType.type)}
+                          className="w-full"
+                          variant="default"
+                        >
+                          Play
+                        </Button>
+                      ) : (
+                        <Button
+                          className="w-full"
+                          variant="default"
+                          disabled
+                          title="You don't have permission to play games"
+                        >
+                          Play
+                        </Button>
+                      )}
+                      {canPlayGames && (gameType.type === 'tic-tac-toe' || gameType.type === 'rock-paper-scissors') && (
                         <Button
                           onClick={() => handleStartGame(gameType.type, undefined, true)}
                           className="w-full"
