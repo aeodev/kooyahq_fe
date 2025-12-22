@@ -40,73 +40,131 @@ const STATUS_OPTIONS: Array<{ value: 'online' | 'busy' | 'away' | 'offline'; lab
   { value: 'online', label: 'Online' },
 ]
 
+const DEFAULT_NEW_USER_PERMISSIONS = [
+  PERMISSIONS.AI_NEWS_READ,
+  PERMISSIONS.GALLERY_READ,
+  PERMISSIONS.GAME_FULL_ACCESS,
+  PERMISSIONS.MEDIA_UPLOAD,
+  PERMISSIONS.MEDIA_READ,
+  PERMISSIONS.MEDIA_DELETE,
+  PERMISSIONS.POST_READ,
+  PERMISSIONS.POST_CREATE,
+  PERMISSIONS.POST_UPDATE,
+  PERMISSIONS.POST_DELETE,
+  PERMISSIONS.POST_COMMENT_READ,
+  PERMISSIONS.POST_COMMENT_CREATE,
+  PERMISSIONS.POST_COMMENT_UPDATE,
+  PERMISSIONS.POST_COMMENT_DELETE,
+  PERMISSIONS.POST_REACT,
+  PERMISSIONS.POST_POLL_VOTE,
+  PERMISSIONS.NOTIFICATION_READ,
+  PERMISSIONS.NOTIFICATION_COUNT,
+  PERMISSIONS.LINK_PREVIEW_FETCH,
+]
+
 const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissions: string[] }> = [
   {
-    label: 'Super Admin',
-    description: 'Every permission enabled',
-    permissions: PERMISSION_LIST.map((p) => p.value),
+    label: 'SuperAdmin',
+    description: 'System-wide access override',
+    permissions: [PERMISSIONS.SYSTEM_FULL_ACCESS, PERMISSIONS.SYSTEM_LOGS],
   },
   {
     label: 'Admin',
-    description: 'Manage users, projects, content, and boards',
+    description: 'Manage projects, content, and system tools',
     permissions: [
-      PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.PROJECTS_MANAGE,
-      PERMISSIONS.SYSTEM_LOGS,
+      PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
       PERMISSIONS.BOARD_FULL_ACCESS,
       PERMISSIONS.ANNOUNCEMENT_FULL_ACCESS,
       PERMISSIONS.AI_NEWS_FULL_ACCESS,
       PERMISSIONS.GALLERY_FULL_ACCESS,
+      PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
       PERMISSIONS.MEDIA_FULL_ACCESS,
       PERMISSIONS.POST_FULL_ACCESS,
       PERMISSIONS.NOTIFICATION_FULL_ACCESS,
-      PERMISSIONS.PRESENCE_FULL_ACCESS,
       PERMISSIONS.MEET_FULL_ACCESS,
-      PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
       PERMISSIONS.GAME_FULL_ACCESS,
+      PERMISSIONS.PRESENCE_FULL_ACCESS,
+      PERMISSIONS.NOTIFICATION_READ,
+      PERMISSIONS.NOTIFICATION_COUNT,
       PERMISSIONS.LINK_PREVIEW_FETCH,
       PERMISSIONS.CESIUM_TOKEN,
     ],
   },
   {
     label: 'Employee',
-    description: 'Read access plus common contributor actions',
+    description: 'Core collaboration and delivery permissions',
     permissions: [
-      PERMISSIONS.USERS_VIEW,
-      PERMISSIONS.PROJECTS_VIEW,
+      PERMISSIONS.SERVER_MANAGEMENT_USE,
+      PERMISSIONS.SERVER_MANAGEMENT_VIEW,
       PERMISSIONS.BOARD_VIEW,
-      PERMISSIONS.ANNOUNCEMENT_READ,
+      PERMISSIONS.BOARD_CREATE,
+      PERMISSIONS.BOARD_UPDATE,
+      PERMISSIONS.BOARD_DELETE,
       PERMISSIONS.AI_NEWS_READ,
       PERMISSIONS.GALLERY_READ,
-      PERMISSIONS.MEDIA_UPLOAD,
-      PERMISSIONS.MEDIA_READ,
-      PERMISSIONS.POST_READ,
-      PERMISSIONS.POST_REACT,
-      PERMISSIONS.POST_POLL_VOTE,
-      PERMISSIONS.NOTIFICATION_READ,
-      PERMISSIONS.NOTIFICATION_COUNT,
-      PERMISSIONS.PRESENCE_READ,
-      PERMISSIONS.MEET_TOKEN,
+      PERMISSIONS.GALLERY_CREATE,
+      PERMISSIONS.GALLERY_BULK_CREATE,
+      PERMISSIONS.MEET_FULL_ACCESS,
+      PERMISSIONS.ANNOUNCEMENT_READ,
       PERMISSIONS.TIME_ENTRY_READ,
       PERMISSIONS.TIME_ENTRY_ANALYTICS,
       PERMISSIONS.TIME_ENTRY_CREATE,
       PERMISSIONS.TIME_ENTRY_UPDATE,
-      PERMISSIONS.GAME_READ,
-      PERMISSIONS.GAME_PLAY,
-    ],
-  },
-  {
-    label: 'User',
-    description: 'Minimal collaboration access',
-    permissions: [
+      PERMISSIONS.TIME_ENTRY_DELETE,
+      PERMISSIONS.GAME_FULL_ACCESS,
+      PERMISSIONS.PRESENCE_FULL_ACCESS,
+      PERMISSIONS.MEDIA_UPLOAD,
+      PERMISSIONS.MEDIA_READ,
+      PERMISSIONS.MEDIA_DELETE,
       PERMISSIONS.POST_READ,
+      PERMISSIONS.POST_CREATE,
+      PERMISSIONS.POST_UPDATE,
+      PERMISSIONS.POST_DELETE,
+      PERMISSIONS.POST_COMMENT_READ,
+      PERMISSIONS.POST_COMMENT_CREATE,
+      PERMISSIONS.POST_COMMENT_UPDATE,
+      PERMISSIONS.POST_COMMENT_DELETE,
       PERMISSIONS.POST_REACT,
       PERMISSIONS.POST_POLL_VOTE,
       PERMISSIONS.NOTIFICATION_READ,
       PERMISSIONS.NOTIFICATION_COUNT,
-      PERMISSIONS.PRESENCE_READ,
-      PERMISSIONS.MEET_TOKEN,
+      PERMISSIONS.LINK_PREVIEW_FETCH,
+      PERMISSIONS.CESIUM_TOKEN,
     ],
+  },
+  {
+    label: 'Client',
+    description: 'Client-facing access to collaboration tools',
+    permissions: [
+      PERMISSIONS.AI_NEWS_READ,
+      PERMISSIONS.ANNOUNCEMENT_READ,
+      PERMISSIONS.GALLERY_READ,
+      PERMISSIONS.MEET_FULL_ACCESS,
+      PERMISSIONS.GAME_FULL_ACCESS,
+      PERMISSIONS.MEDIA_UPLOAD,
+      PERMISSIONS.MEDIA_READ,
+      PERMISSIONS.MEDIA_DELETE,
+      PERMISSIONS.POST_READ,
+      PERMISSIONS.POST_CREATE,
+      PERMISSIONS.POST_UPDATE,
+      PERMISSIONS.POST_DELETE,
+      PERMISSIONS.POST_COMMENT_READ,
+      PERMISSIONS.POST_COMMENT_CREATE,
+      PERMISSIONS.POST_COMMENT_UPDATE,
+      PERMISSIONS.POST_COMMENT_DELETE,
+      PERMISSIONS.POST_REACT,
+      PERMISSIONS.POST_POLL_VOTE,
+      PERMISSIONS.NOTIFICATION_READ,
+      PERMISSIONS.NOTIFICATION_COUNT,
+      PERMISSIONS.LINK_PREVIEW_FETCH,
+      PERMISSIONS.CESIUM_TOKEN,
+    ],
+  },
+  {
+    label: 'N/A (Default)',
+    description: 'Default permissions for newly registered users',
+    permissions: DEFAULT_NEW_USER_PERMISSIONS,
   },
 ]
 
@@ -150,7 +208,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     password: '',
     position: '',
     birthday: '',
-    permissions: [],
+    permissions: DEFAULT_NEW_USER_PERMISSIONS,
   })
   const [createValidationErrors, setCreateValidationErrors] = useState<Record<string, string>>({})
   const [createPermissionSearch, setCreatePermissionSearch] = useState('')
@@ -205,7 +263,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     return map
   }, [permissionGroups])
 
-  const permissionLookup = useMemo(() => new Set(PERMISSION_LIST.map((p) => p.value)), [])
+  const permissionLookup = useMemo(() => new Set<string>(PERMISSION_LIST.map((p) => p.value)), [])
 
   useEffect(() => {
     if (!canViewUsers) return
@@ -360,6 +418,8 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     perms.forEach((perm) => applyPermissionDependencies(updated, perm, true))
     return Array.from(updated)
   }
+
+  const getDefaultCreatePermissions = () => normalizePermissionsWithDependencies(DEFAULT_NEW_USER_PERMISSIONS)
 
   const togglePermission = (permission: string) => {
     setEditData((prev) => {
@@ -594,7 +654,14 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
 
   const resetCreateUserForm = () => {
     setShowCreateUserModal(false)
-    setCreateUserData({ name: '', email: '', password: '', position: '', birthday: '', permissions: [] })
+    setCreateUserData({
+      name: '',
+      email: '',
+      password: '',
+      position: '',
+      birthday: '',
+      permissions: getDefaultCreatePermissions(),
+    })
     setCreateValidationErrors({})
     setCreatePermissionSearch('')
     setExpandedPermissionGroups(new Set())
@@ -668,7 +735,14 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
           {canManageUsers && (
             <Button
               onClick={() => {
-                setCreateUserData({ name: '', email: '', password: '', position: '', birthday: '', permissions: [] })
+                setCreateUserData({
+                  name: '',
+                  email: '',
+                  password: '',
+                  position: '',
+                  birthday: '',
+                  permissions: getDefaultCreatePermissions(),
+                })
                 setCreateValidationErrors({})
                 setCreatePermissionSearch('')
                 setExpandedPermissionGroups(new Set())

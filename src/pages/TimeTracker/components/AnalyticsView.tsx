@@ -24,57 +24,6 @@ import {
   Moon
 } from 'lucide-react'
 
-// Progress Ring Component
-function ProgressRing({ 
-  progress, 
-  size = 80, 
-  strokeWidth = 8,
-  color = 'hsl(var(--primary))',
-  showLabel = true
-}: { 
-  progress: number
-  size?: number
-  strokeWidth?: number
-  color?: string
-  showLabel?: boolean
-}) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = radius * 2 * Math.PI
-  const offset = circumference - (Math.min(progress, 100) / 100) * circumference
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="hsl(var(--muted))"
-          strokeWidth={strokeWidth}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      {showLabel && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-bold text-foreground">{Math.round(progress)}%</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // Sparkline Chart Component
 function SparklineChart({ 
   data, 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -92,6 +92,18 @@ const NAVIGATION: NavItem[] = [
     requiredPermissions: [
       PERMISSIONS.MEET_TOKEN,
       PERMISSIONS.MEET_FULL_ACCESS,
+      PERMISSIONS.SYSTEM_FULL_ACCESS,
+    ],
+  },
+  {
+    name: 'Server Management',
+    to: '/server-management',
+    icon: Server,
+    requiredPermissions: [
+      PERMISSIONS.SERVER_MANAGEMENT_VIEW,
+      PERMISSIONS.SERVER_MANAGEMENT_USE,
+      PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE,
+      PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
   },
@@ -260,7 +272,10 @@ export function Sidebar() {
         <div className="space-y-0.5">
           {navigation.map((item) => {
             const Icon = item.icon
-            const isActive = location.pathname === item.to
+            const isActive =
+              item.to === '/'
+                ? location.pathname === item.to
+                : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
             return (
               <Link
                 key={item.to}

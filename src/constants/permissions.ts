@@ -9,6 +9,11 @@ export const PERMISSIONS = {
 
   SYSTEM_LOGS: 'system:logs',
 
+  SERVER_MANAGEMENT_VIEW: 'servermanamget:view',
+  SERVER_MANAGEMENT_USE: 'servermanamget:use',
+  SERVER_MANAGEMENT_ELEVATED_USE: 'serverManagement:elevatedUse',
+  SERVER_MANAGEMENT_MANAGE: 'servermanagementt:manage',
+
   BOARD_FULL_ACCESS: 'board:fullAccess',
   BOARD_VIEW: 'board:view',
   BOARD_CREATE: 'board:create',
@@ -90,6 +95,12 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   { value: PERMISSIONS.PROJECTS_VIEW, label: 'View Projects' },
   { value: PERMISSIONS.PROJECTS_MANAGE, label: 'Manage Projects' },
   { value: PERMISSIONS.SYSTEM_LOGS, label: 'View System Logs', description: 'Access activity logs' },
+
+  // Server management
+  { value: PERMISSIONS.SERVER_MANAGEMENT_VIEW, label: 'Server Management View' },
+  { value: PERMISSIONS.SERVER_MANAGEMENT_USE, label: 'Server Management Use' },
+  { value: PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE, label: 'Server Management Elevated Use' },
+  { value: PERMISSIONS.SERVER_MANAGEMENT_MANAGE, label: 'Server Management Manage' },
 
   // Workspaces & Boards
   { value: PERMISSIONS.BOARD_FULL_ACCESS, label: 'Board Full Access' },

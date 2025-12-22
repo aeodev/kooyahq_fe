@@ -15,6 +15,7 @@ import { KooyaFeed } from '@/pages/KooyaFeed'
 import { Games } from '@/pages/Games'
 import { PlayGame } from '@/pages/Games/PlayGame'
 import { UserManagement } from '@/pages/UserManagement'
+import { ServerManagement } from '@/pages/ServerManagement'
 import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
@@ -265,6 +266,66 @@ function App() {
                     <UserManagement />
                   </DashboardLayout>
                 </UserManagementRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/server-management"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.SERVER_MANAGEMENT_VIEW,
+                    PERMISSIONS.SERVER_MANAGEMENT_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <ServerManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/server-management/projects/:projectId"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.SERVER_MANAGEMENT_VIEW,
+                    PERMISSIONS.SERVER_MANAGEMENT_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <ServerManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/server-management/projects/:projectId/servers/:serverId"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.SERVER_MANAGEMENT_VIEW,
+                    PERMISSIONS.SERVER_MANAGEMENT_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <ServerManagement />
+                  </DashboardLayout>
+                </PermissionGate>
               </PrivateRoute>
             }
           />

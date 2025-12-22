@@ -44,7 +44,10 @@ export function GalleryGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className={cn(
+      "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6",
+      isDeleting && "pointer-events-none opacity-70"
+    )}>
       {items.map((item, index) => {
         const isSelected = selectedItems.includes(item.id)
         const isDeletingThis = deletingId === item.id
@@ -129,4 +132,3 @@ export function GalleryGrid({
     </div>
   )
 }
-

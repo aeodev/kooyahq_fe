@@ -178,6 +178,37 @@ export const CREATE_PROJECT = () => `/projects`
 export const UPDATE_PROJECT = (id: string) => `/projects/${id}`
 export const DELETE_PROJECT = (id: string) => `/projects/${id}`
 
+// Server management routes
+export const GET_SERVER_MANAGEMENT_PROJECTS = () => `/server-management/projects`
+export const GET_SERVER_MANAGEMENT_PROJECT = (projectId: string) => `/server-management/projects/${projectId}`
+export const CREATE_SERVER_MANAGEMENT_PROJECT = () => `/server-management/projects`
+export const UPDATE_SERVER_MANAGEMENT_PROJECT = (projectId: string) => `/server-management/projects/${projectId}`
+export const DELETE_SERVER_MANAGEMENT_PROJECT = (projectId: string) => `/server-management/projects/${projectId}`
+export const CREATE_SERVER_MANAGEMENT_SERVER = (projectId: string) => `/server-management/projects/${projectId}/servers`
+export const UPDATE_SERVER_MANAGEMENT_SERVER = (projectId: string, serverId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}`
+export const DELETE_SERVER_MANAGEMENT_SERVER = (projectId: string, serverId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}`
+export const CREATE_SERVER_MANAGEMENT_ACTION = (projectId: string, serverId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}/actions`
+export const UPDATE_SERVER_MANAGEMENT_ACTION = (projectId: string, serverId: string, actionId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}/actions/${actionId}`
+export const DELETE_SERVER_MANAGEMENT_ACTION = (projectId: string, serverId: string, actionId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}/actions/${actionId}`
+export const RUN_SERVER_MANAGEMENT_ACTION = (serverId: string, actionId: string) =>
+  `/server-management/servers/${serverId}/actions/${actionId}/run`
+export const GET_SERVER_STATUS = (serverId: string) => `/server-management/servers/${serverId}/status`
+
+export const SocketServerManagementEvents = {
+  RUN_STARTED: 'server-management:run-started',
+  RUN_OUTPUT: 'server-management:run-output',
+  RUN_COMPLETED: 'server-management:run-completed',
+  RUN_ERROR: 'server-management:run-error',
+} as const
+
+export type SocketServerManagementEventsEnum =
+  typeof SocketServerManagementEvents[keyof typeof SocketServerManagementEvents]
+
 // Meet routes
 export const GET_LIVEKIT_TOKEN = () => `/meet/token`
 
