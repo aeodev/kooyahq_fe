@@ -1,6 +1,7 @@
-import { Clock, ListTodo, Calendar, TrendingUp, Flame, Target, Timer } from 'lucide-react'
+import { ListTodo, Timer, Zap, Coffee } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { CoffeeCup } from './CoffeeCup'
 import type { TaskItem } from '@/types/time-entry'
 import { useMemo } from 'react'
 
@@ -30,58 +31,6 @@ function parseDurationToMinutes(duration: string): number {
   return hours * 60 + mins
 }
 
-// SVG Progress Ring Component
-function ProgressRing({ 
-  progress, 
-  size = 100, 
-  strokeWidth = 8,
-  color = 'hsl(var(--primary))'
-}: { 
-  progress: number
-  size?: number
-  strokeWidth?: number
-  color?: string
-}) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = radius * 2 * Math.PI
-  const offset = circumference - (Math.min(progress, 100) / 100) * circumference
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="hsl(var(--muted))"
-          strokeWidth={strokeWidth}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-semibold text-foreground leading-none">
-          {Math.min(Math.round(progress), 999)}%
-        </span>
-        <span className="text-[9px] text-muted-foreground uppercase tracking-widest mt-0.5">
-          {progress >= 100 ? 'Done' : 'goal'}
-        </span>
-      </div>
-    </div>
-  )
-}
-
 export function TodayOverview({ 
   totalHours, 
   entryCount, 
@@ -99,81 +48,68 @@ export function TodayOverview({
     ? `${Math.floor(avgTimePerEntry / 60)}h ${avgTimePerEntry % 60}m`
     : `${avgTimePerEntry}m`
 
-  const productivityLevel = useMemo(() => {
-    if (progressPercent >= 100) return { label: 'Excellent', color: 'text-primary', icon: Flame }
-    if (progressPercent >= 75) return { label: 'Great', color: 'text-primary', icon: TrendingUp }
-    if (progressPercent >= 50) return { label: 'Good', color: 'text-foreground', icon: Target }
-    if (progressPercent >= 25) return { label: 'On track', color: 'text-muted-foreground', icon: Target }
-    return { label: 'Starting', color: 'text-muted-foreground', icon: Timer }
-  }, [progressPercent])
-
-  const ProductivityIcon = productivityLevel.icon
-  
   return (
     <Card className="border-border h-full">
-      <CardHeader className="pb-2 pt-4 px-4">
-        <CardTitle className="text-base font-semibold text-foreground flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10">
-              <Calendar className="h-4 w-4 text-primary" />
-            </div>
-            <span>Today's Overview</span>
-          </div>
-          <div className={`flex items-center gap-1 text-xs font-medium ${productivityLevel.color}`}>
-            <ProductivityIcon className="h-3.5 w-3.5" />
-            <span>{productivityLevel.label}</span>
-          </div>
+      <CardHeader className="pb-3 pt-4 px-4">
+        <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+          <Coffee className="h-4 w-4 text-primary" />
+          <span>Today's Brew</span>
         </CardTitle>
       </CardHeader>
       
       <CardContent className="space-y-4 px-4 pb-4">
-        {/* Progress Ring + Stats Row */}
-        <div className="flex items-center gap-4">
+        {/* Coffee Cup + Stats */}
+        <div className="flex items-start gap-4">
+          {/* Coffee Cup Visualization */}
           <div className="flex-shrink-0">
-            <ProgressRing progress={progressPercent} />
+            <CoffeeCup progress={progressPercent} />
           </div>
           
-          <div className="flex-1 space-y-2">
-            <div className="p-2.5 rounded-lg bg-muted/40 border border-border">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                <span className="text-[10px] font-medium uppercase tracking-wide">Total</span>
-              </div>
-              <p className="text-lg font-semibold text-foreground leading-tight mt-0.5">{totalHours || '0h 0m'}</p>
+          {/* Stats Column */}
+          <div className="flex-1 space-y-3 pt-1">
+            {/* Total Time - Large */}
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+                Time Logged
+              </p>
+              <p className="text-2xl font-bold tabular-nums tracking-tight mt-0.5">
+                {totalHours || '0h 0m'}
+              </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="p-2 rounded-lg bg-muted/30 border border-border">
+            {/* Mini Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
                 <div className="flex items-center gap-1 text-muted-foreground">
-                  <ListTodo className="h-2.5 w-2.5" />
+                  <ListTodo className="h-3 w-3" />
                   <span className="text-[9px] font-medium uppercase tracking-wide">Entries</span>
                 </div>
-                <p className="text-base font-semibold text-foreground leading-tight mt-0.5">{entryCount}</p>
+                <p className="text-lg font-semibold text-foreground leading-tight mt-0.5">{entryCount}</p>
               </div>
-              <div className="p-2 rounded-lg bg-muted/30 border border-border">
+              <div>
                 <div className="flex items-center gap-1 text-muted-foreground">
-                  <Timer className="h-2.5 w-2.5" />
+                  <Zap className="h-3 w-3" />
                   <span className="text-[9px] font-medium uppercase tracking-wide">Avg</span>
                 </div>
-                <p className="text-base font-semibold text-foreground leading-tight mt-0.5">{avgTimeFormatted}</p>
+                <p className="text-lg font-semibold text-foreground leading-tight mt-0.5">{avgTimeFormatted}</p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Goal Progress Bar */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Daily Goal</span>
-            <span className="text-xs font-medium text-foreground tabular-nums">
-              {totalHours} / {dailyGoalHours}h
-            </span>
-          </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <div 
-              className="h-full rounded-full bg-primary transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(progressPercent, 100)}%` }}
-            />
+            
+            {/* Goal Progress */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Goal</span>
+                <span className="text-xs font-medium text-foreground tabular-nums">
+                  {totalHours} / {dailyGoalHours}h
+                </span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full bg-primary transition-all duration-1000 ease-out"
+                  style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

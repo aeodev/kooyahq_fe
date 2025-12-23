@@ -144,7 +144,7 @@ export function EntryList({ entries, totalHours, entryCount }: EntryListProps) {
       </div>
 
       {/* Entry List */}
-      <div className="divide-y divide-border/30">
+      <div className="divide-y divide-border/30 max-h-[400px] overflow-y-auto">
         {entries.length > 0 ? (
           entries.map((entry) => (
             <EntryRow key={entry.id} entry={entry} />

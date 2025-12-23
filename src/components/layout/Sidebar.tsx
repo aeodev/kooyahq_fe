@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -17,8 +17,11 @@ type NavItem = {
   requireAllPermissions?: boolean
 }
 
-const NAVIGATION: NavItem[] = [
-  { name: 'Dashboard', to: '/', icon: Home },
+// Standalone item (always visible)
+const DASHBOARD_ITEM: NavItem = { name: 'Home', to: '/', icon: Home }
+
+// Productivity group
+const PRODUCTIVITY_ITEMS: NavItem[] = [
   {
     name: 'Workspace',
     to: '/workspace',
@@ -28,12 +31,6 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.BOARD_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
-  },
-  {
-    name: 'Presence',
-    to: '/presence',
-    icon: Globe,
-    requiredPermissions: [PERMISSIONS.PRESENCE_READ],
   },
   {
     name: 'Time Tracker',
@@ -65,6 +62,16 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
   },
+]
+
+// Social group
+const SOCIAL_ITEMS: NavItem[] = [
+  {
+    name: 'Presence',
+    to: '/presence',
+    icon: Globe,
+    requiredPermissions: [PERMISSIONS.PRESENCE_READ],
+  },
   {
     name: 'Feed',
     to: '/feed',
@@ -95,8 +102,11 @@ const NAVIGATION: NavItem[] = [
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
   },
+]
+
+const MANAGEMENT_ITEMS: NavItem[] = [
   {
-    name: 'Server Management',
+    name: 'Server',
     to: '/server-management',
     icon: Server,
     requiredPermissions: [
@@ -108,7 +118,7 @@ const NAVIGATION: NavItem[] = [
     ],
   },
   {
-    name: 'User Management',
+    name: 'Users',
     to: '/user-management',
     icon: Users,
     requiredPermissions: [
@@ -138,6 +148,102 @@ export const useSidebarStore = create<SidebarState>((set) => ({
   closeMobile: () => set({ mobileOpen: false }),
 }))
 
+// Reusable NavGroup accordion component
+type NavGroupProps = {
+  label: string
+  icon: LucideIcon
+  items: NavItem[]
+  isOpen: boolean
+  isActive: boolean
+  onToggle: () => void
+  collapsed: boolean
+  closeMobile: () => void
+  isRouteActive: (to: string) => boolean
+}
+
+function NavGroup({ label, icon: GroupIcon, items, isOpen, isActive, onToggle, collapsed, closeMobile, isRouteActive }: NavGroupProps) {
+  return (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={cn(
+          'group relative flex w-full items-center rounded-xl text-[14px] font-medium transition-all duration-300 ease-out',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+          isActive
+            ? 'bg-primary/10 dark:bg-primary/20 backdrop-blur-sm text-primary border border-primary/30 shadow-md'
+            : 'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
+          collapsed ? 'pl-[18px] pr-2 py-2.5' : 'gap-3 px-3 py-2.5',
+        )}
+      >
+        <span
+          className={cn(
+            'selection-indicator absolute left-0 top-1/2 w-[2.5px] -translate-y-1/2 rounded-r-full bg-[hsl(var(--ios-selection-indicator))]',
+            isActive && !collapsed ? 'h-5 opacity-100' : 'h-0 opacity-0'
+          )}
+        />
+        <GroupIcon
+          className={cn(
+            'h-5 w-5 shrink-0 stroke-[1.5] transition-colors duration-150',
+            isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+          )}
+          aria-hidden="true"
+        />
+        <span className={cn('nav-item-text flex-1 text-left', collapsed ? 'collapsed' : 'expanded')}>
+          {label}
+        </span>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 shrink-0 stroke-[1.5] transition-transform duration-200',
+            isOpen && 'rotate-180',
+            collapsed && 'hidden'
+          )}
+        />
+      </button>
+
+      {/* Accordion Content */}
+      <div
+        className={cn(
+          'overflow-hidden transition-all duration-200 ease-out',
+          isOpen && !collapsed ? 'max-h-96 opacity-100 mt-0.5' : 'max-h-0 opacity-0'
+        )}
+      >
+        <div className="pl-4 space-y-0.5">
+          {items.map((item) => {
+            const Icon = item.icon
+            const itemIsActive = isRouteActive(item.to)
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={closeMobile}
+                className={cn(
+                  'group relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-300 ease-out',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                  itemIsActive
+                    ? 'bg-primary/10 dark:bg-primary/20 backdrop-blur-sm text-primary border border-primary/30 shadow-md'
+                    : 'text-muted-foreground hover:bg-[hsl(var(--ios-selection-bg))] hover:text-foreground',
+                  'gap-3 px-3 py-2',
+                )}
+                aria-current={itemIsActive ? 'page' : undefined}
+              >
+                <Icon
+                  className={cn(
+                    'h-4 w-4 shrink-0 stroke-[1.5] transition-colors duration-150',
+                    itemIsActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+                  )}
+                  aria-hidden="true"
+                />
+                <span>{item.name}</span>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -159,6 +265,15 @@ export function Sidebar() {
   const closeMobile = useSidebarStore((s) => s.closeMobile)
 
   const [imageError, setImageError] = useState(false)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    productivity: false,
+    social: false,
+    management: false,
+  })
+
+  const toggleGroup = (group: string) => {
+    setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }))
+  }
   
   const firstName = user?.name.split(' ')[0] ?? user?.name ?? ''
   const initials = user?.name
@@ -168,19 +283,44 @@ export function Sidebar() {
     .join('') ?? ''
   const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
   
-  const navigation = NAVIGATION.filter((item) => {
+  // Filter function for nav items based on permissions
+  const filterByPermissions = (items: NavItem[]) => items.filter((item) => {
     if (item.requiredPermissions?.length) {
       return item.requireAllPermissions
         ? item.requiredPermissions.every((permission) => can(permission))
         : item.requiredPermissions.some((permission) => can(permission))
     }
-    // Items without explicit permissions should still be hidden if the user has zero permissions overall
     return hasAnyPermission
   })
+
+  // Filtered items for each group
+  const productivityItems = filterByPermissions(PRODUCTIVITY_ITEMS)
+  const socialItems = filterByPermissions(SOCIAL_ITEMS)
+  const managementItems = filterByPermissions(MANAGEMENT_ITEMS)
+
+  // Helper to check if route is active
+  const isRouteActive = (to: string) => 
+    to === '/' ? location.pathname === to : location.pathname === to || location.pathname.startsWith(`${to}/`)
+
+  // Check if any route in a group is active
+  const isProductivityActive = productivityItems.some((item) => isRouteActive(item.to))
+  const isSocialActive = socialItems.some((item) => isRouteActive(item.to))
+  const isManagementActive = managementItems.some((item) => isRouteActive(item.to))
 
   useEffect(() => {
     setImageError(false)
   }, [user?.profilePic])
+
+  // Auto-expand group containing active route on mount/navigation
+  useEffect(() => {
+    if (isProductivityActive) {
+      setOpenGroups(prev => ({ ...prev, productivity: true }))
+    } else if (isSocialActive) {
+      setOpenGroups(prev => ({ ...prev, social: true }))
+    } else if (isManagementActive) {
+      setOpenGroups(prev => ({ ...prev, management: true }))
+    }
+  }, [location.pathname, isProductivityActive, isSocialActive, isManagementActive])
 
   // Keyboard shortcut: Press 'K' to collapse sidebar when expanded
   useEffect(() => {
@@ -270,16 +410,13 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
         <div className="space-y-0.5">
-          {navigation.map((item) => {
-            const Icon = item.icon
-            const isActive =
-              item.to === '/'
-                ? location.pathname === item.to
-                : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+          {/* Dashboard - always visible */}
+          {(() => {
+            const Icon = DASHBOARD_ITEM.icon
+            const isActive = isRouteActive(DASHBOARD_ITEM.to)
             return (
               <Link
-                key={item.to}
-                to={item.to}
+                to={DASHBOARD_ITEM.to}
                 onClick={closeMobile}
                 className={cn(
                   'group relative flex items-center rounded-xl text-[14px] font-medium transition-all duration-300 ease-out',
@@ -305,11 +442,62 @@ export function Sidebar() {
                   aria-hidden="true"
                 />
                 <span className={cn('nav-item-text', collapsed ? 'collapsed' : 'expanded')}>
-                  {item.name}
+                  {DASHBOARD_ITEM.name}
                 </span>
               </Link>
             )
-          })}
+          })()}
+
+          {/* Divider after Dashboard */}
+          <div className={cn(
+            'h-px bg-[hsl(var(--ios-divider))] transition-[margin] duration-300 ease-out my-2',
+            collapsed ? 'mx-1' : 'mx-2'
+          )} />
+
+          {/* Productivity Group */}
+          {productivityItems.length > 0 && (
+            <NavGroup
+              label="Productivity"
+              icon={Briefcase}
+              items={productivityItems}
+              isOpen={openGroups.productivity}
+              isActive={isProductivityActive}
+              onToggle={() => toggleGroup('productivity')}
+              collapsed={collapsed}
+              closeMobile={closeMobile}
+              isRouteActive={isRouteActive}
+            />
+          )}
+
+          {/* Social Group */}
+          {socialItems.length > 0 && (
+            <NavGroup
+              label="Social"
+              icon={UsersRound}
+              items={socialItems}
+              isOpen={openGroups.social}
+              isActive={isSocialActive}
+              onToggle={() => toggleGroup('social')}
+              collapsed={collapsed}
+              closeMobile={closeMobile}
+              isRouteActive={isRouteActive}
+            />
+          )}
+
+          {/* Management Group */}
+          {managementItems.length > 0 && (
+            <NavGroup
+              label="Management"
+              icon={Settings}
+              items={managementItems}
+              isOpen={openGroups.management}
+              isActive={isManagementActive}
+              onToggle={() => toggleGroup('management')}
+              collapsed={collapsed}
+              closeMobile={closeMobile}
+              isRouteActive={isRouteActive}
+            />
+          )}
         </div>
       </nav>
 

@@ -5,39 +5,48 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle'
 export function AuthLayout({ children }: PropsWithChildren) {
   return (
     <div className="relative flex min-h-screen flex-col bg-background text-foreground overflow-hidden">
-      {/* Base background with subtle gradient for depth */}
-      <div className="fixed inset-0 bg-gradient-to-b from-background via-background to-muted/20" />
+      {/* Deep layered gradient base */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,hsl(var(--primary)/0.15),transparent_50%)]" />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_80%_100%,hsl(var(--primary)/0.08),transparent_40%)]" />
       
-      {/* Subtle texture pattern */}
+      {/* Animated floating orbs */}
+      <div className="fixed top-[10%] left-[15%] w-72 h-72 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 blur-3xl animate-pulse pointer-events-none" style={{ animationDuration: '8s' }} />
+      <div className="fixed bottom-[20%] right-[10%] w-96 h-96 rounded-full bg-gradient-to-tl from-primary/15 to-transparent blur-3xl animate-pulse pointer-events-none" style={{ animationDuration: '12s', animationDelay: '2s' }} />
+      <div className="fixed top-[60%] left-[60%] w-48 h-48 rounded-full bg-primary/10 blur-2xl animate-pulse pointer-events-none" style={{ animationDuration: '6s', animationDelay: '1s' }} />
+      
+      {/* Geometric pattern overlay - diagonal lines */}
       <div 
-        className="fixed inset-0 opacity-[0.02] dark:opacity-[0.03]" 
+        className="fixed inset-0 opacity-[0.015] dark:opacity-[0.025]"
         style={{
           backgroundImage: `
             repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 1px,
+              45deg,
+              hsl(var(--primary)),
               hsl(var(--primary)) 1px,
-              hsl(var(--primary)) 2px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              transparent,
               transparent 1px,
-              hsl(var(--primary)) 1px,
-              hsl(var(--primary)) 2px
+              transparent 60px
             )
           `,
-          backgroundSize: '24px 24px'
-        }} 
+        }}
       />
       
-      {/* Confident accent glow - frames the center content with purpose */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-primary/6 rounded-full blur-[180px] pointer-events-none" />
+      {/* Dot grid pattern */}
+      <div 
+        className="fixed inset-0 opacity-[0.03] dark:opacity-[0.04]"
+        style={{
+          backgroundImage: `radial-gradient(circle at center, hsl(var(--primary)) 1px, transparent 1px)`,
+          backgroundSize: '32px 32px',
+        }}
+      />
       
-      {/* Secondary accent for depth */}
-      <div className="fixed top-1/3 right-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-1/3 left-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[120px] pointer-events-none" />
+      {/* Accent corner shapes */}
+      <div className="fixed -top-32 -right-32 w-96 h-96 border border-primary/10 rounded-full pointer-events-none" />
+      <div className="fixed -top-16 -right-16 w-64 h-64 border border-primary/5 rounded-full pointer-events-none" />
+      <div className="fixed -bottom-24 -left-24 w-80 h-80 border border-primary/10 rounded-full pointer-events-none" />
+      
+      {/* Floating angular shapes */}
+      <div className="fixed top-[25%] right-[8%] w-24 h-24 border-l-2 border-t-2 border-primary/15 rotate-12 pointer-events-none" />
+      <div className="fixed bottom-[30%] left-[5%] w-32 h-32 border-r-2 border-b-2 border-primary/10 -rotate-12 pointer-events-none" />
 
       {/* Header with better branding */}
       <header className="relative z-10 border-b border-border/50 bg-background/60 backdrop-blur-md">
