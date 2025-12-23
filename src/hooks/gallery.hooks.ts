@@ -7,6 +7,7 @@ import {
   UPDATE_GALLERY_ITEM,
   DELETE_GALLERY_ITEM,
   DELETE_GALLERY_ITEMS_BATCH,
+  APPROVE_GALLERY_ITEM,
 } from '@/utils/api.routes'
 import type { GalleryItem, UpdateGalleryItemInput, GallerySearchParams } from '@/types/gallery'
 import { useGalleryStore } from '@/stores/gallery.store'
@@ -141,6 +142,19 @@ export const useGallery = () => {
     }
   }, [deleteItem, clearSelection])
 
+  const approveGalleryItem = useCallback(async (id: string) => {
+    try {
+      const response = await axiosInstance.patch(APPROVE_GALLERY_ITEM(id))
+      const updatedItem = response.data.data
+      updateItem(updatedItem)
+      return updatedItem
+    } catch (err: unknown) {
+      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to approve gallery item'
+      console.error('Failed to approve gallery item:', err)
+      throw new Error(errorMsg)
+    }
+  }, [updateItem])
+
   return {
     items,
     loading,
@@ -153,6 +167,7 @@ export const useGallery = () => {
     updateGalleryItem,
     deleteGalleryItem,
     deleteMultipleGalleryItems,
+    approveGalleryItem,
     toggleSelection,
     selectAll,
     clearSelection,

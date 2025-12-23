@@ -6,18 +6,22 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   Download,
   Edit2,
   Filter,
   Loader2,
+  Minus,
   Search,
+  Shield,
   Trash2,
   UserPlus,
   X,
   XCircle,
 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useEmployees, useUpdateEmployee, useDeleteEmployee, useCreateUser } from '@/hooks/user-management.hooks'
 import type { User } from '@/types/user'
 import { toast } from 'sonner'
@@ -238,7 +242,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     PERMISSION_LIST.forEach(({ value, label }) => {
       const [prefix] = value.split(':')
       if (!groups[prefix]) {
-        const friendly = prefix.replace(/-/g, ' ')
+        const friendly = prefix.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/-/g, ' ')
         groups[prefix] = {
           label: friendly.replace(/\b\w/g, (c) => c.toUpperCase()),
           permissions: [],
@@ -1103,41 +1107,45 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <div>
-                  <Label>Permissions</Label>
-                  <p className="text-xs text-muted-foreground">Use a template, then fine-tune below</p>
+                {/* Role Templates */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Quick Templates</Label>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    {PERMISSION_TEMPLATES.map((template) => (
+                      <button
+                        key={template.label}
+                        type="button"
+                        onClick={() => {
+                          const normalized = normalizePermissionsWithDependencies(template.permissions)
+                          setCreateUserData((prev) => ({
+                            ...prev,
+                            permissions: normalized,
+                          }))
+                        }}
+                        className="px-2.5 py-2 text-xs font-medium rounded-lg border border-border/50 bg-muted/30 hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-all duration-200"
+                      >
+                        {template.label.replace(' (Default)', '')}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 justify-end">
-                  {PERMISSION_TEMPLATES.map((template) => (
-                    <Button
-                      key={template.label}
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const normalized = normalizePermissionsWithDependencies(template.permissions)
-                        setCreateUserData((prev) => ({
-                          ...prev,
-                          permissions: normalized,
-                        }))
-                      }}
-                    >
-                      {template.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                {/* Search */}
+                <div className="relative flex items-center">
+                  <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
                     value={createPermissionSearch}
                     onChange={(e) => setCreatePermissionSearch(e.target.value)}
-                    placeholder="Search permissions"
-                    className="pl-10"
+                    placeholder="Filter permissions..."
+                    className="pl-9 h-9 text-sm bg-muted/20 border-border/50 w-full focus-visible:ring-1 focus-visible:ring-offset-0"
                   />
                 </div>
-                <div className="space-y-2 rounded-md border p-3">
+
+                {/* Permission Groups */}
+                <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
                   {permissionGroups
                     .filter((group) => {
                       if (!createPermissionSearch.trim()) return true
@@ -1153,48 +1161,98 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                       const indeterminate = isGroupIndeterminate(groupPermValues, createUserData.permissions)
                       const expanded = expandedPermissionGroups.has(group.key)
                       const groupSelectedCount = groupPermValues.filter((p) => createUserData.permissions.includes(p)).length
+                      const progress = (groupSelectedCount / groupPermValues.length) * 100
 
                       return (
-                        <div key={group.key} className="border rounded-md p-3 bg-muted/20">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                ref={(input) => {
-                                  if (input) input.indeterminate = indeterminate
-                                }}
-                                onChange={() => toggleCreateGroup(groupPermValues)}
-                                className="h-4 w-4 rounded border-gray-300"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => toggleGroupExpanded(group.key)}
-                                className="flex items-center gap-1 text-sm font-medium"
-                              >
-                                {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                {group.label}
-                              </button>
+                        <div
+                          key={group.key}
+                          className={`rounded-lg border transition-all duration-200 ${
+                            checked
+                              ? 'border-primary/40 bg-primary/5'
+                              : indeterminate
+                                ? 'border-amber-500/30 bg-amber-500/5'
+                                : 'border-border/40 bg-muted/10 hover:bg-muted/20'
+                          }`}
+                        >
+                          <div
+                            className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none"
+                            onClick={() => toggleGroupExpanded(group.key)}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleCreateGroup(groupPermValues)
+                              }}
+                              className={`flex items-center justify-center h-5 w-5 rounded border-2 transition-all duration-200 ${
+                                checked
+                                  ? 'bg-primary border-primary text-primary-foreground'
+                                  : indeterminate
+                                    ? 'bg-amber-500 border-amber-500 text-white'
+                                    : 'border-muted-foreground/30 hover:border-muted-foreground/50'
+                              }`}
+                            >
+                              {checked && <Check className="h-3 w-3" />}
+                              {indeterminate && !checked && <Minus className="h-3 w-3" />}
+                            </button>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium truncate">{group.label}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                                    {groupSelectedCount}/{groupPermValues.length}
+                                  </span>
+                                  {expanded ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </div>
+                              </div>
+                              {/* Progress bar */}
+                              <div className="mt-1.5 h-1 w-full bg-muted/50 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full w-full origin-left rounded-full transition-transform duration-200 ease-out ${
+                                    checked ? 'bg-primary' : indeterminate ? 'bg-amber-500' : 'bg-muted-foreground/20'
+                                  }`}
+                                  style={{ transform: `scaleX(${progress / 100})` }}
+                                />
+                              </div>
                             </div>
-                            <span className="text-xs text-muted-foreground">
-                              {groupSelectedCount}/{groupPermValues.length}
-                            </span>
                           </div>
-                          {expanded && (
-                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {group.permissions.map((perm) => (
-                                <label key={perm.value} className="flex items-center gap-2 text-sm">
-                                  <input
-                                    type="checkbox"
-                                    checked={createUserData.permissions.includes(perm.value)}
-                                    onChange={() => toggleCreatePermission(perm.value)}
-                                    className="h-4 w-4 rounded border-gray-300"
-                                  />
-                                  <span>{perm.label}</span>
-                                </label>
-                              ))}
+
+                          {/* Expanded permissions */}
+                          <div
+                            className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                              expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                            }`}
+                          >
+                            <div className="overflow-hidden">
+                              <div className="px-3 pb-3 pt-1 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {group.permissions.map((perm) => {
+                                  const isChecked = createUserData.permissions.includes(perm.value)
+                                  return (
+                                    <label
+                                      key={perm.value}
+                                      className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md cursor-pointer transition-all duration-150 ${
+                                        isChecked
+                                          ? 'bg-primary/10 text-primary'
+                                          : 'hover:bg-muted/40 text-muted-foreground hover:text-foreground'
+                                      }`}
+                                    >
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onCheckedChange={() => toggleCreatePermission(perm.value)}
+                                        className="h-4 w-4 rounded border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                      />
+                                      <span className="text-xs font-medium truncate">{perm.label}</span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
                             </div>
-                          )}
+                          </div>
                         </div>
                       )
                     })}
@@ -1300,18 +1358,18 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <Label>Permissions</Label>
-                    <p className="text-xs text-muted-foreground">Use a template, then fine-tune below</p>
+              <div className="space-y-4">
+                {/* Role Templates */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Quick Templates</Label>
                   </div>
-                  <div className="flex flex-wrap gap-2 justify-end">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {PERMISSION_TEMPLATES.map((template) => (
-                      <Button
+                      <button
                         key={template.label}
-                        size="sm"
-                        variant="outline"
+                        type="button"
                         onClick={() => {
                           const normalized = normalizePermissionsWithDependencies(template.permissions)
                           setEditData((prev) => ({
@@ -1319,85 +1377,137 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                             permissions: normalized,
                           }))
                         }}
+                        className="px-2.5 py-2 text-xs font-medium rounded-lg border border-border/50 bg-muted/30 hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-all duration-200"
                       >
-                        {template.label}
-                      </Button>
+                        {template.label.replace(' (Default)', '')}
+                      </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      value={permissionSearch}
-                      onChange={(e) => setPermissionSearch(e.target.value)}
-                      placeholder="Search permissions"
-                      className="pl-10"
-                    />
-                  </div>
-                  <div className="space-y-2 rounded-md border p-3">
-                    {permissionGroups
-                      .filter((group) => {
-                        if (!permissionSearch.trim()) return true
-                        const query = normalizeText(permissionSearch)
-                        return (
-                          normalizeText(group.label).includes(query) ||
-                          group.permissions.some((perm) => normalizeText(perm.label).includes(query))
-                        )
-                      })
-                      .map((group) => {
-                        const groupPermValues = group.permissions.map((p) => p.value)
-                        const checked = isGroupChecked(groupPermValues)
-                        const indeterminate = isGroupIndeterminate(groupPermValues)
-                        const expanded = expandedPermissionGroups.has(group.key)
-                        const groupSelectedCount = groupPermValues.filter((p) => editData.permissions.includes(p)).length
+                {/* Search */}
+                <div className="relative flex items-center">
+                  <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={permissionSearch}
+                    onChange={(e) => setPermissionSearch(e.target.value)}
+                    placeholder="Filter permissions..."
+                    className="pl-9 h-9 text-sm bg-muted/20 border-border/50 w-full focus-visible:ring-1 focus-visible:ring-offset-0"
+                  />
+                </div>
 
-                        return (
-                          <div key={group.key} className="border rounded-md p-3 bg-muted/20">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  ref={(input) => {
-                                    if (input) input.indeterminate = indeterminate
-                                  }}
-                                  onChange={() => toggleGroup(groupPermValues)}
-                                  className="h-4 w-4 rounded border-gray-300"
+                {/* Permission Groups */}
+                <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
+                  {permissionGroups
+                    .filter((group) => {
+                      if (!permissionSearch.trim()) return true
+                      const query = normalizeText(permissionSearch)
+                      return (
+                        normalizeText(group.label).includes(query) ||
+                        group.permissions.some((perm) => normalizeText(perm.label).includes(query))
+                      )
+                    })
+                    .map((group) => {
+                      const groupPermValues = group.permissions.map((p) => p.value)
+                      const checked = isGroupChecked(groupPermValues)
+                      const indeterminate = isGroupIndeterminate(groupPermValues)
+                      const expanded = expandedPermissionGroups.has(group.key)
+                      const groupSelectedCount = groupPermValues.filter((p) => editData.permissions.includes(p)).length
+                      const progress = (groupSelectedCount / groupPermValues.length) * 100
+
+                      return (
+                        <div
+                          key={group.key}
+                          className={`rounded-lg border transition-all duration-200 ${
+                            checked
+                              ? 'border-primary/40 bg-primary/5'
+                              : indeterminate
+                                ? 'border-amber-500/30 bg-amber-500/5'
+                                : 'border-border/40 bg-muted/10 hover:bg-muted/20'
+                          }`}
+                        >
+                          <div
+                            className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none"
+                            onClick={() => toggleGroupExpanded(group.key)}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleGroup(groupPermValues)
+                              }}
+                              className={`flex items-center justify-center h-5 w-5 rounded border-2 transition-all duration-200 ${
+                                checked
+                                  ? 'bg-primary border-primary text-primary-foreground'
+                                  : indeterminate
+                                    ? 'bg-amber-500 border-amber-500 text-white'
+                                    : 'border-muted-foreground/30 hover:border-muted-foreground/50'
+                              }`}
+                            >
+                              {checked && <Check className="h-3 w-3" />}
+                              {indeterminate && !checked && <Minus className="h-3 w-3" />}
+                            </button>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium truncate">{group.label}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                                    {groupSelectedCount}/{groupPermValues.length}
+                                  </span>
+                                  {expanded ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </div>
+                              </div>
+                              {/* Progress bar */}
+                              <div className="mt-1.5 h-1 w-full bg-muted/50 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full w-full origin-left rounded-full transition-transform duration-200 ease-out ${
+                                    checked ? 'bg-primary' : indeterminate ? 'bg-amber-500' : 'bg-muted-foreground/20'
+                                  }`}
+                                  style={{ transform: `scaleX(${progress / 100})` }}
                                 />
-                                <button
-                                  type="button"
-                                  onClick={() => toggleGroupExpanded(group.key)}
-                                  className="flex items-center gap-1 text-sm font-medium"
-                                >
-                                  {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                  {group.label}
-                                </button>
                               </div>
-                              <span className="text-xs text-muted-foreground">
-                                {groupSelectedCount}/{groupPermValues.length}
-                              </span>
                             </div>
-                            {expanded && (
-                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {group.permissions.map((perm) => (
-                                  <label key={perm.value} className="flex items-center gap-2 text-sm">
-                                    <input
-                                      type="checkbox"
-                                      checked={editData.permissions.includes(perm.value)}
-                                      onChange={() => togglePermission(perm.value)}
-                                      className="h-4 w-4 rounded border-gray-300"
-                                    />
-                                    <span>{perm.label}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            )}
                           </div>
-                        )
-                      })}
-                  </div>
+
+                          {/* Expanded permissions */}
+                          <div
+                            className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                              expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                            }`}
+                          >
+                            <div className="overflow-hidden">
+                              <div className="px-3 pb-3 pt-1 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {group.permissions.map((perm) => {
+                                  const isChecked = editData.permissions.includes(perm.value)
+                                  return (
+                                    <label
+                                      key={perm.value}
+                                      className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md cursor-pointer transition-all duration-150 ${
+                                        isChecked
+                                          ? 'bg-primary/10 text-primary'
+                                          : 'hover:bg-muted/40 text-muted-foreground hover:text-foreground'
+                                      }`}
+                                    >
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onCheckedChange={() => togglePermission(perm.value)}
+                                        className="h-4 w-4 rounded border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                      />
+                                      <span className="text-xs font-medium truncate">{perm.label}</span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
                 </div>
               </div>
             </div>

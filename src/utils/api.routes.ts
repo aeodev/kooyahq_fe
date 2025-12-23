@@ -118,6 +118,7 @@ export const CREATE_GALLERY_MULTIPLE = () => `/gallery/multiple`
 export const UPDATE_GALLERY_ITEM = (id: string) => `/gallery/${id}`
 export const DELETE_GALLERY_ITEM = (id: string) => `/gallery/${id}`
 export const DELETE_GALLERY_ITEMS_BATCH = () => `/gallery/batch`
+export const APPROVE_GALLERY_ITEM = (id: string) => `/gallery/${id}/approve`
 
 // AI News routes
 export const GET_AI_NEWS = () => `/ai-news`

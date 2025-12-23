@@ -28,6 +28,10 @@ export function Gallery() {
         can(PERMISSIONS.GALLERY_BULK_CREATE)),
     [can, canViewGallery],
   )
+  const canApproveGallery = useMemo(
+    () => can(PERMISSIONS.GALLERY_APPROVE) || can(PERMISSIONS.GALLERY_FULL_ACCESS),
+    [can],
+  )
   
   const {
     items,
@@ -41,6 +45,7 @@ export function Gallery() {
     updateGalleryItem,
     deleteGalleryItem,
     deleteMultipleGalleryItems,
+    approveGalleryItem,
     toggleSelection,
     selectAll,
     clearSelection,
@@ -109,6 +114,15 @@ export function Gallery() {
       console.error('Failed to delete gallery items:', err)
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const handleApprove = async (id: string) => {
+    try {
+      await approveGalleryItem(id)
+      await fetchGalleryItems({ page: currentPage, limit: 20, search: searchQuery || undefined })
+    } catch (err) {
+      console.error('Failed to approve gallery item:', err)
     }
   }
 
@@ -249,6 +263,7 @@ export function Gallery() {
       <GalleryGrid
         items={items}
         canManageGallery={canManageGallery}
+        canApproveGallery={canApproveGallery}
         selectedItems={selectedItems}
         isDeleting={isDeleting}
         deletingId={deletingId}
@@ -256,6 +271,7 @@ export function Gallery() {
         onImageClick={openImageModal}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onApprove={handleApprove}
         onToggleSelection={toggleSelection}
       />
 

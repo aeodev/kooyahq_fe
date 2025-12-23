@@ -8,6 +8,8 @@ export type GalleryItem = {
   mimetype: string
   size: number
   uploadedBy: string
+  status: 'pending' | 'approved'
+  approvedBy?: string
   createdAt: string
   updatedAt: string
 }
