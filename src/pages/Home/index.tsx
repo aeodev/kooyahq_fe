@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Megaphone, CalendarDays, Zap, CheckCircle2, Timer } from 'lucide-react'
 import { useHomeData } from './hooks/useHomeData'
@@ -8,7 +8,6 @@ import { QuickTasks } from '@/components/quick-tasks/QuickTasks'
 import { CreateAnnouncementForm } from '@/components/announcements/CreateAnnouncementForm'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { Button } from '@/components/ui/button'
-import { useTimerDuration } from '@/hooks/time-entry.hooks'
 
 // Ambient mesh gradient background
 function AmbientMesh() {
@@ -82,13 +81,35 @@ function formatTotalTime(minutes: number): string {
   return `${mins}m`
 }
 
+// Calculate elapsed minutes from a timer (accounts for paused time)
+function getElapsedMinutes(timer: { startTime: Date | string; pausedDuration?: number | null; isPaused?: boolean | null; lastPausedAt?: Date | string | null }): number {
+  const start = new Date(timer.startTime).getTime()
+  const now = Date.now()
+  
+  let elapsedMs = now - start
+  const pausedMs = timer.pausedDuration || 0
+  elapsedMs -= pausedMs
+
+  // If currently paused, subtract the current pause duration
+  if (timer.isPaused && timer.lastPausedAt) {
+    const currentPauseMs = now - new Date(timer.lastPausedAt).getTime()
+    elapsedMs -= currentPauseMs
+  }
+
+  return Math.max(0, elapsedMs / 1000 / 60)
+}
 
 export function Home() {
   const { user, permissions, data, isLoading, refetchAnnouncements } = useHomeData()
   const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false)
-  
-  // Use the same hook as HeroSection - single source of truth for elapsed time
-  const { elapsedMinutes: activeElapsed } = useTimerDuration(data.activeTimer)
+  const [, setTick] = useState(0) // Force re-render every minute for live stats
+
+  // Update stats every second to keep active timer time in sync with HeroSection timer
+  useEffect(() => {
+    if (!data.activeTimer?.isActive) return
+    const interval = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(interval)
+  }, [data.activeTimer?.isActive])
 
   if (!user) return null
 
@@ -99,10 +120,14 @@ export function Home() {
 
   const activeAnnouncement = data.announcements[0]
   
-  // Calculate stats - activeElapsed comes from useTimerDuration hook (single source of truth)
+  // Calculate stats - INCLUDE active timer elapsed time
   const completedTime = data.todayEntries
     .filter(e => !e.isActive)
     .reduce((acc, entry) => acc + (entry.duration || 0), 0)
+  
+  const activeElapsed = (data.activeTimer?.isActive && data.activeTimer?.startTime)
+    ? getElapsedMinutes({ ...data.activeTimer, startTime: data.activeTimer.startTime }) 
+    : 0
   
   const totalTimeToday = completedTime + activeElapsed
   const completedSessions = data.todayEntries.filter(e => !e.isActive).length

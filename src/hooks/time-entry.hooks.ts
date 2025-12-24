@@ -4,10 +4,9 @@ import { GET_ANALYTICS } from '@/utils/api.routes'
 import { normalizeError, type Errors } from '@/utils/error'
 import type { TimeEntry } from '@/types/time-entry'
 
-// Hook for real-time timer updates - returns both formatted duration and elapsed minutes
+// Hook for real-time timer updates
 export const useTimerDuration = (activeTimer: TimeEntry | null) => {
   const [duration, setDuration] = useState<string>('00:00')
-  const [elapsedMinutes, setElapsedMinutes] = useState<number>(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<TimeEntry | null>(activeTimer)
 
@@ -18,7 +17,6 @@ export const useTimerDuration = (activeTimer: TimeEntry | null) => {
   useEffect(() => {
     if (!activeTimer || !activeTimer.isActive || !activeTimer.startTime) {
       setDuration('00:00')
-      setElapsedMinutes(0)
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
@@ -49,9 +47,6 @@ export const useTimerDuration = (activeTimer: TimeEntry | null) => {
       const minutes = Math.floor((totalSeconds % 3600) / 60)
       const seconds = totalSeconds % 60
 
-      // Update elapsed minutes (same calculation as display, single source of truth)
-      setElapsedMinutes(totalSeconds / 60)
-
       if (hours > 0) {
         setDuration(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`)
       } else {
@@ -70,7 +65,7 @@ export const useTimerDuration = (activeTimer: TimeEntry | null) => {
     }
   }, [activeTimer])
 
-  return { duration, elapsedMinutes }
+  return duration
 }
 
 export type AnalyticsData = {

@@ -34,7 +34,7 @@ export function HeroSection({
   todayEntries,
   className 
 }: HeroSectionProps) {
-  const { duration: timerDuration } = useTimerDuration(activeTimer)
+  const timerDuration = useTimerDuration(activeTimer)
   const stopTimer = useTimeEntryStore(state => state.stopTimer)
   
   // Show up to 4 recent sessions
