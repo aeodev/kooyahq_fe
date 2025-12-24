@@ -67,6 +67,7 @@ export const TOGGLE_BOARD_FAVORITE = (boardId: string) => `/boards/${boardId}/fa
 export const CREATE_TICKET = (boardId: string) => `/boards/${boardId}/tickets`
 export const GET_TICKETS_BY_BOARD = (boardId: string) => `/boards/${boardId}/tickets`
 export const GET_TICKET_BY_ID = (ticketId: string) => `/tickets/${ticketId}`
+export const GET_ASSIGNED_TICKETS = () => `/tickets/assigned`
 export const UPDATE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
 export const DELETE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
 export const BULK_UPDATE_RANKS = (boardId: string) => `/boards/${boardId}/tickets/bulk-rank`

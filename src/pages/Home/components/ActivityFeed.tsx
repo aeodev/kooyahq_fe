@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { cn } from '@/utils/cn'
 import type { TimeEntry } from '@/types/time-entry'
 
 interface ActivityFeedProps {
   entries: TimeEntry[]
   todayTotalMinutes: number
+  className?: string
 }
 
 function formatDuration(minutes: number): string {
@@ -14,9 +16,9 @@ function formatDuration(minutes: number): string {
   return `${mins}m`
 }
 
-export function ActivityFeed({ entries, todayTotalMinutes }: ActivityFeedProps) {
+export function ActivityFeed({ entries, todayTotalMinutes, className }: ActivityFeedProps) {
   return (
-    <Card className="h-full">
+    <Card className={cn("h-full", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <CardTitle className="text-lg font-medium">Recent Activity</CardTitle>
         <Link to="/time-tracker" className="text-sm text-primary hover:underline">
@@ -60,4 +62,3 @@ export function ActivityFeed({ entries, todayTotalMinutes }: ActivityFeedProps) 
     </Card>
   )
 }
-

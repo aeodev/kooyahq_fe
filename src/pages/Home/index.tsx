@@ -1,129 +1,263 @@
 import { useState } from 'react'
-import { Megaphone } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Megaphone, CalendarDays, Zap, CheckCircle2, Timer } from 'lucide-react'
 import { useHomeData } from './hooks/useHomeData'
 import { HeroSection } from './components/HeroSection'
-import { ActivityFeed } from './components/ActivityFeed'
-import { TeamWidget, NewsWidget, NotificationsWidget } from './components/SideWidgets'
+import { AssignedTicketsWidget } from './components/SideWidgets'
+import { QuickTasks } from '@/components/quick-tasks/QuickTasks'
 import { CreateAnnouncementForm } from '@/components/announcements/CreateAnnouncementForm'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { useTimerDuration } from '@/hooks/time-entry.hooks'
+
+// Ambient mesh gradient background
+function AmbientMesh() {
+  return (
+    <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+      {/* Primary gradient orb */}
+      <div 
+        className="absolute -top-[40%] -right-[20%] w-[80%] h-[80%] rounded-full opacity-[0.07] dark:opacity-[0.04] blur-[120px]"
+        style={{ background: 'radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%)' }}
+      />
+      {/* Secondary accent orb */}
+      <div 
+        className="absolute -bottom-[30%] -left-[20%] w-[60%] h-[70%] rounded-full opacity-[0.05] dark:opacity-[0.03] blur-[100px]"
+        style={{ background: 'radial-gradient(circle, hsl(142 70% 60%) 0%, transparent 70%)' }}
+      />
+      {/* Subtle noise overlay for texture */}
+      <div 
+        className="absolute inset-0 opacity-[0.015] dark:opacity-[0.03] mix-blend-overlay"
+        style={{ 
+          backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")',
+        }}
+      />
+    </div>
+  )
+}
+
+// Stat card component
+interface StatCardProps {
+  icon: React.ReactNode
+  label: string
+  value: string | number
+  accent?: string
+  delay?: number
+}
+
+function StatCard({ icon, label, value, accent = 'primary', delay = 0 }: StatCardProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="group relative flex items-center gap-4 p-4 rounded-2xl bg-card/50 dark:bg-card/30 border border-border/40 backdrop-blur-md hover:bg-card/70 dark:hover:bg-card/40 transition-all duration-300"
+    >
+      <div 
+        className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+        style={{ background: `hsl(var(--${accent}) / 0.1)` }}
+      >
+        <span style={{ color: `hsl(var(--${accent}))` }}>{icon}</span>
+      </div>
+      <div className="min-w-0">
+        <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</p>
+      </div>
+    </motion.div>
+  )
+}
+
+// Greeting based on time of day
+function getGreeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
+// Format total time from minutes
+function formatTotalTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const mins = Math.floor(minutes % 60)
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
+}
+
 
 export function Home() {
-  const { user, permissions, data, isLoading } = useHomeData()
+  const { user, permissions, data, isLoading, refetchAnnouncements } = useHomeData()
   const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false)
+  
+  // Use the same hook as HeroSection - single source of truth for elapsed time
+  const { elapsedMinutes: activeElapsed } = useTimerDuration(data.activeTimer)
 
   if (!user) return null
 
-  // Greeting Logic
-  const getGreeting = () => {
-    const hour = new Date().getHours()
-    if (hour < 12) return 'Good morning'
-    if (hour < 18) return 'Good afternoon'
-    return 'Good evening'
-  }
+  // Date formatting
+  const today = new Date()
+  const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const greeting = getGreeting()
 
   const activeAnnouncement = data.announcements[0]
+  
+  // Calculate stats - activeElapsed comes from useTimerDuration hook (single source of truth)
+  const completedTime = data.todayEntries
+    .filter(e => !e.isActive)
+    .reduce((acc, entry) => acc + (entry.duration || 0), 0)
+  
+  const totalTimeToday = completedTime + activeElapsed
+  const completedSessions = data.todayEntries.filter(e => !e.isActive).length
+  const activeTickets = data.assignedTickets.length
+
+  // Bento card base styles
+  const bentoBase = "!border border-border/30 bg-card/40 dark:bg-card/25 backdrop-blur-xl shadow-lg shadow-black/[0.03] dark:shadow-black/20 rounded-2xl hover:shadow-xl hover:border-border/50 transition-all duration-500"
 
   if (isLoading && !data.activeTimer && data.todayEntries.length === 0) {
-     return (
-        <div className="container mx-auto p-4 md:p-8 space-y-8 animate-pulse">
-           <div className="h-8 w-48 bg-muted rounded" />
-           <div className="h-64 w-full bg-muted rounded-2xl" />
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 h-64 bg-muted rounded-xl" />
-              <div className="h-64 bg-muted rounded-xl" />
-           </div>
+    return (
+      <div className="relative min-h-[calc(100vh-4rem)]">
+        <AmbientMesh />
+        <div className="container mx-auto px-4 md:px-8 py-8 space-y-8 max-w-7xl animate-pulse">
+          <div className="space-y-2">
+            <div className="h-10 w-72 bg-muted/30 rounded-xl" />
+            <div className="h-5 w-48 bg-muted/20 rounded-lg" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-20 bg-muted/20 rounded-2xl" />
+            ))}
+          </div>
+          <div className="h-48 bg-muted/20 rounded-2xl" />
+          <div className="grid grid-cols-2 gap-6">
+            <div className="h-80 bg-muted/20 rounded-2xl" />
+            <div className="h-80 bg-muted/20 rounded-2xl" />
+          </div>
         </div>
-     )
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-8 max-w-7xl">
-      {/* Header */}
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {getGreeting()}, {user.name.split(' ')[0]}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-             Here's what's happening today.
-          </p>
-        </div>
-        
-        {permissions.canManageAnnouncements && (
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setShowCreateAnnouncement(true)}
-            className="gap-2"
-          >
-            <Megaphone className="h-4 w-4" />
-            New Announcement
-          </Button>
-        )}
-      </header>
-
-      {/* Announcements / Notifications */}
-      <div className="space-y-4">
-          {permissions.canManageAnnouncements && (
-            <CreateAnnouncementForm
-              open={showCreateAnnouncement}
-              onClose={() => setShowCreateAnnouncement(false)}
-              onSuccess={() => window.location.reload()} // Simple reload to refresh or use context in future
-            />
-          )}
-
-          {activeAnnouncement && (
-            <AnnouncementCard 
-                announcement={activeAnnouncement} 
-                onDelete={() => window.location.reload()} 
-            />
-          )}
+    <div className="relative min-h-[calc(100vh-4rem)]">
+      <AmbientMesh />
+      
+      <div className="container mx-auto px-4 md:px-8 py-8 space-y-8 max-w-7xl">
+        {/* Header */}
+        <motion.header 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="flex flex-col sm:flex-row sm:items-end justify-between gap-4"
+        >
+          <div className="space-y-1">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+              {greeting}, <span className="bg-gradient-to-r from-foreground via-foreground to-muted-foreground bg-clip-text">{user.name.split(' ')[0]}</span>
+            </h1>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CalendarDays className="h-4 w-4" />
+              <span className="text-sm font-medium">{dateStr}</span>
+            </div>
+          </div>
           
-          {permissions.canReadNotifications && (
-              <NotificationsWidget unreadCount={data.unreadCount} />
+          {permissions.canManageAnnouncements && (
+            <>
+              <Button 
+                size="sm"
+                onClick={() => setShowCreateAnnouncement(true)}
+                className="gap-2 rounded-xl shadow-md shadow-primary/10 hover:shadow-lg hover:shadow-primary/20 transition-all"
+              >
+                <Megaphone className="h-4 w-4" />
+                New Announcement
+              </Button>
+              <CreateAnnouncementForm
+                open={showCreateAnnouncement}
+                onClose={() => setShowCreateAnnouncement(false)}
+                onSuccess={refetchAnnouncements}
+              />
+            </>
           )}
-      </div>
+        </motion.header>
 
-      {/* Hero Timer */}
-      {permissions.canReadTimeEntries && (
-        <section>
-           <HeroSection 
+        {/* Stats Row */}
+        {permissions.canReadTimeEntries && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <StatCard 
+              icon={<Timer className="h-5 w-5" />}
+              label="Tracked Today"
+              value={formatTotalTime(totalTimeToday)}
+              accent="primary"
+              delay={0.1}
+            />
+            <StatCard 
+              icon={<CheckCircle2 className="h-5 w-5" />}
+              label={completedSessions === 1 ? 'Session' : 'Sessions'}
+              value={completedSessions}
+              accent="primary"
+              delay={0.15}
+            />
+            <StatCard 
+              icon={<Zap className="h-5 w-5" />}
+              label={activeTickets === 1 ? 'Active Ticket' : 'Active Tickets'}
+              value={activeTickets}
+              accent="primary"
+              delay={0.2}
+            />
+          </div>
+        )}
+
+        {/* Announcements */}
+        {activeAnnouncement && (
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+          >
+            <AnnouncementCard 
+              announcement={activeAnnouncement} 
+              onDelete={refetchAnnouncements} 
+            />
+          </motion.section>
+        )}
+
+        {/* Time Tracking Hero */}
+        {permissions.canReadTimeEntries && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <HeroSection 
               activeTimer={data.activeTimer} 
-              analytics={data.analytics}
-              canViewAnalytics={permissions.canViewTimeAnalytics}
-           />
-        </section>
-      )}
+              todayEntries={data.todayEntries}
+              className={bentoBase}
+            />
+          </motion.div>
+        )}
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column (Activity) */}
-        <div className="lg:col-span-2 space-y-6">
-           {permissions.canReadTimeEntries && (
-              <ActivityFeed 
-                entries={data.todayEntries}
-                todayTotalMinutes={data.todayTotalMinutes}
+        {/* Bottom Widgets Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Tickets */}
+          {permissions.canReadBoards && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.35 }}
+            >
+              <AssignedTicketsWidget 
+                tickets={data.assignedTickets} 
+                className={bentoBase}
               />
-           )}
-        </div>
+            </motion.div>
+          )}
 
-        {/* Right Column (Widgets) */}
-        <div className="space-y-6">
-           {permissions.canViewPresence && (
-              <TeamWidget 
-                activeUsers={data.activeUsers} 
-                totalUsers={data.totalUsersCount} 
-              />
-           )}
-           
-           {permissions.canViewAINews && (
-              <NewsWidget news={data.latestNews} />
-           )}
+          {/* Quick Tasks */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            <QuickTasks className={bentoBase} />
+          </motion.div>
         </div>
       </div>
     </div>
   )
 }
-

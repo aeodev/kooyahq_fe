@@ -86,7 +86,7 @@ export function TimeTracker() {
   const endDay = useTimeEntryStore((state) => state.endDay)
   const checkDayEndedStatus = useTimeEntryStore((state) => state.checkDayEndedStatus)
   const logManualEntry = useTimeEntryStore((state) => state.logManualEntry)
-  const timerDuration = useTimerDuration(activeTimer)
+  const { duration: timerDuration } = useTimerDuration(activeTimer)
   
   const [loggingManual, setLoggingManual] = useState(false)
   const { users } = useUsers()

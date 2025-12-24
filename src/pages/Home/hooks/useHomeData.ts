@@ -1,18 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
-import { usePresenceStore } from '@/stores/presence.store'
 import { useAnalytics } from '@/hooks/time-entry.hooks'
 import { useAnnouncements } from '@/hooks/announcement.hooks'
 import { useUnreadCount } from '@/hooks/notification.hooks'
 import { usePosts } from '@/hooks/post.hooks'
-import { useUsers } from '@/hooks/user.hooks'
 import { useGameTypes } from '@/hooks/game.hooks'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_AI_NEWS } from '@/utils/api.routes'
+import { GET_ASSIGNED_TICKETS } from '@/utils/api.routes'
 import { PERMISSIONS } from '@/constants/permissions'
-import type { NewsItem } from '@/types/ai-news'
-import type { TimeEntry } from '@/types/time-entry'
+import type { Ticket } from '@/types/board'
 
 export function useHomeData() {
   const user = useAuthStore((state) => state.user)
@@ -21,14 +18,13 @@ export function useHomeData() {
   // Permissions
   const permissions = useMemo(() => ({
     canManageAnnouncements: can(PERMISSIONS.ANNOUNCEMENT_CREATE) || can(PERMISSIONS.ANNOUNCEMENT_FULL_ACCESS),
-    canViewAINews: can(PERMISSIONS.AI_NEWS_READ) || can(PERMISSIONS.AI_NEWS_FULL_ACCESS),
     canReadTimeEntries: can(PERMISSIONS.TIME_ENTRY_READ) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS),
     canViewTimeAnalytics: can(PERMISSIONS.TIME_ENTRY_ANALYTICS) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS),
     canReadAnnouncements: can(PERMISSIONS.ANNOUNCEMENT_READ) || can(PERMISSIONS.ANNOUNCEMENT_FULL_ACCESS),
     canReadNotifications: can(PERMISSIONS.NOTIFICATION_READ) || can(PERMISSIONS.NOTIFICATION_FULL_ACCESS) || can(PERMISSIONS.NOTIFICATION_COUNT),
     canReadPosts: can(PERMISSIONS.POST_READ) || can(PERMISSIONS.POST_FULL_ACCESS),
     canReadGames: can(PERMISSIONS.GAME_READ) || can(PERMISSIONS.GAME_FULL_ACCESS),
-    canViewPresence: can(PERMISSIONS.PRESENCE_READ) || can(PERMISSIONS.PRESENCE_FULL_ACCESS),
+    canReadBoards: can(PERMISSIONS.BOARD_VIEW) || can(PERMISSIONS.BOARD_FULL_ACCESS),
     hasAnyPermission: Array.isArray(user?.permissions) && user.permissions.length > 0
   }), [can, user])
 
@@ -44,11 +40,9 @@ export function useHomeData() {
   const { announcements, fetchAnnouncements } = useAnnouncements()
   const { count: unreadCount, fetchCount: fetchUnreadCount } = useUnreadCount()
   const { posts, fetchPosts } = usePosts()
-  const { users: allUsers } = useUsers()
   const { gameTypes, fetchGameTypes } = useGameTypes()
-  const presenceUsers = usePresenceStore((state) => state.users)
 
-  const [latestNews, setLatestNews] = useState<NewsItem | null>(null)
+  const [assignedTickets, setAssignedTickets] = useState<Ticket[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const hasInitialized = useRef(false)
 
@@ -87,11 +81,11 @@ export function useHomeData() {
           promises.push(fetchGameTypes().catch(() => []))
         }
 
-        if (permissions.canViewAINews) {
-           const newsPromise = axiosInstance.get<{ status: string; data: NewsItem[] }>(`${GET_AI_NEWS()}?limit=1`)
-            .then((res) => setLatestNews(res.data.data[0] || null))
-            .catch(() => setLatestNews(null))
-           promises.push(newsPromise)
+        if (permissions.canReadBoards) {
+           const ticketsPromise = axiosInstance.get<{ success: boolean; data: Ticket[] }>(GET_ASSIGNED_TICKETS())
+            .then((res) => setAssignedTickets(res.data.data || []))
+            .catch(() => setAssignedTickets([]))
+           promises.push(ticketsPromise)
         }
 
         await Promise.all(promises)
@@ -121,6 +115,13 @@ export function useHomeData() {
     }, 0)
   }, [todayEntries])
 
+  // Expose refetch functions for mutations
+  const refetchAnnouncements = useCallback(() => {
+    if (permissions.canReadAnnouncements) {
+      fetchAnnouncements(true)
+    }
+  }, [permissions.canReadAnnouncements, fetchAnnouncements])
+
   return {
     user,
     permissions,
@@ -131,13 +132,12 @@ export function useHomeData() {
       announcements,
       unreadCount,
       posts,
-      activeUsers: presenceUsers.filter(u => u.isActive),
-      totalUsersCount: allUsers.length,
       gameTypes,
-      latestNews,
+      assignedTickets,
       todayTotalMinutes
     },
-    isLoading
+    isLoading,
+    refetchAnnouncements
   }
 }
 
