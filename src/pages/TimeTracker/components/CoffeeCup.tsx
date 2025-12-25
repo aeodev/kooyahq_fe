@@ -5,17 +5,6 @@ type CoffeeCupProps = {
   progress: number
 }
 
-// Latte art heart path - simplified heart shape for the crema
-const LATTE_ART_HEART = `
-  M50,46 
-  C50,44 48,42 46,42 
-  C43,42 41,44 41,47 
-  C41,50 43,53 50,57 
-  C57,53 59,50 59,47 
-  C59,44 57,42 54,42 
-  C52,42 50,44 50,46
-`
-
 // Steam wisp paths - curved organic shapes
 const STEAM_PATHS = [
   { d: 'M0,0 Q2,-8 -1,-16 Q-3,-24 1,-32', x: 35, delay: 0 },
@@ -51,7 +40,6 @@ function CoffeeCupComponent({ progress }: CoffeeCupProps) {
   
   const showSteam = progress > 15 && !isOverflow
   const showCrema = progress > 10
-  const showLatteArt = progress > 30 && progress <= 100
   const showBubbles = progress > 20
   
   const getMessage = () => {
@@ -141,17 +129,17 @@ function CoffeeCupComponent({ progress }: CoffeeCupProps) {
           {showSteam && (
             <g>
               {STEAM_PATHS.map((steam, i) => (
-                <path
-                  key={i}
-                  d={steam.d}
-                  fill="none"
-                  stroke={`url(#${ids.steamGradient})`}
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  transform={`translate(${steam.x}, 28)`}
-                  className={styles[`steamWisp${(i % 3) + 1}` as keyof typeof styles]}
-                  style={{ animationDelay: `${steam.delay}s` }}
-                />
+                <g key={i} transform={`translate(${steam.x}, 28)`}>
+                  <path
+                    d={steam.d}
+                    fill="none"
+                    stroke={`url(#${ids.steamGradient})`}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    className={styles[`steamWisp${(i % 3) + 1}` as keyof typeof styles]}
+                    style={{ animationDelay: `${steam.delay}s` }}
+                  />
+                </g>
               ))}
             </g>
           )}
@@ -362,29 +350,6 @@ function CoffeeCupComponent({ progress }: CoffeeCupProps) {
                   fill={`url(#${ids.surfaceGlow})`}
                   style={{ transition: 'cy 0.7s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                 />
-              )}
-              
-              {/* Latte Art Heart */}
-              {showLatteArt && (
-                <g 
-                  transform={`translate(0, ${fillY - 46})`}
-                  className={styles.latteArt}
-                >
-                  <path
-                    d={LATTE_ART_HEART}
-                    fill="#E8D4BC"
-                    opacity="0.85"
-                  />
-                  {/* Heart highlight */}
-                  <path
-                    d="M47,45 Q48,43 50,44"
-                    fill="none"
-                    stroke="white"
-                    strokeWidth="0.8"
-                    strokeLinecap="round"
-                    opacity="0.4"
-                  />
-                </g>
               )}
               
               {/* Micro-bubbles */}

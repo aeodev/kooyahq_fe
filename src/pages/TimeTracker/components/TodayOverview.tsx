@@ -1,6 +1,5 @@
-import { ListTodo, Timer, Zap, Coffee } from 'lucide-react'
+import { ListTodo, Timer, Zap, Coffee, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { CoffeeCup } from './CoffeeCup'
 import type { TaskItem } from '@/types/time-entry'
 import { useMemo } from 'react'
@@ -50,60 +49,56 @@ export function TodayOverview({
 
   return (
     <Card className="border-border h-full">
-      <CardHeader className="pb-3 pt-4 px-4">
-        <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-          <Coffee className="h-4 w-4 text-primary" />
-          <span>Today's Brew</span>
-        </CardTitle>
+      <CardHeader className="pb-3 pt-5 px-5">        
       </CardHeader>
       
-      <CardContent className="space-y-4 px-4 pb-4">
+      <CardContent className="space-y-5 px-5 pb-5">
         {/* Coffee Cup + Stats */}
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-5">
           {/* Coffee Cup Visualization */}
           <div className="flex-shrink-0">
             <CoffeeCup progress={progressPercent} />
           </div>
           
           {/* Stats Column */}
-          <div className="flex-1 space-y-3 pt-1">
-            {/* Total Time - Large */}
+          <div className="flex-1 space-y-4 pt-1">
+            {/* Total Time - Hero stat */}
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-1">
                 Time Logged
               </p>
-              <p className="text-2xl font-bold tabular-nums tracking-tight mt-0.5">
+              <p className="text-3xl font-bold text-foreground tabular-nums tracking-tight">
                 {totalHours || '0h 0m'}
               </p>
             </div>
             
-            {/* Mini Stats */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <ListTodo className="h-3 w-3" />
-                  <span className="text-[9px] font-medium uppercase tracking-wide">Entries</span>
+            {/* Mini Stats - Cleaner grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <ListTodo className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Entries</span>
                 </div>
-                <p className="text-lg font-semibold text-foreground leading-tight mt-0.5">{entryCount}</p>
+                <p className="text-xl font-bold text-foreground tabular-nums">{entryCount}</p>
               </div>
-              <div>
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <Zap className="h-3 w-3" />
-                  <span className="text-[9px] font-medium uppercase tracking-wide">Avg</span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <Zap className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Avg/Entry</span>
                 </div>
-                <p className="text-lg font-semibold text-foreground leading-tight mt-0.5">{avgTimeFormatted}</p>
+                <p className="text-xl font-bold text-foreground tabular-nums">{avgTimeFormatted}</p>
               </div>
             </div>
             
-            {/* Goal Progress */}
-            <div className="space-y-1.5 pt-1">
+            {/* Goal Progress - Cleaner bar */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Goal</span>
-                <span className="text-xs font-medium text-foreground tabular-nums">
-                  {totalHours} / {dailyGoalHours}h
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Daily Goal</span>
+                <span className="text-xs font-semibold text-foreground tabular-nums">
+                  {totalHours} <span className="text-muted-foreground">/</span> {dailyGoalHours}h
                 </span>
               </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div 
                   className="h-full rounded-full bg-primary transition-all duration-1000 ease-out"
                   style={{ width: `${Math.min(progressPercent, 100)}%` }}
@@ -113,54 +108,64 @@ export function TodayOverview({
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="space-y-2">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-            <div className="h-1 w-1 rounded-full bg-primary animate-pulse" />
+        {/* Recent Activity - Fixed alignment */}
+        <div className="space-y-3">
+          <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.15em] flex items-center gap-2">
+            <Clock className="h-3 w-3" />
             Recent Activity
           </h4>
           {displayEntries.length > 0 ? (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {displayEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="group p-2.5 rounded-lg border border-border bg-card hover:bg-accent/40 transition-colors"
+                  className="group p-3 rounded-xl border border-border bg-card hover:bg-accent/40 transition-all duration-200"
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3">
+                    {/* Left: Project + Task */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-1.5 w-1.5 rounded-full bg-primary/50 group-hover:bg-primary transition-colors" />
-                        <span className="text-[13px] font-medium text-foreground truncate leading-tight">
+                      {/* Project name with badges */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-foreground truncate">
                           {entry.project}
                         </span>
                         {entry.isActive && (
-                          <Badge variant="default" className="text-[9px] py-0 px-1 h-4 bg-primary/10 text-primary border-primary/20">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Live
-                          </Badge>
+                          </span>
                         )}
                         {entry.isOvertime && (
-                          <Badge className="text-[9px] py-0 px-1 h-4 bg-amber-500/10 text-amber-600 border-amber-500/30">
-                            OT
-                          </Badge>
+                          <span 
+                            className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 cursor-help"
+                            title="Logged after ending your workday"
+                          >
+                            Overtime
+                          </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground truncate mt-0.5 pl-3">
-                        {entry.tasks.length > 0 ? entry.tasks[0].text : 'No task'}
+                      {/* Task description - show latest task */}
+                      <p className="text-xs text-muted-foreground truncate mt-1">
+                        {entry.tasks.length > 0 ? entry.tasks[entry.tasks.length - 1].text : 'No task description'}
                       </p>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-[13px] font-semibold text-foreground tabular-nums leading-tight">{entry.duration}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{entry.time}</p>
+                    
+                    {/* Right: Duration + Time - Fixed width for alignment */}
+                    <div className="flex-shrink-0 text-right min-w-[70px]">
+                      <p className="text-sm font-bold text-foreground tabular-nums">{entry.duration}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 font-medium tabular-nums">{entry.time}</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="py-6 px-4 rounded-lg border border-dashed border-border bg-muted/10 text-center">
-              <Timer className="h-5 w-5 text-muted-foreground mx-auto mb-2" />
-              <p className="text-xs font-medium text-muted-foreground">No entries yet</p>
-              <p className="text-[10px] text-muted-foreground/70 mt-0.5">Start tracking your work</p>
+            <div className="py-8 px-4 rounded-xl border border-dashed border-border bg-muted/20 text-center">
+              <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
+                <Timer className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">No entries yet</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">Start tracking your work</p>
             </div>
           )}
         </div>

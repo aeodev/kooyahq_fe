@@ -13,9 +13,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
-    // If it's our own timer, update activeTimer
+    // If it's our own timer, update activeTimer (but respect pending stops)
     if (data.userId === user?.id) {
-      timeEntryStore.setActiveTimer(data.entry)
+      timeEntryStore.setActiveTimerIfNotPending(data.entry)
     }
   }
 
@@ -34,9 +34,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
-    // If it's our own timer, update it
+    // If it's our own timer, update it (but respect pending stops)
     if (data.userId === user?.id) {
-      timeEntryStore.setActiveTimer(data.entry)
+      timeEntryStore.setActiveTimerIfNotPending(data.entry)
     }
   }
 
@@ -44,9 +44,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
-    // If it's our own timer, update it
+    // If it's our own timer, update it (but respect pending stops)
     if (data.userId === user?.id) {
-      timeEntryStore.setActiveTimer(data.entry)
+      timeEntryStore.setActiveTimerIfNotPending(data.entry)
     }
   }
 
@@ -99,8 +99,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const { user } = useAuthStore.getState()
     
     // Update active timer if it's ours - this syncs the timer with server state
+    // But respect pending stops to avoid overriding emergency stops
     if (data.userId === user?.id && data.entry.isActive) {
-      timeEntryStore.setActiveTimer(data.entry)
+      timeEntryStore.setActiveTimerIfNotPending(data.entry)
     }
   }
 

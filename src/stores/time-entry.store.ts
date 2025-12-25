@@ -17,6 +17,7 @@ import {
 } from '@/utils/api.routes'
 import { normalizeError, type Errors } from '@/utils/error'
 import type { TimeEntry, StartTimerInput, UpdateTimeEntryInput, ManualEntryInput } from '@/types/time-entry'
+import { setPendingTimerStop, clearPendingTimerStop, hasPendingStop } from '@/utils/server-health'
 
 type TimeEntryState = {
   activeTimer: TimeEntry | null
@@ -43,12 +44,15 @@ type TimeEntryActions = {
   pauseTimer: () => Promise<TimeEntry | null>
   resumeTimer: () => Promise<TimeEntry | null>
   stopTimer: () => Promise<TimeEntry | null>
+  emergencyStopTimer: () => Promise<void>
+  completePendingStop: () => Promise<boolean>
   endDay: () => Promise<TimeEntry[]>
   checkDayEndedStatus: () => Promise<{ dayEnded: boolean; endedAt: string | null }>
   logManualEntry: (input: ManualEntryInput) => Promise<TimeEntry | null>
   updateEntry: (id: string, updates: UpdateTimeEntryInput) => Promise<TimeEntry | null>
   deleteEntry: (id: string) => Promise<boolean>
   setActiveTimer: (timer: TimeEntry | null) => void
+  setActiveTimerIfNotPending: (timer: TimeEntry | null) => void
   updateTimerDuration: () => void
 }
 
@@ -214,6 +218,59 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
     }
   },
 
+  emergencyStopTimer: async () => {
+    // Emergency stop - used when server is unreachable
+    // This clears the local timer state immediately without waiting for server confirmation
+    const activeTimer = get().activeTimer
+    if (!activeTimer) return
+
+    console.warn('[TimeEntryStore] Emergency stopping timer due to server unavailability')
+
+    // Save the timer ID so we can stop it on the server when it comes back up
+    setPendingTimerStop(activeTimer.id)
+
+    // Clear local state immediately
+    set({ activeTimer: null })
+
+    // Try to notify the server in the background (best effort)
+    // Use a short timeout since server might be down
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      
+      await axiosInstance.post(STOP_TIMER(), {}, { signal: controller.signal })
+      
+      clearTimeout(timeoutId)
+      
+      // Server responded - clear pending stop and refresh entries
+      clearPendingTimerStop()
+      get().fetchEntries()
+    } catch {
+      // Server is unavailable - pending stop is saved
+      // completePendingStop() will be called when server comes back
+      console.warn('[TimeEntryStore] Could not notify server of emergency stop - will retry when server is available')
+    }
+  },
+
+  completePendingStop: async () => {
+    // Called when server becomes available to complete any pending emergency stop
+    try {
+      const response = await axiosInstance.post<{ status: string; data: TimeEntry }>(STOP_TIMER())
+      
+      // Successfully stopped on server
+      clearPendingTimerStop()
+      set({ activeTimer: null })
+      get().fetchEntries()
+      
+      console.log('[TimeEntryStore] Successfully completed pending timer stop on server')
+      return true
+    } catch {
+      // Still failed - keep pending stop flag
+      console.warn('[TimeEntryStore] Failed to complete pending timer stop')
+      return false
+    }
+  },
+
   endDay: async () => {
     try {
       const response = await axiosInstance.post<{ status: string; data: TimeEntry[] }>(END_DAY())
@@ -297,6 +354,16 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
   },
 
   setActiveTimer: (timer: TimeEntry | null) => {
+    set({ activeTimer: timer })
+  },
+
+  setActiveTimerIfNotPending: (timer: TimeEntry | null) => {
+    // Only set the active timer if it doesn't have a pending stop
+    // This prevents socket events from overriding an emergency stop
+    if (timer && hasPendingStop(timer.id)) {
+      console.log('[TimeEntryStore] Ignoring timer update - pending stop for this timer')
+      return
+    }
     set({ activeTimer: timer })
   },
 

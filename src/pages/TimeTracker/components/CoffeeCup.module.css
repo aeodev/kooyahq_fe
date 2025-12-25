@@ -297,6 +297,15 @@
 }
 
 /* CSS Classes for animations */
+.steamWisp1,
+.steamWisp2,
+.steamWisp3,
+.steamWisp4,
+.steamWisp5 {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
 .steamWisp1 {
   animation: steamWisp1 2.8s ease-out infinite;
 }

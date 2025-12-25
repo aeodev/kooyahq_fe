@@ -1,6 +1,6 @@
-import { Play } from 'lucide-react'
+import { Play, Clock, LogOut, Coffee } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ProjectSelector } from '@/components/ui/project-selector'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +12,7 @@ type StartTimerFormProps = {
   onSelectionChange: (projects: string[]) => void
   onTaskChange: (task: string) => void
   onStart: () => void
-  projectTasks: Map<string, string>
+  projectTasks: Record<string, string>
   onSetProjectTask: (project: string, task: string) => void
   activeProject: string | null
   disabled?: boolean
@@ -41,25 +41,29 @@ export function StartTimerForm({
   disableEndDay = false,
 }: StartTimerFormProps) {
   const firstProject = selectedProjects[0]
-  const firstProjectTask = firstProject ? projectTasks.get(firstProject) || taskDescription : taskDescription
+  const firstProjectTask = firstProject ? projectTasks[firstProject] || taskDescription : taskDescription
   const canStart = !disabled && selectedProjects.length > 0 && firstProjectTask.trim().length > 0
 
   return (
     <Card className="border-border/60 h-full">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-xl font-semibold tracking-tight text-foreground">
-          Start Timer
-        </CardTitle>
-        {selectedProjects.length > 1 && activeProject && (
-          <p className="text-sm text-muted-foreground mt-1">
-            Active: <span className="font-medium text-foreground">{activeProject}</span>
-          </p>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground tracking-tight">
+              Start Timer
+            </h2>
+            {selectedProjects.length > 1 && activeProject && (
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Starting with: <span className="font-medium text-primary">{activeProject}</span>
+              </p>
+            )}
+          </div>
+        </div>
+
         {/* Projects Section */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground leading-5 tracking-tight block">
+        <div className="space-y-2.5">
+          <label className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-semibold block">
             Select Projects
           </label>
           <ProjectSelector
@@ -74,22 +78,22 @@ export function StartTimerForm({
 
         {/* Task Description Section */}
         {selectedProjects.length === 0 ? (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground leading-5 tracking-tight block">
+          <div className="space-y-2.5">
+            <label className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-semibold block">
               Task Description
             </label>
             <Input
               placeholder="What are you working on?"
               value={taskDescription}
               onChange={(e) => onTaskChange(e.target.value)}
-              className="h-11 text-sm font-normal border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
+              className="h-11 text-sm"
               disabled={disabled}
             />
           </div>
         ) : selectedProjects.length === 1 ? (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground leading-5 tracking-tight block">
-              Task Description <span className="text-red-500">*</span>
+          <div className="space-y-2.5">
+            <label className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-semibold block">
+              Task Description <span className="text-destructive">*</span>
             </label>
             <Input
               placeholder="What are you working on?"
@@ -104,26 +108,26 @@ export function StartTimerForm({
                   onStart()
                 }
               }}
-              className="h-11 text-sm font-normal border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
+              className="h-11 text-sm"
               disabled={disabled}
             />
           </div>
         ) : (
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-foreground leading-5 tracking-tight block">
+          <div className="space-y-4">
+            <label className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-semibold block">
               Task for Each Project
             </label>
             {selectedProjects.map((project, index) => {
               const isFirst = index === 0
-              const task = projectTasks.get(project) || ''
+              const task = projectTasks[project] || ''
               return (
-                <div key={project} className="space-y-1.5">
+                <div key={project} className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-muted-foreground">
+                    <label className="text-xs font-medium text-foreground">
                       {project}
-                      {isFirst && <span className="text-red-500 ml-1">*</span>}
+                      {isFirst && <span className="text-destructive ml-1">*</span>}
                       {isFirst && activeProject === project && (
-                        <Badge variant="secondary" className="ml-2 text-xs py-0">Active</Badge>
+                        <Badge variant="secondary" className="ml-2 text-[9px] py-0 px-1.5">Active</Badge>
                       )}
                     </label>
                   </div>
@@ -136,7 +140,7 @@ export function StartTimerForm({
                         onStart()
                       }
                     }}
-                    className="h-10 text-sm font-normal border-border/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200"
+                    className="h-10 text-sm"
                     disabled={disabled}
                   />
                 </div>
@@ -146,26 +150,28 @@ export function StartTimerForm({
         )}
 
         {/* Action Buttons */}
-        <div className="space-y-3 pt-2">
+        <div className="space-y-4 pt-2">
+          {/* Primary Start Button */}
           <Button
             onClick={onStart}
             disabled={!canStart}
-            className="w-full h-11 text-sm font-semibold tracking-tight shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
+            className="w-full h-12 text-sm font-semibold tracking-tight shadow-md hover:shadow-lg transition-all duration-200 gap-2"
             size="lg"
           >
-            <Play className="h-4 w-4" />
+            <Play className="h-4 w-4 fill-current" />
             Start Timer
           </Button>
           
-          {/* Quick Actions */}
-          <div className="flex gap-2">
+          {/* Quick Actions - Differentiated */}
+          <div className="flex gap-3">
             {onAdd && (
               <Button
                 variant="outline"
                 onClick={onAdd}
                 disabled={disabled || disableAdd}
-                className="flex-1 h-10 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
+                className="flex-1 h-10 text-sm font-medium gap-2"
               >
+                <Clock className="h-4 w-4" />
                 Add Manual
               </Button>
             )}
@@ -174,8 +180,9 @@ export function StartTimerForm({
                 variant="outline"
                 onClick={onEndDay}
                 disabled={disabled || disableEndDay}
-                className="flex-1 h-10 text-sm font-medium border-border/60 hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
+                className="h-10 px-4 text-sm font-medium gap-2 bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20 hover:border-destructive/50"
               >
+                <LogOut className="h-4 w-4" />
                 End Day
               </Button>
             )}
@@ -185,5 +192,3 @@ export function StartTimerForm({
     </Card>
   )
 }
-
-

@@ -204,8 +204,8 @@ function NavGroup({ label, icon: GroupIcon, items, isOpen, isActive, onToggle, c
       {/* Accordion Content */}
       <div
         className={cn(
-          'overflow-hidden transition-all duration-200 ease-out',
-          isOpen && !collapsed ? 'max-h-96 opacity-100 mt-0.5' : 'max-h-0 opacity-0'
+          'overflow-hidden transition-all duration-300 ease-in-out',
+          isOpen && !collapsed ? 'max-h-64 opacity-100 mt-0.5' : 'max-h-0 opacity-0'
         )}
       >
         <div className="pl-4 space-y-0.5">
@@ -311,16 +311,6 @@ export function Sidebar() {
     setImageError(false)
   }, [user?.profilePic])
 
-  // Auto-expand group containing active route on mount/navigation
-  useEffect(() => {
-    if (isProductivityActive) {
-      setOpenGroups(prev => ({ ...prev, productivity: true }))
-    } else if (isSocialActive) {
-      setOpenGroups(prev => ({ ...prev, social: true }))
-    } else if (isManagementActive) {
-      setOpenGroups(prev => ({ ...prev, management: true }))
-    }
-  }, [location.pathname, isProductivityActive, isSocialActive, isManagementActive])
 
   // Keyboard shortcut: Press 'K' to collapse sidebar when expanded
   useEffect(() => {
