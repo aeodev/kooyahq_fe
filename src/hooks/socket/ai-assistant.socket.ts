@@ -85,12 +85,35 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
     store.setLoading(false)
   }
 
+  // Handle socket connection status
+  const handleConnect = () => {
+    store.setOffline(false)
+    // Retry sending queued messages
+    const queued = store.queuedMessages
+    if (queued.length > 0) {
+      queued.forEach((message) => {
+        sendAIMessage(socket, message, store.conversationId)
+      })
+      store.clearQueuedMessages()
+    }
+  }
+
+  const handleDisconnect = () => {
+    store.setOffline(true)
+  }
+
   // Register all handlers
   socket.on(AIAssistantSocketEvents.RESPONSE, handleResponse)
   socket.on(AIAssistantSocketEvents.TOOL_START, handleToolStart)
   socket.on(AIAssistantSocketEvents.TOOL_COMPLETE, handleToolComplete)
   socket.on(AIAssistantSocketEvents.ERROR, handleError)
   socket.on(AIAssistantSocketEvents.STREAM_END, handleStreamEnd)
+  socket.on('connect', handleConnect)
+  socket.on('disconnect', handleDisconnect)
+
+  // Store handlers for cleanup
+  eventHandlers.set('connect', handleConnect)
+  eventHandlers.set('disconnect', handleDisconnect)
 
   // Store handlers for cleanup
   eventHandlers.set(AIAssistantSocketEvents.RESPONSE, handleResponse)
@@ -104,9 +127,13 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
  * Send a message to the AI assistant via socket
  */
 export function sendAIMessage(socket: Socket | null, message: string, conversationId?: string | null): void {
+  const store = useAIAssistantStore.getState()
+  
   if (!socket?.connected) {
-    console.warn('[AI Assistant] Socket not connected')
-    useAIAssistantStore.getState().setError('Not connected to server')
+    console.warn('[AI Assistant] Socket not connected, queueing message')
+    store.setOffline(true)
+    store.queueMessage(message)
+    store.setError('Not connected to server. Message will be sent when connection is restored.')
     return
   }
 

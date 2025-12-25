@@ -39,7 +39,9 @@ type AIAssistantState = {
   streamingContent: string
   conversationId: string | null
   error: string | null
-  pendingToolExecutions: Map<string, AIToolExecution>
+  pendingToolExecutions: AIToolExecution[]
+  isOffline: boolean
+  queuedMessages: string[]
 }
 
 // Actions type
@@ -53,9 +55,13 @@ type AIAssistantActions = {
   updateStreamingContent: (content: string, isComplete: boolean) => void
   addToolExecution: (tool: AIToolExecution) => void
   updateToolExecution: (toolId: string, updates: Partial<AIToolExecution>) => void
+  removeToolExecution: (toolId: string) => void
   setError: (error: string | null) => void
   setLoading: (loading: boolean) => void
   setConversationId: (id: string) => void
+  setOffline: (offline: boolean) => void
+  queueMessage: (message: string) => void
+  clearQueuedMessages: () => void
   clearMessages: () => void
   reset: () => void
 }
@@ -69,7 +75,9 @@ const initialState: AIAssistantState = {
   streamingContent: '',
   conversationId: null,
   error: null,
-  pendingToolExecutions: new Map(),
+  pendingToolExecutions: [],
+  isOffline: false,
+  queuedMessages: [],
 }
 
 export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
@@ -82,7 +90,7 @@ export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
   toggle: () => set((state) => ({ isOpen: !state.isOpen })),
 
   sendMessage: (message: string) => {
-    // This is handled by the socket listener - just add user message
+    // Optimistically add user message
     get().addUserMessage(message)
     set({ isLoading: true, error: null, streamingContent: '' })
   },
@@ -101,20 +109,19 @@ export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
 
   addAssistantMessage: (content: string) => {
     const { pendingToolExecutions } = get()
-    const toolExecutions = Array.from(pendingToolExecutions.values())
     
     const newMessage: AIMessage = {
       id: crypto.randomUUID(),
       role: 'assistant',
       content,
       timestamp: new Date().toISOString(),
-      toolExecutions: toolExecutions.length > 0 ? toolExecutions : undefined,
+      toolExecutions: pendingToolExecutions.length > 0 ? pendingToolExecutions : undefined,
     }
     set((state) => ({
       messages: [...state.messages, newMessage],
       streamingContent: '',
       isLoading: false,
-      pendingToolExecutions: new Map(),
+      pendingToolExecutions: [],
     }))
   },
 
@@ -128,21 +135,28 @@ export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
 
   addToolExecution: (tool: AIToolExecution) => {
     set((state) => {
-      const newMap = new Map(state.pendingToolExecutions)
-      newMap.set(tool.id, tool)
-      return { pendingToolExecutions: newMap }
+      // Check if tool already exists
+      const exists = state.pendingToolExecutions.some(t => t.id === tool.id)
+      if (exists) {
+        return state
+      }
+      return { pendingToolExecutions: [...state.pendingToolExecutions, tool] }
     })
   },
 
   updateToolExecution: (toolId: string, updates: Partial<AIToolExecution>) => {
     set((state) => {
-      const newMap = new Map(state.pendingToolExecutions)
-      const existing = newMap.get(toolId)
-      if (existing) {
-        newMap.set(toolId, { ...existing, ...updates })
-      }
-      return { pendingToolExecutions: newMap }
+      const updated = state.pendingToolExecutions.map(tool =>
+        tool.id === toolId ? { ...tool, ...updates } : tool
+      )
+      return { pendingToolExecutions: updated }
     })
+  },
+
+  removeToolExecution: (toolId: string) => {
+    set((state) => ({
+      pendingToolExecutions: state.pendingToolExecutions.filter(tool => tool.id !== toolId)
+    }))
   },
 
   setError: (error: string | null) => set({ error, isLoading: false }),
@@ -151,11 +165,22 @@ export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
 
   setConversationId: (id: string) => set({ conversationId: id }),
 
+  setOffline: (offline: boolean) => set({ isOffline: offline }),
+
+  queueMessage: (message: string) => {
+    set((state) => ({
+      queuedMessages: [...state.queuedMessages, message],
+    }))
+  },
+
+  clearQueuedMessages: () => set({ queuedMessages: [] }),
+
   clearMessages: () => set({ 
     messages: [], 
     conversationId: null,
     streamingContent: '',
-    pendingToolExecutions: new Map(),
+    pendingToolExecutions: [],
+    queuedMessages: [],
   }),
 
   reset: () => set(initialState),
