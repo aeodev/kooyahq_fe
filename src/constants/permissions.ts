@@ -82,6 +82,8 @@ export const PERMISSIONS = {
 
   LINK_PREVIEW_FETCH: 'link-preview:fetch',
   CESIUM_TOKEN: 'cesium:token',
+
+  AI_ASSISTANT_ACCESS: 'ai-assistant:access',
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -176,4 +178,7 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   // Misc
   { value: PERMISSIONS.LINK_PREVIEW_FETCH, label: 'Fetch Link Previews' },
   { value: PERMISSIONS.CESIUM_TOKEN, label: 'Cesium Token' },
+
+  // AI Assistant
+  { value: PERMISSIONS.AI_ASSISTANT_ACCESS, label: 'AI Assistant Access', description: 'Use the Kooya AI assistant' },
 ]
