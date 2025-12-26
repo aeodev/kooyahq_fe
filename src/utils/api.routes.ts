@@ -220,3 +220,7 @@ export const UPLOAD_MEDIA = () => `/media/upload`
 export const GET_USER_MANAGEMENT_STATS = () => `/user-management/stats`
 export const GET_USER_MANAGEMENT_ACTIVITY = () => `/user-management/activity`
 export const EXPORT_USERS = (format: 'csv' | 'json') => `/user-management/export/users?format=${format}`
+
+// Settings routes
+export const GET_THEME_SETTINGS = () => `/settings/theme`
+export const UPDATE_THEME_SETTINGS = () => `/settings/theme`

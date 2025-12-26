@@ -16,6 +16,7 @@ import { Games } from '@/pages/Games'
 import { PlayGame } from '@/pages/Games/PlayGame'
 import { UserManagement } from '@/pages/UserManagement'
 import { ServerManagement } from '@/pages/ServerManagement'
+import { SystemManagement } from '@/pages/SystemManagement'
 import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
@@ -330,6 +331,18 @@ function App() {
             }
           />
           <Route path="/admin" element={<Navigate to="/user-management" replace />} />
+          <Route
+            path="/system-management"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.SYSTEM_FULL_ACCESS]}>
+                  <DashboardLayout>
+                    <SystemManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/meet"
             element={

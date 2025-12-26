@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -128,6 +128,12 @@ const MANAGEMENT_ITEMS: NavItem[] = [
       PERMISSIONS.PROJECTS_MANAGE,
       PERMISSIONS.SYSTEM_LOGS,
     ],
+  },
+  {
+    name: 'System',
+    to: '/system-management',
+    icon: Shield,
+    requiredPermissions: [PERMISSIONS.SYSTEM_FULL_ACCESS],
   },
 ]
 

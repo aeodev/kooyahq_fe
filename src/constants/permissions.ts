@@ -84,6 +84,10 @@ export const PERMISSIONS = {
   CESIUM_TOKEN: 'cesium:token',
 
   AI_ASSISTANT_ACCESS: 'ai-assistant:access',
+
+  SETTINGS_FULL_ACCESS: 'settings:fullAccess',
+  SETTINGS_VIEW: 'settings:view',
+  SETTINGS_MANAGE: 'settings:manage',
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -181,4 +185,9 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
 
   // AI Assistant
   { value: PERMISSIONS.AI_ASSISTANT_ACCESS, label: 'AI Assistant Access', description: 'Use the Kooya AI assistant' },
+
+  // Settings
+  { value: PERMISSIONS.SETTINGS_FULL_ACCESS, label: 'Settings Full Access', description: 'Full control over system settings' },
+  { value: PERMISSIONS.SETTINGS_VIEW, label: 'View Settings', description: 'View system settings' },
+  { value: PERMISSIONS.SETTINGS_MANAGE, label: 'Manage Settings', description: 'Change theme and other settings' },
 ]
