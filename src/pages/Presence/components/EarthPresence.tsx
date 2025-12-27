@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Globe } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { useTheme } from '@/composables/useTheme'
 import CesiumPresence from './CesiumPresence'

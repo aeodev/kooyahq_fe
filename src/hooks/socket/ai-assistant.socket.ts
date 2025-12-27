@@ -115,12 +115,12 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
   eventHandlers.set('connect', handleConnect)
   eventHandlers.set('disconnect', handleDisconnect)
 
-  // Store handlers for cleanup
-  eventHandlers.set(AIAssistantSocketEvents.RESPONSE, handleResponse)
-  eventHandlers.set(AIAssistantSocketEvents.TOOL_START, handleToolStart)
-  eventHandlers.set(AIAssistantSocketEvents.TOOL_COMPLETE, handleToolComplete)
-  eventHandlers.set(AIAssistantSocketEvents.ERROR, handleError)
-  eventHandlers.set(AIAssistantSocketEvents.STREAM_END, handleStreamEnd)
+  // Store handlers for cleanup (wrap typed handlers to match Map signature)
+  eventHandlers.set(AIAssistantSocketEvents.RESPONSE, handleResponse as (...args: unknown[]) => void)
+  eventHandlers.set(AIAssistantSocketEvents.TOOL_START, handleToolStart as (...args: unknown[]) => void)
+  eventHandlers.set(AIAssistantSocketEvents.TOOL_COMPLETE, handleToolComplete as (...args: unknown[]) => void)
+  eventHandlers.set(AIAssistantSocketEvents.ERROR, handleError as (...args: unknown[]) => void)
+  eventHandlers.set(AIAssistantSocketEvents.STREAM_END, handleStreamEnd as (...args: unknown[]) => void)
 }
 
 /**

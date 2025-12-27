@@ -6,7 +6,7 @@ import { useThemeSettingsStore } from '@/stores/theme-settings.store'
  * Called when socket connects
  */
 export function registerThemeSettingsHandlers(socket: Socket, eventHandlers: Map<string, (...args: any[]) => void>): void {
-  const handleThemeUpdated = (data: { theme: { light: any; dark: any }; userId: string; timestamp: string }) => {
+  const handleThemeUpdated = (_data: { theme: { light: any; dark: any }; userId: string; timestamp: string }) => {
     // Update store with new theme
     const store = useThemeSettingsStore.getState()
     store.fetchThemeSettings()

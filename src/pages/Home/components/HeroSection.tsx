@@ -175,7 +175,7 @@ export function HeroSection({
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className="font-medium">{entry.projects[0] || 'No Project'}</span>
                           <span className="text-muted-foreground/40">•</span>
-                          <span>{formatTime(entry.startTime)}</span>
+                          <span>{entry.startTime ? formatTime(new Date(entry.startTime)) : 'N/A'}</span>
                         </div>
                       </div>
                       <span className="text-sm font-bold font-mono text-muted-foreground tabular-nums shrink-0 group-hover:text-foreground transition-colors">

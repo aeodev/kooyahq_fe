@@ -250,7 +250,7 @@ export function Home() {
             transition={{ duration: 0.5, delay: 0.3 }}
           >
             <HeroSection 
-              activeTimer={data.activeTimer} 
+              activeTimer={data.activeTimer ?? null} 
               todayEntries={data.todayEntries}
               className={bentoBase}
             />

@@ -260,14 +260,18 @@ function PomodoroWidget() {
       setSeconds((s) => {
         if (s <= 1) {
           setIsRunning(false)
-          setMode((m) => (m === 'work' ? 'break' : 'work'))
-          return m => m === 'work' ? 5 * 60 : 25 * 60
+          setMode((m) => {
+            const newMode = m === 'work' ? 'break' : 'work'
+            return newMode
+          })
+          // Return seconds for new mode (work = 25min, break = 5min)
+          return mode === 'work' ? 5 * 60 : 25 * 60
         }
         return s - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [isRunning])
+  }, [isRunning, mode])
 
   const mins = Math.floor(seconds / 60)
   const secs = seconds % 60

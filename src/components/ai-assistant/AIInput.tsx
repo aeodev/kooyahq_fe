@@ -1,4 +1,4 @@
-import { useRef, KeyboardEvent, useEffect } from 'react'
+import { useRef, type KeyboardEvent, useEffect } from 'react'
 import { Send, Loader2 } from 'lucide-react'
 import { AI_ASSISTANT_STRINGS } from '@/constants/ai-assistant'
 

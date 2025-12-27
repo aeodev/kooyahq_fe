@@ -1,5 +1,4 @@
-import { Wifi, WifiOff, RefreshCw } from 'lucide-react'
-import { AI_ASSISTANT_STRINGS } from '@/constants/ai-assistant'
+import { WifiOff, RefreshCw } from 'lucide-react'
 
 interface ConnectionStatusProps {
   isOffline: boolean

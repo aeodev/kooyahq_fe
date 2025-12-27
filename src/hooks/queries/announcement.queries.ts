@@ -1,17 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_ANNOUNCEMENTS } from '@/utils/api.routes'
-
-type Announcement = {
-  id: string
-  title: string
-  content: string
-  priority: 'low' | 'medium' | 'high'
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
-  createdBy: string
-}
+import type { Announcement } from '@/types/announcement'
 
 export const announcementKeys = {
   all: ['announcements'] as const,

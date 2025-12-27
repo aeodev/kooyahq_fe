@@ -1,5 +1,5 @@
-import { ListTodo, Timer, Zap, Coffee, Clock } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ListTodo, Timer, Zap, Clock } from 'lucide-react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { CoffeeCup } from './CoffeeCup'
 import type { TaskItem } from '@/types/time-entry'
 import { useMemo } from 'react'

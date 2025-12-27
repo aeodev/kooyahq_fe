@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, KeyboardEvent, Fragment } from 'react'
+import { useState, useEffect, useRef, type KeyboardEvent, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ListTodo, Plus, Check, X, Maximize2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
