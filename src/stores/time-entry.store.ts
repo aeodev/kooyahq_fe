@@ -209,7 +209,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       const timer = response.data.data
       set({ activeTimer: null })
 
-      // Refresh entries after stopping timer
       get().fetchEntries()
 
       return timer
@@ -219,21 +218,15 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
   },
 
   emergencyStopTimer: async () => {
-    // Emergency stop - used when server is unreachable
-    // This clears the local timer state immediately without waiting for server confirmation
     const activeTimer = get().activeTimer
     if (!activeTimer) return
 
     console.warn('[TimeEntryStore] Emergency stopping timer due to server unavailability')
 
-    // Save the timer ID so we can stop it on the server when it comes back up
     setPendingTimerStop(activeTimer.id)
 
-    // Clear local state immediately
     set({ activeTimer: null })
 
-    // Try to notify the server in the background (best effort)
-    // Use a short timeout since server might be down
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 3000)
@@ -242,22 +235,17 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       
       clearTimeout(timeoutId)
       
-      // Server responded - clear pending stop and refresh entries
       clearPendingTimerStop()
       get().fetchEntries()
     } catch {
-      // Server is unavailable - pending stop is saved
-      // completePendingStop() will be called when server comes back
       console.warn('[TimeEntryStore] Could not notify server of emergency stop - will retry when server is available')
     }
   },
 
   completePendingStop: async () => {
-    // Called when server becomes available to complete any pending emergency stop
     try {
-      const response = await axiosInstance.post<{ status: string; data: TimeEntry }>(STOP_TIMER())
+      await axiosInstance.post<{ status: string; data: TimeEntry }>(STOP_TIMER())
       
-      // Successfully stopped on server
       clearPendingTimerStop()
       set({ activeTimer: null })
       get().fetchEntries()
@@ -265,7 +253,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       console.log('[TimeEntryStore] Successfully completed pending timer stop on server')
       return true
     } catch {
-      // Still failed - keep pending stop flag
       console.warn('[TimeEntryStore] Failed to complete pending timer stop')
       return false
     }
@@ -277,7 +264,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       const entries = response.data.data || []
       set({ activeTimer: null })
 
-      // Refresh entries
       get().fetchEntries()
 
       return entries
@@ -305,9 +291,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       )
       const entry = response.data.data
 
-      // Don't add here - let fetchEntries() refresh the list to avoid race condition with socket
-      // The caller (handleAddManualEntry) will call fetchEntries() after this
-
       return entry
     } catch (err) {
       return null
@@ -322,12 +305,10 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       )
       const updatedEntry = response.data.data
 
-      // Update in entries list
       set({
         entries: get().entries.map((e) => (e.id === id ? updatedEntry : e)),
       })
 
-      // Update active timer if it's the one being updated
       if (get().activeTimer?.id === id) {
         set({ activeTimer: updatedEntry })
       }
@@ -342,7 +323,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
     try {
       await axiosInstance.delete(DELETE_TIME_ENTRY(id))
 
-      // Remove from entries list
       set({
         entries: get().entries.filter((e) => e.id !== id),
       })
@@ -358,8 +338,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
   },
 
   setActiveTimerIfNotPending: (timer: TimeEntry | null) => {
-    // Only set the active timer if it doesn't have a pending stop
-    // This prevents socket events from overriding an emergency stop
     if (timer && hasPendingStop(timer.id)) {
       console.log('[TimeEntryStore] Ignoring timer update - pending stop for this timer')
       return
@@ -368,12 +346,8 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
   },
 
   updateTimerDuration: () => {
-    // This will be handled by the useTimerDuration hook
-    // But we can update the activeTimer reference if needed
     const timer = get().activeTimer
     if (timer && timer.isActive) {
-      // Timer duration is computed on the fly, no need to update here
     }
   },
 }))
-

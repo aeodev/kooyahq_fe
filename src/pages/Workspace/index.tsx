@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Star, MoreHorizontal, ChevronLeft, ChevronRight, LayoutGrid, Zap, Pencil, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -162,13 +162,22 @@ export function Workspace() {
   // Socket connection for real-time updates
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
+  const workspaceJoinedRef = useRef(false)
 
   // Join global board room for real-time events
   useEffect(() => {
-    if (!socket || !connected) return
+    if (!socket || !connected) {
+      workspaceJoinedRef.current = false
+      return
+    }
+    if (workspaceJoinedRef.current) return // already joined
+
     socket.emit('workspace:join', GLOBAL_WORKSPACE_ID)
+    workspaceJoinedRef.current = true
+
     return () => {
       socket.emit('workspace:leave', GLOBAL_WORKSPACE_ID)
+      workspaceJoinedRef.current = false
     }
   }, [socket, connected])
 

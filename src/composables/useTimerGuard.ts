@@ -31,6 +31,7 @@ const PING_TIMEOUT = 5000 // 5 second timeout for health check
 export function useTimerGuard() {
   const emergencyStopTimer = useTimeEntryStore((state) => state.emergencyStopTimer)
   const completePendingStop = useTimeEntryStore((state) => state.completePendingStop)
+  const activeTimer = useTimeEntryStore((state) => state.activeTimer)
   const socketConnected = useSocketStore((state) => state.connected)
   const user = useAuthStore((state) => state.user)
   
@@ -189,10 +190,10 @@ export function useTimerGuard() {
     lastSocketStateRef.current = socketConnected
   }, [socketConnected, handleSocketDisconnect, handleSocketReconnect])
 
-  // Set up health check interval
+  // Set up health check interval - only when there's an active timer
   useEffect(() => {
-    // Only run health checks if user is authenticated
-    if (!user) {
+    // Only run health checks if user is authenticated AND has an active timer
+    if (!user || !activeTimer) {
       if (healthCheckIntervalRef.current) {
         clearInterval(healthCheckIntervalRef.current)
         healthCheckIntervalRef.current = null
@@ -212,7 +213,7 @@ export function useTimerGuard() {
         healthCheckIntervalRef.current = null
       }
     }
-  }, [user, checkServerHealth])
+  }, [user, activeTimer, checkServerHealth])
 
   // Set up browser event listeners
   useEffect(() => {
