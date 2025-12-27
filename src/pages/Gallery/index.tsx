@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -7,6 +7,7 @@ import { Upload, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS } from '@/constants/permissions'
 import { useGallery } from '@/hooks/gallery.hooks'
+import { useGalleryQuery, useGalleryQueryActions } from '@/hooks/queries/gallery.queries'
 import { GalleryUploadSection } from '@/components/gallery/GalleryUploadSection'
 import { GalleryGrid } from '@/components/gallery/GalleryGrid'
 import { ImageModal } from '@/components/gallery/ImageModal'
@@ -32,24 +33,6 @@ export function Gallery() {
     () => can(PERMISSIONS.GALLERY_APPROVE) || can(PERMISSIONS.GALLERY_FULL_ACCESS),
     [can],
   )
-  
-  const {
-    items,
-    loading,
-    error,
-    pagination,
-    selectedItems,
-    fetchGalleryItems,
-    createGalleryItem,
-    createMultipleGalleryItems,
-    updateGalleryItem,
-    deleteGalleryItem,
-    deleteMultipleGalleryItems,
-    approveGalleryItem,
-    toggleSelection,
-    selectAll,
-    clearSelection,
-  } = useGallery()
 
   const [showUploadSection, setShowUploadSection] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -60,10 +43,36 @@ export function Gallery() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectMode, setSelectMode] = useState(false)
 
-  useEffect(() => {
-    if (!canViewGallery) return
-    fetchGalleryItems({ page: currentPage, limit: 20, search: searchQuery || undefined })
-  }, [canViewGallery, currentPage, searchQuery, fetchGalleryItems])
+  // Query params for gallery items
+  const queryParams = useMemo(() => ({
+    page: currentPage,
+    limit: 20,
+    search: searchQuery || undefined,
+  }), [currentPage, searchQuery])
+  
+  // Use TanStack Query for cached data fetching
+  const { data: galleryData, isLoading: loading, error: queryError } = useGalleryQuery(
+    canViewGallery ? queryParams : undefined
+  )
+  const { invalidateGallery } = useGalleryQueryActions()
+  
+  const items = galleryData?.items ?? []
+  const pagination = galleryData?.pagination
+  const error = queryError?.message ?? null
+
+  // Keep mutations from existing hook
+  const {
+    selectedItems,
+    createGalleryItem,
+    createMultipleGalleryItems,
+    updateGalleryItem,
+    deleteGalleryItem,
+    deleteMultipleGalleryItems,
+    approveGalleryItem,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+  } = useGallery()
 
   const handleUpload = async (files: Array<{ file: File; title: string; description?: string }>) => {
     setUploading(true)
@@ -76,7 +85,7 @@ export function Gallery() {
         await createMultipleGalleryItems(files)
       }
 
-      await fetchGalleryItems({ page: currentPage, limit: 20, search: searchQuery || undefined })
+      invalidateGallery()
       setShowUploadSection(false)
     } catch (err) {
       console.error('Failed to upload images:', err)
@@ -92,7 +101,7 @@ export function Gallery() {
     setDeletingId(id)
     try {
       await deleteGalleryItem(id)
-      await fetchGalleryItems({ page: currentPage, limit: 20, search: searchQuery || undefined })
+      invalidateGallery()
     } catch (err) {
       console.error('Failed to delete gallery item:', err)
     } finally {
@@ -107,7 +116,7 @@ export function Gallery() {
     setIsDeleting(true)
     try {
       await deleteMultipleGalleryItems(selectedItems)
-      await fetchGalleryItems({ page: currentPage, limit: 20, search: searchQuery || undefined })
+      invalidateGallery()
       setSelectMode(false)
       clearSelection()
     } catch (err) {
@@ -120,7 +129,7 @@ export function Gallery() {
   const handleApprove = async (id: string) => {
     try {
       await approveGalleryItem(id)
-      await fetchGalleryItems({ page: currentPage, limit: 20, search: searchQuery || undefined })
+      invalidateGallery()
     } catch (err) {
       console.error('Failed to approve gallery item:', err)
     }

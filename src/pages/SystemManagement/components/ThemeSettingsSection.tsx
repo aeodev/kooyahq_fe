@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useThemeSettingsStore, type ThemeSettings } from '@/stores/theme-settings.store'
-import { Loader2, Palette, Save } from 'lucide-react'
+import { Loader2, Save, Sun, Moon, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Helper to validate hex color
@@ -110,11 +110,22 @@ function hexToHsl(hex: string): string {
 
 type ColorField = 'primary' | 'secondary' | 'accent' | 'destructive' | 'muted' | 'background' | 'foreground' | 'border'
 
+const colorCategories = {
+  primary: { label: 'Primary', description: 'Main brand color' },
+  secondary: { label: 'Secondary', description: 'Supporting color' },
+  accent: { label: 'Accent', description: 'Interactive elements' },
+  destructive: { label: 'Destructive', description: 'Error states' },
+  muted: { label: 'Muted', description: 'Subtle elements' },
+  background: { label: 'Background', description: 'Page background' },
+  foreground: { label: 'Foreground', description: 'Text color' },
+  border: { label: 'Border', description: 'Border elements' },
+}
+
 export function ThemeSettingsSection() {
   const { settings, loading, fetchThemeSettings, updateThemeSettings } = useThemeSettingsStore()
   const [localSettings, setLocalSettings] = useState<ThemeSettings | null>(null)
   const [saving, setSaving] = useState(false)
-  const [inputModes, setInputModes] = useState<Record<string, 'hex' | 'hsl'>>({})
+  const [hasChanges, setHasChanges] = useState(false)
 
   useEffect(() => {
     if (!settings) {
@@ -124,37 +135,27 @@ export function ThemeSettingsSection() {
     }
   }, [settings, fetchThemeSettings])
 
-  const handleColorChange = (mode: 'light' | 'dark', field: ColorField, value: string, type: 'hex' | 'hsl') => {
+  const handleColorChange = (mode: 'light' | 'dark', field: ColorField, hexValue: string) => {
     if (!localSettings) return
 
-    let hsl: string
-    if (type === 'hex') {
-      // Normalize hex input
-      const normalizedHex = normalizeHex(value)
-      // If it's a valid hex (3 or 6 digits), convert to HSL
-      if (isValidHex(normalizedHex)) {
-        try {
-          hsl = hexToHsl(normalizedHex)
-        } catch (error) {
-          // Invalid conversion, don't update
-          return
-        }
-      } else {
-        // Invalid hex, don't update
-        return
-      }
-    } else {
-      // It's HSL, use directly
-      hsl = value
-    }
+    // Normalize and validate hex
+    const normalizedHex = normalizeHex(hexValue)
+    if (!isValidHex(normalizedHex)) return
 
-    setLocalSettings({
-      ...localSettings,
-      [mode]: {
-        ...localSettings[mode],
-        [field]: hsl,
-      },
-    })
+    try {
+      const hsl = hexToHsl(normalizedHex)
+      setLocalSettings({
+        ...localSettings,
+        [mode]: {
+          ...localSettings[mode],
+          [field]: hsl,
+        },
+      })
+      setHasChanges(true)
+    } catch (error) {
+      // Invalid conversion, don't update
+      return
+    }
   }
 
   const handleSave = async () => {
@@ -163,6 +164,7 @@ export function ThemeSettingsSection() {
     setSaving(true)
     try {
       await updateThemeSettings(localSettings)
+      setHasChanges(false)
       toast.success('Theme settings updated successfully')
     } catch (error: any) {
       toast.error(error?.message || 'Failed to update theme settings')
@@ -179,151 +181,230 @@ export function ThemeSettingsSection() {
     )
   }
 
-  const colorFields: { key: ColorField; label: string }[] = [
-    { key: 'primary', label: 'Primary' },
-    { key: 'secondary', label: 'Secondary' },
-    { key: 'accent', label: 'Accent' },
-    { key: 'destructive', label: 'Destructive' },
-    { key: 'muted', label: 'Muted' },
-    { key: 'background', label: 'Background' },
-    { key: 'foreground', label: 'Foreground' },
-    { key: 'border', label: 'Border' },
-  ]
+  const coreColors: ColorField[] = ['primary', 'secondary', 'accent', 'destructive']
+  const surfaceColors: ColorField[] = ['background', 'foreground', 'muted', 'border']
+
+  const ColorInput = ({ mode, field }: { mode: 'light' | 'dark'; field: ColorField }) => {
+    const hslValue = localSettings[mode][field]
+    const hexValue = hslToHex(hslValue)
+    const fieldId = `${mode}-${field}`
+
+    return (
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <Input
+            id={fieldId}
+            type="color"
+            value={hexValue}
+            onChange={(e) => handleColorChange(mode, field, e.target.value)}
+            className="h-12 w-12 rounded-xl cursor-pointer border-2 border-border hover:border-ring transition-colors"
+          />
+          <div
+            className="absolute inset-1 rounded-lg pointer-events-none"
+            style={{ backgroundColor: `hsl(${hslValue})` }}
+          />
+        </div>
+        <div className="flex-1">
+          <Label htmlFor={fieldId} className="text-sm font-medium">
+            {colorCategories[field].label}
+          </Label>
+          <p className="text-xs text-muted-foreground">{colorCategories[field].description}</p>
+          <Input
+            value={hexValue}
+            onChange={(e) => handleColorChange(mode, field, e.target.value)}
+            className="mt-1 h-8 text-xs font-mono"
+            placeholder="#8fb84d"
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg sm:text-xl font-semibold">Theme Settings</h2>
-        <p className="text-sm text-muted-foreground mt-1">Customize global theme colors for all users</p>
-      </div>
+    <div className="space-y-8">
+      {/* Color Editor */}
+      <Card className="border-0 shadow-xl bg-gradient-to-br from-background to-muted/20">
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            Color Configuration
-          </CardTitle>
-          <CardDescription>Adjust colors for light and dark modes. Changes apply globally to all users.</CardDescription>
-        </CardHeader>
         <CardContent>
           <Tabs defaultValue="light" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="light">Light Mode</TabsTrigger>
-              <TabsTrigger value="dark">Dark Mode</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-8 h-12">
+              <TabsTrigger value="light" className="flex items-center gap-2 text-sm">
+                <Sun className="h-4 w-4" />
+                Light Mode
+              </TabsTrigger>
+              <TabsTrigger value="dark" className="flex items-center gap-2 text-sm">
+                <Moon className="h-4 w-4" />
+                Dark Mode
+              </TabsTrigger>
             </TabsList>
 
             {(['light', 'dark'] as const).map((mode) => (
-              <TabsContent key={mode} value={mode} className="space-y-4 mt-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {colorFields.map(({ key, label }) => {
-                    const hslValue = localSettings[mode][key]
-                    const hexValue = hslToHex(hslValue)
-                    const fieldId = `${mode}-${key}`
-                    const inputMode = inputModes[fieldId] || 'hex'
+              <TabsContent key={mode} value={mode} className="space-y-8 mt-0">
+                {/* Core Colors */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-foreground">Core Colors</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {coreColors.map((field) => (
+                      <ColorInput key={field} mode={mode} field={field} />
+                    ))}
+                  </div>
+                </div>
 
-                    return (
-                      <div key={key} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor={fieldId} className="text-sm font-medium">
-                            {label}
-                          </Label>
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setInputModes({ ...inputModes, [fieldId]: 'hex' })}
-                              className={`px-2 py-1 text-xs rounded transition-colors ${
-                                inputMode === 'hex'
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'bg-muted text-muted-foreground hover:bg-accent'
-                              }`}
-                            >
-                              HEX
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setInputModes({ ...inputModes, [fieldId]: 'hsl' })}
-                              className={`px-2 py-1 text-xs rounded transition-colors ${
-                                inputMode === 'hsl'
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'bg-muted text-muted-foreground hover:bg-accent'
-                              }`}
-                            >
-                              HSL
-                            </button>
+                {/* Surface Colors */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-foreground">Surface Colors</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {surfaceColors.map((field) => (
+                      <ColorInput key={field} mode={mode} field={field} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live Preview */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-foreground">Live Preview</h3>
+                  <div className="rounded-2xl overflow-hidden border shadow-lg">
+                    <div
+                      className="p-6 space-y-4"
+                      style={{
+                        backgroundColor: `hsl(${localSettings[mode].background})`,
+                        color: `hsl(${localSettings[mode].foreground})`
+                      }}
+                    >
+                      {/* Header Preview */}
+                      <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: `hsl(${localSettings[mode].muted})` }}>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-8 h-8 rounded-lg"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].primary})` }}
+                          />
+                          <span className="font-semibold">KooyaHQ</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="px-3 py-1 rounded-lg text-sm"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].secondary})` }}
+                          >
+                            Profile
                           </div>
                         </div>
-                        <div className="flex gap-2 items-center">
-                          <Input
-                            id={`${fieldId}-color`}
-                            type="color"
-                            value={hexValue}
-                            onChange={(e) => handleColorChange(mode, key, e.target.value, 'hex')}
-                            className="h-10 w-20 cursor-pointer"
+                      </div>
+
+                      {/* Content Preview */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div
+                          className="p-4 rounded-xl border"
+                          style={{
+                            backgroundColor: `hsl(${localSettings[mode].background})`,
+                            borderColor: `hsl(${localSettings[mode].border})`
+                          }}
+                        >
+                          <div
+                            className="w-full h-3 rounded mb-2"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].muted})` }}
                           />
-                          <Input
-                            id={fieldId}
-                            type="text"
-                            value={inputMode === 'hex' ? hexValue : hslValue}
-                            onChange={(e) => {
-                              if (inputMode === 'hex') {
-                                handleColorChange(mode, key, e.target.value, 'hex')
-                              } else {
-                                handleColorChange(mode, key, e.target.value, 'hsl')
-                              }
-                            }}
-                            className="flex-1 font-mono text-xs"
-                            placeholder={inputMode === 'hex' ? '#8fb84d' : '142 71% 29%'}
+                          <div
+                            className="w-3/4 h-2 rounded"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].accent})` }}
+                          />
+                        </div>
+                        <div
+                          className="p-4 rounded-xl border"
+                          style={{
+                            backgroundColor: `hsl(${localSettings[mode].background})`,
+                            borderColor: `hsl(${localSettings[mode].border})`
+                          }}
+                        >
+                          <div
+                            className="w-full h-3 rounded mb-2"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].muted})` }}
+                          />
+                          <div
+                            className="w-1/2 h-2 rounded"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].primary})` }}
+                          />
+                        </div>
+                        <div
+                          className="p-4 rounded-xl"
+                          style={{ backgroundColor: `hsl(${localSettings[mode].accent})` }}
+                        >
+                          <div
+                            className="w-full h-3 rounded mb-2"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].foreground})`, opacity: 0.5 }}
+                          />
+                          <div
+                            className="w-2/3 h-2 rounded"
+                            style={{ backgroundColor: `hsl(${localSettings[mode].foreground})`, opacity: 0.3 }}
                           />
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
 
-                {/* Preview */}
-                <div className="mt-6 p-4 rounded-lg border" style={{ backgroundColor: `hsl(${localSettings[mode].background})` }}>
-                  <div className="space-y-2">
-                    <div
-                      className="p-3 rounded-lg"
-                      style={{ backgroundColor: `hsl(${localSettings[mode].primary})`, color: `hsl(${localSettings[mode].foreground})` }}
-                    >
-                      <span className="text-sm font-medium">Primary Color Preview</span>
-                    </div>
-                    <div
-                      className="p-3 rounded-lg"
-                      style={{ backgroundColor: `hsl(${localSettings[mode].secondary})`, color: `hsl(${localSettings[mode].foreground})` }}
-                    >
-                      <span className="text-sm font-medium">Secondary Color Preview</span>
-                    </div>
-                    <div
-                      className="p-3 rounded-lg"
-                      style={{ backgroundColor: `hsl(${localSettings[mode].accent})`, color: `hsl(${localSettings[mode].foreground})` }}
-                    >
-                      <span className="text-sm font-medium">Accent Color Preview</span>
+                      {/* Button Preview */}
+                      <div className="flex items-center gap-3 pt-4">
+                        <button
+                          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          style={{
+                            backgroundColor: `hsl(${localSettings[mode].primary})`,
+                            color: `hsl(${localSettings[mode].foreground})`
+                          }}
+                        >
+                          Primary Button
+                        </button>
+                        <button
+                          className="px-4 py-2 rounded-lg text-sm font-medium border transition-colors"
+                          style={{
+                            borderColor: `hsl(${localSettings[mode].border})`,
+                            backgroundColor: `hsl(${localSettings[mode].background})`,
+                            color: `hsl(${localSettings[mode].foreground})`
+                          }}
+                        >
+                          Secondary
+                        </button>
+                        <button
+                          className="px-4 py-2 rounded-lg text-sm font-medium"
+                          style={{
+                            backgroundColor: `hsl(${localSettings[mode].destructive})`,
+                            color: `hsl(${localSettings[mode].foreground})`
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </TabsContent>
             ))}
           </Tabs>
-
-          <div className="mt-6 flex justify-end">
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Save Theme Settings
-                </>
-              )}
-            </Button>
-          </div>
         </CardContent>
       </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-center">
+        <Button
+          onClick={handleSave}
+          disabled={saving || !hasChanges}
+          size="lg"
+          className="gap-2 px-8"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Saving Changes...
+            </>
+          ) : hasChanges ? (
+            <>
+              <CheckCircle className="h-5 w-5" />
+              Save Theme Settings
+            </>
+          ) : (
+            <>
+              <Save className="h-5 w-5" />
+              No Changes to Save
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   )
 }

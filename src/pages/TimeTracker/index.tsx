@@ -3,8 +3,8 @@ import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useProjectTaskStore } from '@/stores/project-task.store'
 import { useTimerDuration } from '@/hooks/time-entry.hooks'
-import { useUsers } from '@/hooks/user.hooks'
-import { useProjects } from '@/hooks/project.hooks'
+import { useUsersQuery } from '@/hooks/queries/user.queries'
+import { useProjectsQuery } from '@/hooks/queries/project.queries'
 import { ActiveTimerCard } from './components/ActiveTimerCard'
 import { StartTimerForm } from './components/StartTimerForm'
 import { TodayOverview } from './components/TodayOverview'
@@ -65,19 +65,14 @@ export function TimeTracker() {
 
   const allEntries = useTimeEntryStore((state) => state.allTodayEntries)
   const fetchAllEntries = useTimeEntryStore((state) => state.fetchAllTodayEntries)
-  const { data: projectsData, fetchProjects } = useProjects()
+  
+  // Use TanStack Query for cached projects data
+  const { data: projectsData = [] } = useProjectsQuery(canReadProjects)
   
   // Convert projects to array of names for compatibility
   const projects = useMemo(() => {
-    return projectsData?.map((p) => p.name) || []
+    return projectsData.map((p) => p.name)
   }, [projectsData])
-
-  // Fetch projects on mount
-  useEffect(() => {
-    if (canReadProjects) {
-      fetchProjects()
-    }
-  }, [fetchProjects, canReadProjects])
   const myEntries = useTimeEntryStore((state) => state.entries)
   const fetchMyEntries = useTimeEntryStore((state) => state.fetchEntries)
   const activeTimer = useTimeEntryStore((state) => state.activeTimer)
@@ -93,17 +88,20 @@ export function TimeTracker() {
   const timerDuration = useTimerDuration(activeTimer)
   
   const [loggingManual, setLoggingManual] = useState(false)
-  const { users } = useUsers()
+  const { data: users = [] } = useUsersQuery()
 
   const user = useAuthStore((state) => state.user)
   const isLoading = useAuthStore((state) => state.isLoading)
   
-  // Track if initial fetch has been done
-  const [initialFetchDone, setInitialFetchDone] = useState(false)
+  // Check if store already has data (persists across navigation)
+  const hasStoreData = myEntries.length > 0 || activeTimer !== null
   
-  // Initial fetch - only when user is authenticated and auth is ready
+  // Track if initial fetch has been done (for first load only)
+  const [initialFetchDone, setInitialFetchDone] = useState(hasStoreData)
+  
+  // Initial fetch - only when user is authenticated and we DON'T have store data
   useEffect(() => {
-    if (user && !isLoading && canReadEntries && !initialFetchDone) {
+    if (user && !isLoading && canReadEntries && !initialFetchDone && !hasStoreData) {
       Promise.all([
         fetchMyEntries(),
         fetchActiveTimer(),
@@ -113,12 +111,15 @@ export function TimeTracker() {
       ]).finally(() => {
         setInitialFetchDone(true)
       })
+    } else if (hasStoreData && !initialFetchDone) {
+      // If we already have store data, mark as done immediately
+      setInitialFetchDone(true)
     }
-  }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus, canReadEntries, initialFetchDone])
+  }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus, canReadEntries, initialFetchDone, hasStoreData])
   
   // Determine if we're in initial loading state
-  // Show loading if: auth is loading OR we haven't completed initial fetch yet
-  const isInitialLoading = isLoading || (user && canReadEntries && !initialFetchDone)
+  // Show loading if: auth is loading OR (we haven't completed initial fetch AND we have no data)
+  const isInitialLoading = isLoading || (user && canReadEntries && !initialFetchDone && !hasStoreData)
 
 
   // Fetch immediately when switching to "All" tab

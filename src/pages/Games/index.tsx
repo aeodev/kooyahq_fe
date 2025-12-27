@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Trophy, History, Grid3x3 } from 'lucide-react'
-import { useGameTypes, useGameMatches, useActiveUsers } from '@/hooks/game.hooks'
+import { useGameTypesQuery, useGameMatchesQuery, useActiveUsersQuery, useGameQueryActions } from '@/hooks/queries/game.queries'
 import { useGameInvitations } from '@/composables/game/useGameInvitations'
 import { ActiveUsersSidebar } from './components/ActiveUsersSidebar'
 import { LeaderboardView } from './components/LeaderboardView'
@@ -28,27 +28,25 @@ export function Games() {
     [can]
   )
 
-  const { gameTypes, fetchGameTypes } = useGameTypes()
-  const { matches, loading, fetchMatches } = useGameMatches()
-  const { activeUsers, setActiveUsers, fetchActiveUsers } = useActiveUsers()
+  // Use TanStack Query for cached data fetching
+  const { data: gameTypes = [] } = useGameTypesQuery()
+  const { data: matches = [], isLoading: loading, refetch: refetchMatches } = useGameMatchesQuery()
+  const { data: activeUsers = [] } = useActiveUsersQuery()
+  const { setActiveUsers } = useGameQueryActions()
   const { invitation, sendInvitation, acceptInvitation, declineInvitation } = useGameInvitations({ activeUsers })
 
+  // Listen for active users updates via socket
   useEffect(() => {
-    fetchGameTypes()
-    fetchMatches()
-    fetchActiveUsers()
+    if (!socket?.connected) return
 
-    // Listen for active users updates via socket
-    if (socket?.connected) {
-      socket.on('game:active-users', (data: { users: ActiveUser[] }) => {
-        setActiveUsers(data.users)
-      })
+    socket.on('game:active-users', (data: { users: ActiveUser[] }) => {
+      setActiveUsers(data.users)
+    })
 
-      return () => {
-        socket.off('game:active-users')
-      }
+    return () => {
+      socket.off('game:active-users')
     }
-  }, [socket, fetchGameTypes, fetchMatches, fetchActiveUsers, setActiveUsers])
+  }, [socket, setActiveUsers])
 
   const handleInvite = (gameType: string, invitedUserId: string) => {
     sendInvitation(gameType, invitedUserId)
@@ -154,7 +152,7 @@ export function Games() {
           </TabsContent>
 
           <TabsContent value="history">
-            <MatchHistoryView matches={matches} loading={loading} onRefresh={fetchMatches} />
+            <MatchHistoryView matches={matches} loading={loading} onRefresh={() => refetchMatches()} />
           </TabsContent>
         </Tabs>
       </div>

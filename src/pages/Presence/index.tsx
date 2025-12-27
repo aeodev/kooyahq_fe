@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch'
 import { Loader2 } from 'lucide-react'
 import { usePresenceStore } from '@/stores/presence.store'
 import { usePresenceChannel, useLiveLocationSharing } from '@/hooks/presence.hooks'
-import { useUsers } from '@/hooks/user.hooks'
+import { useUsersQuery } from '@/hooks/queries/user.queries'
 import { EarthPresence } from './components/EarthPresence'
 import { PresenceSidebar } from './components/PresenceSidebar'
 
@@ -17,7 +17,7 @@ export function Presence() {
   const locationSharingEnabled = usePresenceStore((state) => state.locationSharingEnabled)
   const setLocationSharingEnabled = usePresenceStore((state) => state.setLocationSharingEnabled)
   const users = usePresenceStore((state) => state.users)
-  const { users: allSystemUsers } = useUsers()
+  const { data: allSystemUsers = [] } = useUsersQuery()
   const activeCount = users.filter((user) => user.isActive).length
   const totalUsers = allSystemUsers.length
 

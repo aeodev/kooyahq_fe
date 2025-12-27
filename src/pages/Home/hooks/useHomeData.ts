@@ -1,15 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
-import { useAnalytics } from '@/hooks/time-entry.hooks'
-import { useAnnouncements } from '@/hooks/announcement.hooks'
-import { useUnreadCount } from '@/hooks/notification.hooks'
+import { useMyEntriesQuery, useActiveTimerQuery, useAnalyticsQuery } from '@/hooks/queries/time-entry.queries'
+import { useAnnouncementsQuery, useAnnouncementQueryActions } from '@/hooks/queries/announcement.queries'
+import { useUnreadCountQuery } from '@/hooks/queries/notification.queries'
+import { useGameTypesQuery } from '@/hooks/queries/game.queries'
+import { useAssignedTicketsQuery } from '@/hooks/queries/ticket.queries'
 import { usePosts } from '@/hooks/post.hooks'
-import { useGameTypes } from '@/hooks/game.hooks'
-import axiosInstance from '@/utils/axios.instance'
-import { GET_ASSIGNED_TICKETS } from '@/utils/api.routes'
 import { PERMISSIONS } from '@/constants/permissions'
-import type { Ticket } from '@/types/board'
 
 export function useHomeData() {
   const user = useAuthStore((state) => state.user)
@@ -28,82 +26,36 @@ export function useHomeData() {
     hasAnyPermission: Array.isArray(user?.permissions) && user.permissions.length > 0
   }), [can, user])
 
-  // Store access
-  const { 
-    activeTimer, 
-    entries: myEntries,
-    fetchActiveTimer, 
-    fetchEntries 
-  } = useTimeEntryStore()
+  // Get today's date for analytics
+  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
+
+  // TanStack Query hooks - all cached automatically
+  const { data: myEntries = [], isLoading: entriesLoading } = useMyEntriesQuery()
+  const { data: activeTimer } = useActiveTimerQuery()
+  const { data: analytics } = useAnalyticsQuery(today, today, undefined, permissions.canViewTimeAnalytics)
+  const { data: announcements = [] } = useAnnouncementsQuery(true)
+  const { data: unreadCount = 0 } = useUnreadCountQuery(permissions.canReadNotifications)
+  const { data: gameTypes = [] } = useGameTypesQuery()
+  const { data: assignedTickets = [] } = useAssignedTicketsQuery(permissions.canReadBoards)
   
-  const { data: analytics, fetchAnalytics } = useAnalytics()
-  const { announcements, fetchAnnouncements } = useAnnouncements()
-  const { count: unreadCount, fetchCount: fetchUnreadCount } = useUnreadCount()
-  const { posts, fetchPosts } = usePosts()
-  const { gameTypes, fetchGameTypes } = useGameTypes()
+  // Posts already uses store with caching
+  const { posts } = usePosts()
+  
+  // Also keep time entry store in sync for socket updates
+  const storeActiveTimer = useTimeEntryStore((state) => state.activeTimer)
+  const storeEntries = useTimeEntryStore((state) => state.entries)
 
-  const [assignedTickets, setAssignedTickets] = useState<Ticket[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const hasInitialized = useRef(false)
-
-  useEffect(() => {
-    if (!user || hasInitialized.current) return
-    hasInitialized.current = true
-
-    const today = new Date().toISOString().split('T')[0]
-
-    const fetchData = async () => {
-      try {
-        const promises = []
-        
-        if (permissions.canReadTimeEntries) {
-          promises.push(fetchActiveTimer().catch(() => null))
-          promises.push(fetchEntries().catch(() => []))
-        }
-        
-        if (permissions.canViewTimeAnalytics) {
-          promises.push(fetchAnalytics(today, today).catch(() => null))
-        }
-        
-        if (permissions.canReadAnnouncements) {
-          promises.push(fetchAnnouncements(true).catch(() => []))
-        }
-        
-        if (permissions.canReadNotifications) {
-          promises.push(fetchUnreadCount().catch(() => 0))
-        }
-        
-        if (permissions.canReadPosts) {
-          promises.push(fetchPosts().catch(() => []))
-        }
-        
-        if (permissions.canReadGames) {
-          promises.push(fetchGameTypes().catch(() => []))
-        }
-
-        if (permissions.canReadBoards) {
-           const ticketsPromise = axiosInstance.get<{ success: boolean; data: Ticket[] }>(GET_ASSIGNED_TICKETS())
-            .then((res) => setAssignedTickets(res.data.data || []))
-            .catch(() => setAssignedTickets([]))
-           promises.push(ticketsPromise)
-        }
-
-        await Promise.all(promises)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [user, permissions, fetchActiveTimer, fetchEntries, fetchAnalytics, fetchAnnouncements, fetchUnreadCount, fetchPosts, fetchGameTypes])
+  // Use store data if available (for real-time socket updates), otherwise query data
+  const effectiveActiveTimer = storeActiveTimer ?? activeTimer
+  const effectiveEntries = storeEntries.length > 0 ? storeEntries : myEntries
 
   // Computed Data
   const todayEntries = useMemo(() => {
-    return myEntries.filter((entry) => {
+    return effectiveEntries.filter((entry) => {
       const entryDate = new Date(entry.createdAt)
       return entryDate.toDateString() === new Date().toDateString()
     })
-  }, [myEntries])
+  }, [effectiveEntries])
 
   const todayTotalMinutes = useMemo(() => {
     return todayEntries.reduce((sum, entry) => {
@@ -116,17 +68,16 @@ export function useHomeData() {
   }, [todayEntries])
 
   // Expose refetch functions for mutations
-  const refetchAnnouncements = useCallback(() => {
-    if (permissions.canReadAnnouncements) {
-      fetchAnnouncements(true)
-    }
-  }, [permissions.canReadAnnouncements, fetchAnnouncements])
+  const { invalidateAnnouncements } = useAnnouncementQueryActions()
+
+  // Only show loading on first load when we have no data
+  const isLoading = entriesLoading && myEntries.length === 0 && !storeEntries.length
 
   return {
     user,
     permissions,
     data: {
-      activeTimer,
+      activeTimer: effectiveActiveTimer,
       todayEntries,
       analytics,
       announcements,
@@ -137,7 +88,6 @@ export function useHomeData() {
       todayTotalMinutes
     },
     isLoading,
-    refetchAnnouncements
+    refetchAnnouncements: invalidateAnnouncements
   }
 }
-

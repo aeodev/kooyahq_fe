@@ -1,7 +1,19 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { DashboardLayout } from '@/components/layout/MainLayout'
 import { ThemeProvider } from '@/composables/useTheme'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 min before refetch
+      gcTime: Infinity, // Never garbage collect cache
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      retry: 1,
+    },
+  },
+})
 import { Home } from '@/pages/Home/index.tsx'
 import { Auth } from '@/pages/Auth'
 import { TimeTracker } from '@/pages/TimeTracker'
@@ -31,8 +43,9 @@ import { PermissionGate } from '@/components/auth/PermissionGate'
 
 function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <BrowserRouter>
         <Routes>
           {/* Auth routes */}
           <Route path="/login" element={<PublicRoute><AuthLayout><Auth /></AuthLayout></PublicRoute>} />
@@ -396,9 +409,10 @@ function App() {
             }
           />
         </Routes>
-      </BrowserRouter>
-      <Toaster />
-    </ThemeProvider>
+        </BrowserRouter>
+        <Toaster />
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 export default App
