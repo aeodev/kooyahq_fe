@@ -2,7 +2,7 @@ export type Action = {
   id: string
   name: string
   description: string
-  path: string
+  command: string
   dangerous?: boolean
 }
 
@@ -13,10 +13,8 @@ export type Server = {
   host: string
   port?: string
   user?: string
-  sshKey?: string
-  statusPath?: string
-  ecsCluster?: string
-  ecsService?: string
+  statusCommand?: string
+  appDirectory?: string
   actions: Action[]
 }
 
