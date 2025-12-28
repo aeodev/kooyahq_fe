@@ -12,22 +12,11 @@ import {
   getPendingTimerStop,
 } from '@/utils/server-health'
 
-// Configuration
-const HEALTH_CHECK_INTERVAL = 5000 // Check every 5 seconds
-const AUTO_STOP_THRESHOLD = 30000 // Auto-stop after 30 seconds of server unavailability
-const PING_TIMEOUT = 5000 // 5 second timeout for health check
+const HEALTH_CHECK_INTERVAL = 5000 
+const AUTO_STOP_THRESHOLD = 30000 
+const PING_TIMEOUT = 5000 
 
-/**
- * Hook to monitor server availability and auto-stop timer when server becomes unreachable.
- * 
- * Uses multiple detection mechanisms:
- * 1. Primary: HTTP health check every 5 seconds
- * 2. Secondary: Socket connection state monitoring
- * 3. Tertiary: Browser online/offline events
- * 4. Quaternary: Tab visibility changes (to sync state on tab focus)
- * 
- * Auto-stops timer after 30 seconds of consecutive server unavailability.
- */
+
 export function useTimerGuard() {
   const emergencyStopTimer = useTimeEntryStore((state) => state.emergencyStopTimer)
   const completePendingStop = useTimeEntryStore((state) => state.completePendingStop)
@@ -40,9 +29,6 @@ export function useTimerGuard() {
   const lastSocketStateRef = useRef(socketConnected)
   const isCompletingPendingStopRef = useRef(false)
 
-  /**
-   * Perform emergency stop of the timer
-   */
   const performEmergencyStop = useCallback(async () => {
     if (isStoppingRef.current) return
     

@@ -12,6 +12,7 @@ import { PendingToolsIndicator } from './PendingToolsIndicator'
 import { AIHeader } from './AIHeader'
 import { AIInput } from './AIInput'
 import { ConnectionStatus } from './ConnectionStatus'
+import { TimerSelectionUI } from './TimerSelectionUI'
 import { AIAssistantErrorBoundary } from './ErrorBoundary'
 
 function AISpotlightContent() {
@@ -188,6 +189,9 @@ function AISpotlightContent() {
               )}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Timer Selection UI */}
+            <TimerSelectionUI />
 
             {/* Connection status */}
             <ConnectionStatus

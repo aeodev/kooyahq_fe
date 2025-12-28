@@ -21,6 +21,14 @@ export const AI_ASSISTANT_STRINGS = {
   inputDescription: 'Type your message and press Enter to send, or Escape to close',
   sendMessage: 'Send message',
 
+  // Voice input
+  startListening: 'Start voice input',
+  stopListening: 'Stop listening',
+  listening: 'Listening...',
+  voiceNotSupported: 'Voice input not supported in this browser',
+  voicePermissionDenied: 'Microphone permission denied',
+  voiceError: 'Voice recognition error',
+
   // Tool badges
   toolRunning: (name: string) => `Tool ${name} is running`,
   toolComplete: (name: string) => `Tool ${name} is complete`,

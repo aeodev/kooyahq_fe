@@ -8,6 +8,7 @@ export { PendingToolsIndicator } from './PendingToolsIndicator'
 export { AIHeader } from './AIHeader'
 export { AIInput } from './AIInput'
 export { ConnectionStatus } from './ConnectionStatus'
+export { TimerSelectionUI } from './TimerSelectionUI'
 export * from './utils'
 
 

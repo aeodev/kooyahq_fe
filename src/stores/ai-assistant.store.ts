@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useProjectTaskStore } from '@/stores/project-task.store'
 
 // Types
 export type MessageRole = 'user' | 'assistant'
@@ -42,6 +43,8 @@ type AIAssistantState = {
   pendingToolExecutions: AIToolExecution[]
   isOffline: boolean
   queuedMessages: string[]
+  selectedProjects: string[]
+  showSelections: boolean
 }
 
 // Actions type
@@ -64,6 +67,12 @@ type AIAssistantActions = {
   clearQueuedMessages: () => void
   clearMessages: () => void
   reset: () => void
+  // Project selection management
+  toggleProjectSelection: (projectName: string) => void
+  clearSelections: () => void
+  showSelectionUI: () => void
+  hideSelectionUI: () => void
+  confirmSelections: () => void
 }
 
 type AIAssistantStore = AIAssistantState & AIAssistantActions
@@ -78,6 +87,8 @@ const initialState: AIAssistantState = {
   pendingToolExecutions: [],
   isOffline: false,
   queuedMessages: [],
+  selectedProjects: [],
+  showSelections: false,
 }
 
 export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
@@ -175,13 +186,52 @@ export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
 
   clearQueuedMessages: () => set({ queuedMessages: [] }),
 
-  clearMessages: () => set({ 
-    messages: [], 
+  clearMessages: () => set({
+    messages: [],
     conversationId: null,
     streamingContent: '',
     pendingToolExecutions: [],
     queuedMessages: [],
+    selectedProjects: [],
+    showSelections: false,
   }),
+
+  // Project selection management
+  toggleProjectSelection: (projectName: string) => {
+    set((state) => {
+      const isSelected = state.selectedProjects.includes(projectName)
+      const selectedProjects = isSelected
+        ? state.selectedProjects.filter(p => p !== projectName)
+        : [...state.selectedProjects, projectName]
+      return { selectedProjects }
+    })
+  },
+
+  clearSelections: () => set({
+    selectedProjects: [],
+    showSelections: false,
+  }),
+
+  showSelectionUI: () => set({ showSelections: true }),
+
+  hideSelectionUI: () => set({ showSelections: false }),
+
+  confirmSelections: () => {
+    const { selectedProjects } = get()
+    if (selectedProjects.length > 0) {
+      const projectTaskStore = useProjectTaskStore.getState()
+      projectTaskStore.setSelectedProjects(selectedProjects)
+      projectTaskStore.setActiveProject(selectedProjects[0])
+      
+      const message = selectedProjects.length === 1
+        ? `start timer for ${selectedProjects[0]}`
+        : `start timer for ${selectedProjects.join(' and ')}`
+      get().sendMessage(message)
+      get().clearSelections()
+      return message
+    }
+    return null
+  },
 
   reset: () => set(initialState),
 }))
