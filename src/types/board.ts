@@ -112,6 +112,9 @@ export type Ticket = {
   createdAt: string
   updatedAt: string
   deletedAt?: string
+  deletedBy?: string
+  archivedAt?: string
+  archivedBy?: string
   completedAt?: string
   github?: {
     branchName?: string
@@ -269,6 +272,7 @@ export type UpdateTicketInput = {
     startDate?: string | null
     endDate?: string | null
     dueDate?: string | null
+    archivedAt?: string | null
     github?: {
       branchName?: string
       pullRequestUrl?: string

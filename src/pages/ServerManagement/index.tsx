@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import AnsiToHtml from 'ansi-to-html'
 import { Activity, AlertTriangle, ChevronLeft, Pencil, Play, Plus, Trash2, X } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -185,6 +186,20 @@ const emptyServerForm: ServerFormState = {
   appDirectory: '',
   actions: [],
 }
+
+const EMOJI_CATEGORIES = {
+  Popular: ['🚀', '⭐', '🎯', '💡', '🔥', '✨', '💎', '🏆'],
+  Work: ['📋', '📊', '📈', '💼', '🗂️', '📁', '📝', '✅'],
+  Tech: ['💻', '🖥️', '📱', '⚙️', '🔧', '🛠️', '🔌', '💾'],
+  Design: ['🎨', '🖌️', '✏️', '📐', '🎭', '🌈', '🎬', '📷'],
+  Communication: ['💬', '📢', '📣', '📧', '📩', '🔔', '📞', '🗣️'],
+  Nature: ['🌱', '🌿', '🌸', '🌻', '🍀', '🌲', '🌊', '⛰️'],
+  Objects: ['🎁', '🎪', '🎮', '🎲', '🧩', '🔮', '💰', '🔑'],
+  Symbols: ['❤️', '💜', '💙', '💚', '🧡', '⚡', '🌟', '💫'],
+}
+const EMOJI_PICKER_WIDTH = 320
+const EMOJI_PICKER_MAX_HEIGHT = 360
+const EMOJI_PICKER_PADDING = 12
 
 const createId = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 
@@ -414,6 +429,9 @@ export function ServerManagement() {
   const [projectFormErrors, setProjectFormErrors] = useState<ProjectFormErrors>({})
   const [projectFormError, setProjectFormError] = useState<string | null>(null)
   const [projectSaving, setProjectSaving] = useState(false)
+  const [projectEmojiPickerOpen, setProjectEmojiPickerOpen] = useState(false)
+  const [projectEmojiPickerPosition, setProjectEmojiPickerPosition] = useState<{ top: number; left: number } | null>(null)
+  const projectEmojiButtonRef = useRef<HTMLButtonElement>(null)
 
   const [serverModalOpen, setServerModalOpen] = useState(false)
   const [serverModalMode, setServerModalMode] = useState<'create' | 'edit'>('create')
@@ -667,6 +685,7 @@ export function ServerManagement() {
     setProjectForm(emptyProjectForm)
     setProjectFormErrors({})
     setProjectFormError(null)
+    setProjectEmojiPickerOpen(false)
     setProjectModalOpen(true)
   }
 
@@ -681,8 +700,41 @@ export function ServerManagement() {
     })
     setProjectFormErrors({})
     setProjectFormError(null)
+    setProjectEmojiPickerOpen(false)
     setProjectModalOpen(true)
   }
+
+  const closeProjectModal = () => {
+    setProjectEmojiPickerOpen(false)
+    setProjectModalOpen(false)
+  }
+
+  const updateProjectEmojiPickerPosition = useCallback(() => {
+    const button = projectEmojiButtonRef.current
+    if (!button) return
+    const rect = button.getBoundingClientRect()
+    const openBelow = rect.bottom + 8 + EMOJI_PICKER_MAX_HEIGHT <= window.innerHeight - EMOJI_PICKER_PADDING
+    const top = openBelow
+      ? rect.bottom + 8
+      : Math.max(EMOJI_PICKER_PADDING, rect.top - EMOJI_PICKER_MAX_HEIGHT - 8)
+    const left = Math.min(
+      Math.max(rect.left, EMOJI_PICKER_PADDING),
+      window.innerWidth - EMOJI_PICKER_WIDTH - EMOJI_PICKER_PADDING
+    )
+    setProjectEmojiPickerPosition({ top, left })
+  }, [])
+
+  useEffect(() => {
+    if (!projectEmojiPickerOpen) {
+      setProjectEmojiPickerPosition(null)
+      return
+    }
+    updateProjectEmojiPickerPosition()
+    window.addEventListener('resize', updateProjectEmojiPickerPosition)
+    return () => {
+      window.removeEventListener('resize', updateProjectEmojiPickerPosition)
+    }
+  }, [projectEmojiPickerOpen, updateProjectEmojiPickerPosition])
 
   const handleSaveProject = async () => {
     if (!canManage || projectSaving) return
@@ -727,7 +779,7 @@ export function ServerManagement() {
         )
       }
 
-      setProjectModalOpen(false)
+      closeProjectModal()
     } catch (error) {
       setProjectFormError(getErrorMessage(error, 'Unable to save project'))
     } finally {
@@ -1020,6 +1072,10 @@ export function ServerManagement() {
         const normalized: Record<string, string> = {}
         if (status && typeof status === 'object' && !Array.isArray(status)) {
           Object.entries(status as Record<string, unknown>).forEach(([key, value]) => {
+            const normalizedKey = key.trim().toLowerCase()
+            if (normalizedKey === 'host' || normalizedKey === 'hostname') {
+              return
+            }
             const formatted = formatStatusValue(value)
             if (formatted.length > 0) {
               normalized[key] = formatted
@@ -1126,6 +1182,54 @@ export function ServerManagement() {
     }
   }
 
+  const projectEmojiPickerPortal =
+    projectEmojiPickerOpen && projectEmojiPickerPosition
+      ? createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[60]"
+              onClick={() => setProjectEmojiPickerOpen(false)}
+              aria-hidden="true"
+            />
+            <div
+              className="fixed z-[70] w-80 p-3 bg-popover border border-border rounded-lg shadow-xl max-h-[360px] overflow-y-auto"
+              style={{
+                top: projectEmojiPickerPosition.top,
+                left: projectEmojiPickerPosition.left,
+              }}
+            >
+              {Object.entries(EMOJI_CATEGORIES).map(([category, emojis]) => (
+                <div key={category} className="mb-4 last:mb-0">
+                  <p className="text-xs font-medium text-muted-foreground mb-2 px-1">
+                    {category}
+                  </p>
+                  <div className="grid grid-cols-8 gap-1">
+                    {emojis.map((emo) => (
+                      <button
+                        key={emo}
+                        type="button"
+                        onClick={() => {
+                          setProjectForm((prev) => ({ ...prev, emoji: emo }))
+                          setProjectEmojiPickerOpen(false)
+                        }}
+                        className={cn(
+                          'h-8 w-8 flex items-center justify-center rounded hover:bg-accent transition-colors text-lg',
+                          projectForm.emoji === emo && 'bg-primary/10 ring-2 ring-primary'
+                        )}
+                        aria-label={`Select ${emo}`}
+                      >
+                        {emo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>,
+          document.body
+        )
+      : null
+
   const renderProjectsList = () => (
     <section className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -1168,7 +1272,20 @@ export function ServerManagement() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {projects.map((project) => (
-          <div key={project.id} className={cardClassName}>
+          <div
+            key={project.id}
+            className={cn(cardClassName, 'cursor-pointer hover:border-border transition-colors')}
+            onClick={() => navigate(`/server-management/projects/${project.id}`)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Open ${project.name}`}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                navigate(`/server-management/projects/${project.id}`)
+              }
+            }}
+          >
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 aspect-square items-center justify-center rounded-full border border-border bg-muted text-lg">
                 {project.emoji}
@@ -1184,20 +1301,16 @@ export function ServerManagement() {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/server-management/projects/${project.id}`)}
-              >
-                View
-              </Button>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
               {canManage && (
                 <>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => openEditProject(project)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openEditProject(project)
+                    }}
                   >
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit
@@ -1206,7 +1319,10 @@ export function ServerManagement() {
                     variant="outline"
                     size="sm"
                     className="text-destructive"
-                    onClick={() => openRemoveProject(project)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openRemoveProject(project)
+                    }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
@@ -1284,7 +1400,20 @@ export function ServerManagement() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {project.servers.map((server) => (
-          <div key={server.id} className={cardClassName}>
+          <div
+            key={server.id}
+            className={cn(cardClassName, 'cursor-pointer hover:border-border transition-colors')}
+            onClick={() => navigate(`/server-management/projects/${project.id}/servers/${server.id}`)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Open ${server.name}`}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                navigate(`/server-management/projects/${project.id}/servers/${server.id}`)
+              }
+            }}
+          >
             <div className="space-y-2">
               <h2 className="text-lg font-semibold">{server.name}</h2>
               <p className="text-sm text-muted-foreground">{server.summary}</p>
@@ -1293,20 +1422,16 @@ export function ServerManagement() {
                 <p className="text-sm font-medium">{server.host}</p>
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/server-management/projects/${project.id}/servers/${server.id}`)}
-              >
-                View
-              </Button>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
               {canManage && (
                 <>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => openEditServer(server)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openEditServer(server)
+                    }}
                   >
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit
@@ -1315,7 +1440,10 @@ export function ServerManagement() {
                     variant="outline"
                     size="sm"
                     className="text-destructive"
-                    onClick={() => openRemoveServer(project.id, server)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openRemoveServer(project.id, server)
+                    }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Remove
@@ -1489,7 +1617,7 @@ export function ServerManagement() {
       {selectedProject && !selectedServer && renderProjectDetail(selectedProject)}
       {selectedProject && selectedServer && renderServerDetail(selectedProject, selectedServer)}
 
-      <Modal open={projectModalOpen} onClose={() => setProjectModalOpen(false)} className="max-h-[85vh]">
+      <Modal open={projectModalOpen} onClose={closeProjectModal} className="max-h-[85vh]">
         <div className="flex h-full flex-col">
           <div className="border-b border-border/60 px-6 py-4">
             <div className="flex items-start justify-between gap-4">
@@ -1502,26 +1630,50 @@ export function ServerManagement() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setProjectModalOpen(false)}
+                onClick={closeProjectModal}
                 aria-label="Close project modal"
               >
                 <X className="h-5 w-5" />
               </Button>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div
+            className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
+            onScroll={() => {
+              if (projectEmojiPickerOpen) {
+                setProjectEmojiPickerOpen(false)
+              }
+            }}
+          >
             {projectFormError && (
               <p className="text-sm text-destructive">{projectFormError}</p>
             )}
-            <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
+            <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Emoji</label>
-                <Input
-                  value={projectForm.emoji}
-                  onChange={(e) => setProjectForm((prev) => ({ ...prev, emoji: e.target.value }))}
-                  placeholder="🛰️"
-                  className={cn(projectFormErrors.emoji && fieldErrorClass)}
-                />
+                <div className="flex items-center gap-2">
+                  <button
+                    ref={projectEmojiButtonRef}
+                    type="button"
+                    onClick={() => setProjectEmojiPickerOpen((prev) => !prev)}
+                    className={cn(
+                      'h-10 w-10 flex items-center justify-center rounded-lg border border-input bg-background text-lg hover:bg-accent transition-colors',
+                      projectFormErrors.emoji && 'border-destructive/60'
+                    )}
+                    aria-label="Pick emoji"
+                    title="Pick emoji"
+                  >
+                    <span className="max-w-[2.5rem] truncate">
+                      {projectForm.emoji ? projectForm.emoji : '🙂'}
+                    </span>
+                  </button>
+                  <Input
+                    value={projectForm.emoji}
+                    onChange={(e) => setProjectForm((prev) => ({ ...prev, emoji: e.target.value }))}
+                    placeholder="🛰️ or custom text"
+                    className={cn(projectFormErrors.emoji && fieldErrorClass)}
+                  />
+                </div>
                 {projectFormErrors.emoji && (
                   <p className="text-xs text-destructive">{projectFormErrors.emoji}</p>
                 )}
@@ -1553,7 +1705,7 @@ export function ServerManagement() {
             </div>
           </div>
           <div className="border-t border-border/60 px-6 py-4 flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setProjectModalOpen(false)}>
+            <Button variant="outline" size="sm" onClick={closeProjectModal}>
               Cancel
             </Button>
             <Button
@@ -1567,6 +1719,7 @@ export function ServerManagement() {
             </Button>
           </div>
         </div>
+        {projectEmojiPickerPortal}
       </Modal>
 
       <Modal open={serverModalOpen} onClose={() => setServerModalOpen(false)} className="max-h-[85vh]" maxWidth="5xl">
@@ -1844,10 +1997,10 @@ export function ServerManagement() {
         )}
       </Modal>
 
-      <Modal open={statusModalOpen} onClose={closeStatusModal} maxWidth="6xl" className="h-[90vh]">
+      <Modal open={statusModalOpen} onClose={closeStatusModal} maxWidth="6xl" className="h-[92vh] sm:h-[90vh]">
         <div className="flex h-full min-h-0 flex-col">
-          <div className="border-b border-border/60 px-6 py-4">
-            <div className="flex items-start justify-between gap-4">
+          <div className="border-b border-border/60 px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold">Server Status</h2>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -1872,7 +2025,7 @@ export function ServerManagement() {
               </Button>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
             {statusLoading && (
               <p className="text-sm text-muted-foreground">Loading status...</p>
             )}
@@ -1892,11 +2045,7 @@ export function ServerManagement() {
                     <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                       Instance
                     </h3>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Hostname</p>
-                        <p className="text-sm font-semibold">{instanceStatus.hostname ?? '—'}</p>
-                      </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <div className="rounded-xl border border-border/60 bg-background/90 p-3">
                         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">CPU Load</p>
                         <p className="text-sm font-semibold">
@@ -1942,7 +2091,7 @@ export function ServerManagement() {
                             {networkGroups.reduce((total, group) => total + group.entries.length, 0)} interfaces
                           </span>
                         </div>
-                        <div className="grid gap-3 lg:grid-cols-2">
+                        <div className="grid gap-3 md:grid-cols-2">
                           {networkGroups.map((group) => (
                             <div
                               key={group.label}
@@ -2007,16 +2156,14 @@ export function ServerManagement() {
                     {containerEntries.length > 0 && (
                       <div className="rounded-2xl border border-border/60 bg-background/90 overflow-hidden">
                         <div className="overflow-x-auto">
-                          <div className="min-w-[1100px]">
-                            <div className="grid grid-cols-[minmax(180px,1.3fr)_minmax(180px,1fr)_minmax(90px,0.5fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)_minmax(220px,1.3fr)_minmax(180px,1fr)] gap-4 border-b border-border/60 px-4 py-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          <div className="min-w-[880px]">
+                            <div className="grid grid-cols-[minmax(180px,1.3fr)_minmax(180px,1fr)_minmax(90px,0.5fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)] gap-4 border-b border-border/60 px-4 py-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
                               <span>Container</span>
                               <span>Status</span>
                               <span>CPU</span>
                               <span>Memory</span>
                               <span>Network</span>
                               <span>Block I/O</span>
-                              <span>Image</span>
-                              <span>Ports</span>
                             </div>
                             <div className="divide-y divide-border/60">
                               {containerEntries.map(([key, container]) => {
@@ -2030,7 +2177,7 @@ export function ServerManagement() {
                                 return (
                                   <div
                                     key={key}
-                                    className="grid grid-cols-[minmax(180px,1.3fr)_minmax(180px,1fr)_minmax(90px,0.5fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)_minmax(220px,1.3fr)_minmax(180px,1fr)] gap-4 px-4 py-3 text-sm"
+                                    className="grid grid-cols-[minmax(180px,1.3fr)_minmax(180px,1fr)_minmax(90px,0.5fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)] gap-4 px-4 py-3 text-sm"
                                   >
                                     <div className="space-y-1">
                                       <p className="font-medium">{name}</p>
@@ -2071,8 +2218,6 @@ export function ServerManagement() {
                                     </div>
                                     <div>{formatContainerTransfer(container.net)}</div>
                                     <div>{formatContainerBlock(container.block)}</div>
-                                    <div className="break-words">{container.image ?? '—'}</div>
-                                    <div className="break-words">{container.ports ?? '—'}</div>
                                   </div>
                                 )
                               })}

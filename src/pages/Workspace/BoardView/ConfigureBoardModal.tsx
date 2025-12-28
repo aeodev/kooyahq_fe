@@ -484,58 +484,67 @@ export function ConfigureBoardModal({
     <Modal open={open} onClose={onClose} maxWidth="4xl">
       <div className="flex h-[600px]">
         {/* Jira-style Sidebar Navigation */}
-        <div className="w-64 border-r border-border bg-muted/30 flex-shrink-0">
-          <div className="p-4 border-b border-border">
-            <h2 className="text-lg font-semibold text-foreground">Board settings</h2>
+        <div className="w-16 sm:w-64 border-r border-border bg-muted/30 flex-shrink-0">
+          <div className="p-4 border-b border-border flex items-center justify-center sm:justify-start">
+            <Settings className="h-5 w-5 text-muted-foreground sm:hidden" />
+            <h2 className="hidden sm:block text-lg font-semibold text-foreground">Board settings</h2>
           </div>
           <nav className="p-2 space-y-1">
             <button
               onClick={() => setActiveSection('general')}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                'w-full flex items-center justify-center sm:justify-start gap-0 sm:gap-3 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors',
                 activeSection === 'general'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
+              aria-label="General"
+              title="General"
             >
               <Settings className="h-4 w-4" />
-              General
+              <span className="hidden sm:inline">General</span>
             </button>
             <button
               onClick={() => setActiveSection('columns')}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                'w-full flex items-center justify-center sm:justify-start gap-0 sm:gap-3 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors',
                 activeSection === 'columns'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
+              aria-label="Columns"
+              title="Columns"
             >
               <Columns className="h-4 w-4" />
-              Columns
+              <span className="hidden sm:inline">Columns</span>
             </button>
             <button
               onClick={() => setActiveSection('details')}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                'w-full flex items-center justify-center sm:justify-start gap-0 sm:gap-3 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors',
                 activeSection === 'details'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
+              aria-label="Details"
+              title="Details"
             >
               <ListChecks className="h-4 w-4" />
-              Details
+              <span className="hidden sm:inline">Details</span>
             </button>
             <button
               onClick={() => setActiveSection('members')}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                'w-full flex items-center justify-center sm:justify-start gap-0 sm:gap-3 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors',
                 activeSection === 'members'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
+              aria-label="Members"
+              title="Members"
             >
               <Users className="h-4 w-4" />
-              Members
+              <span className="hidden sm:inline">Members</span>
             </button>
           </nav>
         </div>

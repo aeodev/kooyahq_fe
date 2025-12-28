@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
+import { GET_ARCHIVED_TICKETS_BY_BOARD, GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
 import type { Ticket } from '@/types/board'
 import type { Board as ApiBoardType } from '@/types/board'
 import { TaskDetailModal } from './TaskDetailModal'
@@ -85,7 +85,20 @@ export function TicketDetailPage() {
         }
 
         const tickets = ticketsResponse.data.data
-        const ticket = tickets.find((t) => t.ticketKey === ticketKey.toUpperCase())
+        let ticket = tickets.find((t) => t.ticketKey === ticketKey.toUpperCase())
+
+        if (!ticket) {
+          try {
+            const archivedResponse = await axiosInstance.get<{ success: boolean; data: Ticket[] }>(
+              GET_ARCHIVED_TICKETS_BY_BOARD(board.id)
+            )
+            if (archivedResponse.data.success && archivedResponse.data.data) {
+              ticket = archivedResponse.data.data.find((t) => t.ticketKey === ticketKey.toUpperCase())
+            }
+          } catch (archivedError) {
+            console.error('Error loading archived tickets:', archivedError)
+          }
+        }
 
         if (!ticket) {
           console.error('Ticket not found')

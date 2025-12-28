@@ -1,13 +1,13 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD, GET_USERS } from '@/utils/api.routes'
+import { GET_ARCHIVED_TICKETS_BY_BOARD, GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD, GET_USERS } from '@/utils/api.routes'
 import type { Board as ApiBoardType, Ticket } from '@/types/board'
 import type { Board as BoardViewBoard, Column as BoardViewColumn } from './types'
 import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
 import { TicketSocketEvents } from '@/hooks/socket/ticket.socket'
-import { useUpdateTicket, useMoveTicket } from '@/hooks/board.hooks'
+import { useUpdateTicket, useMoveTicket, useDeleteTicket } from '@/hooks/board.hooks'
 import { BULK_UPDATE_RANKS } from '@/utils/api.routes'
 import { toast } from 'sonner'
 
@@ -50,6 +50,20 @@ import {
   MoreVertical,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import {
+  Bar,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
+  Line,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/utils/cn'
 import {
@@ -296,6 +310,18 @@ export function getPriorityLabel(priority: Priority) {
   return priority.charAt(0).toUpperCase() + priority.slice(1)
 }
 
+const formatDuration = (durationMs: number | null) => {
+  if (!durationMs || !Number.isFinite(durationMs)) {
+    return 'N/A'
+  }
+  const minutes = durationMs / (1000 * 60)
+  const hours = durationMs / (1000 * 60 * 60)
+  const days = durationMs / (1000 * 60 * 60 * 24)
+  if (days >= 1) return `${days.toFixed(1)} days`
+  if (hours >= 1) return `${hours.toFixed(1)} hrs`
+  return `${Math.max(1, Math.round(minutes))} mins`
+}
+
 // Helper function to extract hex color from Tailwind class or return the color as-is
 const getHexColor = (colorClass: string): string | undefined => {
   if (colorClass.startsWith('#')) {
@@ -426,12 +452,17 @@ export function BoardView() {
   const canTicketCreate =
     hasBoardFullAccess || boardRole === 'owner' || boardRole === 'admin' || boardRole === 'member'
   const canTicketRank = canTicketCreate
+  const showBoardControls = activeTab !== 'summary' && activeTab !== 'timeline'
   const [isLoading, setIsLoading] = useState(true)
   const [boardError, setBoardError] = useState<{ statusCode?: number; message: string } | null>(null)
   const [apiTickets, setApiTickets] = useState<Ticket[]>([])
+  const [archivedTickets, setArchivedTickets] = useState<Ticket[]>([])
+  const [archivedTicketsLoaded, setArchivedTicketsLoaded] = useState(false)
+  const [archivedTicketsLoading, setArchivedTicketsLoading] = useState(false)
   const [apiUsers, setApiUsers] = useState<Array<{ id: string; name: string; email?: string; profilePic?: string }>>([])
   const { updateTicket: updateTicketAPI } = useUpdateTicket()
   const { moveTicket: moveTicketAPI } = useMoveTicket()
+  const { deleteTicket: deleteTicketAPI } = useDeleteTicket()
   
   // Set initial view based on board's defaultView setting when board loads
   useEffect(() => {
@@ -456,6 +487,12 @@ export function BoardView() {
       }
     }
   }, [apiBoard?.id, boardKey]) // Depend on board ID and boardKey
+
+  useEffect(() => {
+    setArchivedTickets([])
+    setArchivedTicketsLoaded(false)
+    setArchivedTicketsLoading(false)
+  }, [apiBoard?.id])
 
   // Fetch board by key when component mounts or key changes
   useEffect(() => {
@@ -527,6 +564,34 @@ export function BoardView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardKey])
 
+  useEffect(() => {
+    if (!apiBoard?.id || activeTab !== 'archived' || archivedTicketsLoaded || archivedTicketsLoading) {
+      return
+    }
+
+    const loadArchivedTickets = async () => {
+      setArchivedTicketsLoading(true)
+      try {
+        const response = await axiosInstance.get<{ success: boolean; data: Ticket[] }>(
+          GET_ARCHIVED_TICKETS_BY_BOARD(apiBoard.id)
+        )
+        if (response.data.success && response.data.data) {
+          setArchivedTickets(response.data.data)
+        } else {
+          setArchivedTickets([])
+        }
+      } catch (error) {
+        console.error('Error loading archived tickets:', error)
+        setArchivedTickets([])
+      } finally {
+        setArchivedTicketsLoaded(true)
+        setArchivedTicketsLoading(false)
+      }
+    }
+
+    loadArchivedTickets()
+  }, [apiBoard?.id, activeTab, archivedTicketsLoaded, archivedTicketsLoading])
+
   // Socket connection for real-time updates
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
@@ -592,6 +657,15 @@ export function BoardView() {
     const handleTicketCreated = (data: { ticket: Ticket; userId: string; timestamp: string }) => {
       // Only process if ticket belongs to current board and not from current user
       if (data.ticket.boardId === boardId && data.userId !== currentUser.id) {
+        if (data.ticket.archivedAt) {
+          setArchivedTickets((prev) => {
+            if (prev.some((t) => t.id === data.ticket.id)) {
+              return prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
+            }
+            return [...prev, data.ticket]
+          })
+          return
+        }
         setApiTickets((prev) => {
           // Check if ticket already exists (avoid duplicates)
           if (prev.some((t) => t.id === data.ticket.id)) {
@@ -609,10 +683,24 @@ export function BoardView() {
         if (optimisticUpdatesRef.current.has(data.ticket.id)) {
           return
         }
-        
-        setApiTickets((prev) =>
-          prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
-        )
+
+        if (data.ticket.archivedAt) {
+          setApiTickets((prev) => prev.filter((t) => t.id !== data.ticket.id))
+          setArchivedTickets((prev) => {
+            if (prev.some((t) => t.id === data.ticket.id)) {
+              return prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
+            }
+            return [...prev, data.ticket]
+          })
+        } else {
+          setArchivedTickets((prev) => prev.filter((t) => t.id !== data.ticket.id))
+          setApiTickets((prev) => {
+            if (prev.some((t) => t.id === data.ticket.id)) {
+              return prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
+            }
+            return [...prev, data.ticket]
+          })
+        }
       }
     }
 
@@ -620,6 +708,7 @@ export function BoardView() {
       // Only process if ticket belongs to current board and not from current user
       if (data.boardId === boardId && data.userId !== currentUser.id) {
         setApiTickets((prev) => prev.filter((t) => t.id !== data.ticketId))
+        setArchivedTickets((prev) => prev.filter((t) => t.id !== data.ticketId))
       }
     }
 
@@ -737,44 +826,46 @@ export function BoardView() {
     })
   }, [apiUsers])
 
-  // Convert API tickets to Task format for filters
-  const allTasksFromTickets = useMemo(() => {
-    if (apiTickets.length === 0) return []
-    
-    return apiTickets.map((ticket): Task => {
-      // Find assignee if assigneeId exists - check API users first, then mock
+  const columnNameById = useMemo(() => {
+    return columns.reduce<Record<string, string>>((acc, column) => {
+      acc[column.id] = column.name
+      return acc
+    }, {})
+  }, [columns])
+
+  const buildTaskFromTicket = useCallback(
+    (ticket: Ticket, status: string): Task => {
       let assignee: Assignee | undefined = undefined
       if (ticket.assigneeId) {
-        assignee = assigneesFromApi.find((a) => a.id === ticket.assigneeId) ||
-                   MOCK_ASSIGNEES.find((a) => a.id === ticket.assigneeId)
+        assignee =
+          assigneesFromApi.find((a) => a.id === ticket.assigneeId) ||
+          MOCK_ASSIGNEES.find((a) => a.id === ticket.assigneeId)
       }
-      
-      // Map ticketType to TaskType
-      const taskType: TaskType = ticket.ticketType === 'bug' ? 'bug' :
-                                 ticket.ticketType === 'story' ? 'story' :
-                                 ticket.ticketType === 'epic' ? 'epic' :
-                                 ticket.ticketType === 'subtask' ? 'subtask' :
-                                 'task'
-      
-      // Map priority
+
+      const taskType: TaskType =
+        ticket.ticketType === 'bug'
+          ? 'bug'
+          : ticket.ticketType === 'story'
+            ? 'story'
+            : ticket.ticketType === 'epic'
+              ? 'epic'
+              : ticket.ticketType === 'subtask'
+                ? 'subtask'
+                : 'task'
+
       const priority: Priority = ticket.priority || 'medium'
-      
-      // Find column name for status
-      const column = columns.find((col) => col.id === ticket.columnId)
-      const status = column?.name || 'Unknown'
-      
-      // Get board prefix safely
-      const boardPrefix = apiBoard && isApiBoardType(apiBoard) 
-        ? (apiBoard as ApiBoardType & { prefix?: string }).prefix 
+
+      const boardPrefix = apiBoard && isApiBoardType(apiBoard)
+        ? (apiBoard as ApiBoardType & { prefix?: string }).prefix
         : undefined
-      
+
       return {
         id: ticket.id,
         key: ticket.ticketKey || `${boardPrefix || 'T'}-${ticket.id.substring(0, 3)}`,
         title: ticket.title,
         description: typeof ticket.description === 'string' ? ticket.description : '',
         type: taskType,
-        status,
+        status: status || 'Unknown',
         assignee,
         priority,
         epic: ticket.rootEpicId,
@@ -791,8 +882,17 @@ export function BoardView() {
         createdAt: new Date(ticket.createdAt),
         updatedAt: new Date(ticket.updatedAt),
       }
-    })
-  }, [apiTickets, columns, apiBoard, assigneesFromApi])
+    },
+    [apiBoard, assigneesFromApi]
+  )
+
+  // Convert API tickets to Task format for filters
+  const allTasksFromTickets = useMemo(() => {
+    if (apiTickets.length === 0) return []
+    return apiTickets.map((ticket) =>
+      buildTaskFromTicket(ticket, columnNameById[ticket.columnId] || 'Unknown')
+    )
+  }, [apiTickets, buildTaskFromTicket, columnNameById])
 
   // Get all tasks from columns for filter modal (fallback to mock if no tickets)
   const allTasks = useMemo(() => {
@@ -802,6 +902,13 @@ export function BoardView() {
     }
     return columns.flatMap((column) => column.tasks)
   }, [allTasksFromTickets, columns])
+
+  const archivedTasksFromTickets = useMemo(() => {
+    if (archivedTickets.length === 0) return []
+    return archivedTickets.map((ticket) =>
+      buildTaskFromTicket(ticket, columnNameById[ticket.columnId] || 'Unknown')
+    )
+  }, [archivedTickets, buildTaskFromTicket, columnNameById])
 
   // Distribute tickets to columns based on columnId
   useEffect(() => {
@@ -818,52 +925,7 @@ export function BoardView() {
           const columnTickets = apiTickets.filter((ticket) => ticket.columnId === column.id)
           
           // Convert tickets to tasks for this column
-          const columnTasks = columnTickets.map((ticket): Task => {
-            // Find assignee if assigneeId exists
-            let assignee: Assignee | undefined = undefined
-            if (ticket.assigneeId) {
-              assignee = assigneesFromApi.find((a) => a.id === ticket.assigneeId) ||
-                         MOCK_ASSIGNEES.find((a) => a.id === ticket.assigneeId)
-            }
-            
-            // Map ticketType to TaskType
-            const taskType: TaskType = ticket.ticketType === 'bug' ? 'bug' :
-                                       ticket.ticketType === 'story' ? 'story' :
-                                       ticket.ticketType === 'epic' ? 'epic' :
-                                       ticket.ticketType === 'subtask' ? 'subtask' :
-                                       'task'
-            
-            // Map priority
-            const priority: Priority = ticket.priority || 'medium'
-            
-            // Get board prefix safely
-            const boardPrefix = apiBoard && isApiBoardType(apiBoard) 
-              ? (apiBoard as ApiBoardType & { prefix?: string }).prefix 
-              : undefined
-            
-            return {
-              id: ticket.id,
-              key: ticket.ticketKey || `${boardPrefix || 'T'}-${ticket.id.substring(0, 3)}`,
-              title: ticket.title,
-              description: typeof ticket.description === 'string' ? ticket.description : '',
-              type: taskType,
-              status: column.name, // Use column name as status
-              assignee,
-              priority,
-              epic: ticket.rootEpicId,
-              story: ticket.parentTicketId,
-              labels: ticket.tags || [],
-              parent: ticket.parentTicketId,
-              dueDate: ticket.dueDate ? new Date(ticket.dueDate) : undefined,
-              startDate: ticket.startDate ? new Date(ticket.startDate) : undefined,
-              team: undefined,
-              subtasks: [],
-              linkedTasks: [],
-              comments: [],
-              createdAt: new Date(ticket.createdAt),
-              updatedAt: new Date(ticket.updatedAt),
-            }
-          })
+          const columnTasks = columnTickets.map((ticket) => buildTaskFromTicket(ticket, column.name))
           
           return {
             ...column,
@@ -877,67 +939,213 @@ export function BoardView() {
         prevColumns.map((col) => ({ ...col, tasks: [] }))
       )
     }
-  }, [apiTickets, columns.length, assigneesFromApi, apiBoard])
+  }, [apiTickets, columns.length, buildTaskFromTicket])
+
+  const passesTaskFilters = useCallback(
+    (task: Task) => {
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase()
+        if (
+          !task.title.toLowerCase().includes(query) &&
+          !task.key.toLowerCase().includes(query)
+        ) {
+          return false
+        }
+      }
+
+      const assigneeFilter = selectedFilters.assignee.length > 0 ? selectedFilters.assignee : selectedUsers
+      if (assigneeFilter.length > 0) {
+        if (!task.assignee || !assigneeFilter.includes(task.assignee.id)) {
+          return false
+        }
+      }
+
+      if (selectedFilters.type.length > 0) {
+        if (!selectedFilters.type.includes(task.type)) {
+          return false
+        }
+      }
+
+      if (selectedFilters.labels.length > 0) {
+        const hasMatchingLabel = selectedFilters.labels.some((label) =>
+          task.labels.includes(label)
+        )
+        if (!hasMatchingLabel) {
+          return false
+        }
+      }
+
+      if (selectedFilters.status.length > 0) {
+        if (!selectedFilters.status.includes(task.status)) {
+          return false
+        }
+      }
+
+      if (selectedFilters.priority.length > 0) {
+        if (!selectedFilters.priority.includes(task.priority)) {
+          return false
+        }
+      }
+
+      return true
+    },
+    [searchQuery, selectedUsers, selectedFilters]
+  )
 
   // Filter tasks based on search, user selection, and filter modal selections
   const filteredColumns = useMemo(() => {
     return columns.map((column) => ({
       ...column,
-      tasks: column.tasks.filter((task) => {
-        // Search query filter
-        if (searchQuery.trim()) {
-          const query = searchQuery.toLowerCase()
-          if (
-            !task.title.toLowerCase().includes(query) &&
-            !task.key.toLowerCase().includes(query)
-          ) {
-            return false
-          }
-        }
-        
-        // User assignee filter (from both modal and outside filter - they're synced)
-        const assigneeFilter = selectedFilters.assignee.length > 0 ? selectedFilters.assignee : selectedUsers
-        if (assigneeFilter.length > 0) {
-          if (!task.assignee || !assigneeFilter.includes(task.assignee.id)) {
-            return false
-          }
-        }
-
-        // Type filter
-        if (selectedFilters.type.length > 0) {
-          if (!selectedFilters.type.includes(task.type)) {
-            return false
-          }
-        }
-
-        // Labels filter
-        if (selectedFilters.labels.length > 0) {
-          const hasMatchingLabel = selectedFilters.labels.some((label) =>
-            task.labels.includes(label)
-          )
-          if (!hasMatchingLabel) {
-            return false
-          }
-        }
-
-        // Status filter
-        if (selectedFilters.status.length > 0) {
-          if (!selectedFilters.status.includes(task.status)) {
-            return false
-          }
-        }
-
-        // Priority filter
-        if (selectedFilters.priority.length > 0) {
-          if (!selectedFilters.priority.includes(task.priority)) {
-            return false
-          }
-        }
-
-        return true
-      }),
+      tasks: column.tasks.filter(passesTaskFilters),
     }))
-  }, [columns, searchQuery, selectedUsers, selectedFilters])
+  }, [columns, passesTaskFilters])
+
+  const filteredArchivedTasks = useMemo(() => {
+    return archivedTasksFromTickets.filter(passesTaskFilters)
+  }, [archivedTasksFromTickets, passesTaskFilters])
+
+  const doneColumnIds = useMemo(() => {
+    if (!apiBoard || !isApiBoardType(apiBoard) || !Array.isArray(apiBoard.columns)) {
+      return new Set<string>()
+    }
+    const ids = (apiBoard.columns as Array<{ id?: string; isDoneColumn?: boolean }>).flatMap((col) => {
+      if (!col || typeof col !== 'object') return []
+      if (!('id' in col) || !col.isDoneColumn) return []
+      return typeof col.id === 'string' ? [col.id] : []
+    })
+    return new Set(ids)
+  }, [apiBoard])
+
+  const summaryStats = useMemo(() => {
+    const now = Date.now()
+    const total = apiTickets.length
+    const doneTickets = apiTickets.filter((ticket) => doneColumnIds.has(ticket.columnId))
+    const doneCount = doneTickets.length
+    const openTickets = apiTickets.filter((ticket) => !doneColumnIds.has(ticket.columnId))
+    const openCount = openTickets.length
+
+    const overdueCount = openTickets.filter((ticket) => {
+      if (!ticket.dueDate) return false
+      const due = new Date(ticket.dueDate).getTime()
+      return Number.isFinite(due) && due < now
+    }).length
+
+    const upcomingCount = openTickets.filter((ticket) => {
+      if (!ticket.dueDate) return false
+      const due = new Date(ticket.dueDate).getTime()
+      return Number.isFinite(due) && due >= now && due <= now + 7 * 24 * 60 * 60 * 1000
+    }).length
+
+    const completionDurations = doneTickets
+      .map((ticket) => {
+        if (!ticket.completedAt) return null
+        const created = new Date(ticket.createdAt).getTime()
+        const completed = new Date(ticket.completedAt).getTime()
+        if (!Number.isFinite(created) || !Number.isFinite(completed) || completed < created) {
+          return null
+        }
+        return completed - created
+      })
+      .filter((duration): duration is number => duration !== null)
+
+    const openDurations = openTickets
+      .map((ticket) => {
+        const created = new Date(ticket.createdAt).getTime()
+        if (!Number.isFinite(created)) return null
+        return now - created
+      })
+      .filter((duration): duration is number => duration !== null)
+
+    const avgCompletionMs = completionDurations.length
+      ? completionDurations.reduce((sum, value) => sum + value, 0) / completionDurations.length
+      : null
+
+    const avgOpenMs = openDurations.length
+      ? openDurations.reduce((sum, value) => sum + value, 0) / openDurations.length
+      : null
+
+    return {
+      total,
+      doneCount,
+      openCount,
+      overdueCount,
+      upcomingCount,
+      avgCompletionMs,
+      avgOpenMs,
+    }
+  }, [apiTickets, doneColumnIds])
+
+  const columnBreakdown = useMemo(() => {
+    return columns.map((column) => ({
+      id: column.id,
+      name: column.name,
+      color: column.color,
+      count: column.tasks.length,
+      tasks: column.tasks,
+    }))
+  }, [columns])
+
+  const columnPieData = useMemo(() => {
+    return columnBreakdown
+      .filter((column) => column.count > 0)
+      .map((column) => ({
+        name: column.name,
+        value: column.count,
+        color: getHexColor(column.color) || '#94a3b8',
+      }))
+  }, [columnBreakdown])
+
+  const doneVsNotData = useMemo(() => {
+    return [
+      {
+        name: 'Tickets',
+        done: summaryStats.doneCount,
+        notDone: summaryStats.openCount,
+      },
+    ]
+  }, [summaryStats.doneCount, summaryStats.openCount])
+
+  const priorityStats = useMemo(() => {
+    const priorities: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
+    return priorities.map((priority) => ({
+      priority,
+      count: apiTickets.filter((ticket) => ticket.priority === priority).length,
+    }))
+  }, [apiTickets])
+
+  const maxPriorityCount = useMemo(() => {
+    return Math.max(1, ...priorityStats.map((stat) => stat.count))
+  }, [priorityStats])
+
+  const userTicketRanking = useMemo(() => {
+    if (!currentUser?.id) return []
+    const tickets = apiTickets.filter(
+      (ticket) => ticket.assigneeId === currentUser.id || ticket.reporterId === currentUser.id
+    )
+    return tickets
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 6)
+      .map((ticket) =>
+        buildTaskFromTicket(ticket, columnNameById[ticket.columnId] || 'Unknown')
+      )
+  }, [apiTickets, buildTaskFromTicket, columnNameById, currentUser?.id])
+
+  const upcomingTickets = useMemo(() => {
+    const now = Date.now()
+    const cutoff = now + 7 * 24 * 60 * 60 * 1000
+    return apiTickets
+      .filter((ticket) => {
+        if (!ticket.dueDate) return false
+        if (doneColumnIds.has(ticket.columnId)) return false
+        const due = new Date(ticket.dueDate).getTime()
+        return Number.isFinite(due) && due >= now && due <= cutoff
+      })
+      .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())
+      .slice(0, 6)
+      .map((ticket) =>
+        buildTaskFromTicket(ticket, columnNameById[ticket.columnId] || 'Unknown')
+      )
+  }, [apiTickets, buildTaskFromTicket, columnNameById, doneColumnIds])
 
   // Group tasks
   const groupedColumns = useMemo(() => {
@@ -1222,6 +1430,119 @@ export function BoardView() {
         setSelectedTask({ ...selectedTask, assignee: oldAssignee })
       }
       toast.error('Failed to update assignee')
+    }
+  }
+
+  const handleArchiveTicket = async (ticketId: string) => {
+    if (!canTicketCreate) return
+    const ticket = apiTickets.find((t) => t.id === ticketId)
+    if (!ticket) return
+
+    const archivedAt = new Date().toISOString()
+    const optimisticTicket = { ...ticket, archivedAt }
+
+    setApiTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    setArchivedTickets((prev) => {
+      if (prev.some((t) => t.id === ticketId)) {
+        return prev.map((t) => (t.id === ticketId ? optimisticTicket : t))
+      }
+      return [...prev, optimisticTicket]
+    })
+
+    try {
+      const updated = await updateTicketAPI(ticketId, { archivedAt })
+      if (updated) {
+        setArchivedTickets((prev) =>
+          prev.map((t) => (t.id === ticketId ? updated : t))
+        )
+      } else {
+        setApiTickets((prev) => [...prev, ticket])
+        setArchivedTickets((prev) => prev.filter((t) => t.id !== ticketId))
+      }
+    } catch (error) {
+      console.error('Error archiving ticket:', error)
+      setApiTickets((prev) => [...prev, ticket])
+      setArchivedTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    }
+  }
+
+  const handleUnarchiveTicket = async (ticketId: string) => {
+    if (!canTicketCreate) return
+    const ticket = archivedTickets.find((t) => t.id === ticketId)
+    if (!ticket) return
+
+    const optimisticTicket = { ...ticket, archivedAt: undefined }
+
+    setArchivedTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    setApiTickets((prev) => {
+      if (prev.some((t) => t.id === ticketId)) {
+        return prev
+      }
+      return [...prev, optimisticTicket]
+    })
+
+    try {
+      const updated = await updateTicketAPI(ticketId, { archivedAt: null })
+      if (updated) {
+        setApiTickets((prev) =>
+          prev.map((t) => (t.id === ticketId ? updated : t))
+        )
+      } else {
+        setArchivedTickets((prev) => [...prev, ticket])
+        setApiTickets((prev) => prev.filter((t) => t.id !== ticketId))
+      }
+    } catch (error) {
+      console.error('Error unarchiving ticket:', error)
+      setArchivedTickets((prev) => [...prev, ticket])
+      setApiTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    }
+  }
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (!canTicketCreate) return
+    const ticket = apiTickets.find((t) => t.id === ticketId) || archivedTickets.find((t) => t.id === ticketId)
+    if (!ticket) return
+
+    const previousTickets = apiTickets
+    const previousArchived = archivedTickets
+    const previousColumns = columns
+    const previousSelectedTask = selectedTask
+
+    setApiTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    setArchivedTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    setColumns((prev) =>
+      prev.map((col) => ({
+        ...col,
+        tasks: col.tasks.filter((t) => t.id !== ticketId),
+      }))
+    )
+    if (selectedTask?.id === ticketId) {
+      setSelectedTask(null)
+      setSearchParams({})
+    }
+
+    try {
+      const deleted = await deleteTicketAPI(ticketId)
+      if (!deleted) {
+        setApiTickets(previousTickets)
+        setArchivedTickets(previousArchived)
+        setColumns(previousColumns)
+        if (previousSelectedTask) {
+          setSelectedTask(previousSelectedTask)
+          setSearchParams({ selectedTask: previousSelectedTask.key })
+        }
+        toast.error('Failed to delete ticket')
+      }
+    } catch (error) {
+      console.error('Error deleting ticket:', error)
+      setApiTickets(previousTickets)
+      setArchivedTickets(previousArchived)
+      setColumns(previousColumns)
+      if (previousSelectedTask) {
+        setSelectedTask(previousSelectedTask)
+        setSearchParams({ selectedTask: previousSelectedTask.key })
+      }
+      toast.error('Failed to delete ticket')
     }
   }
 
@@ -1835,189 +2156,448 @@ export function BoardView() {
           </button>
         </div>
 
-        {/* Search and Filter Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          {/* Left side - Search, Assignee, Filters */}
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
-            {/* Search */}
-            <div className="relative w-full sm:w-48">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search board"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-9"
-              />
-            </div>
+        {showBoardControls ? (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Left side - Search, Assignee, Filters */}
+            <div className="flex items-center gap-2 flex-1 flex-wrap">
+              {/* Search */}
+              <div className="relative w-full sm:w-52">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search board"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-9"
+                  aria-label="Search board"
+                />
+              </div>
 
-            {/* Assignee filter - circles with profile pictures */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1.5">
-                  <div className="flex -space-x-1">
-                    {selectedUsers.length > 0 ? (
-                      selectedUsers.slice(0, 3).map((userId) => {
-                        const user = MOCK_ASSIGNEES.find((a) => a.id === userId)
-                        return user ? (
-                          <div
-                            key={user.id}
-                            className={cn(
-                              'h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white ring-2 ring-background',
-                              user.color
-                            )}
-                            title={user.name}
-                          >
-                            {user.initials}
-                          </div>
-                        ) : null
-                      })
-                    ) : (
-                      <User className="h-4 w-4" />
+              {/* Assignee filter - circles with profile pictures */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5 px-2 sm:px-3"
+                    title="Assignees"
+                    aria-label="Assignees"
+                  >
+                    <div className="flex -space-x-1">
+                      {selectedUsers.length > 0 ? (
+                        selectedUsers.slice(0, 3).map((userId) => {
+                          const user = MOCK_ASSIGNEES.find((a) => a.id === userId)
+                          return user ? (
+                            <div
+                              key={user.id}
+                              className={cn(
+                                'h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white ring-2 ring-background',
+                                user.color
+                              )}
+                              title={user.name}
+                            >
+                              {user.initials}
+                            </div>
+                          ) : null
+                        })
+                      ) : (
+                        <User className="h-4 w-4" />
+                      )}
+                    </div>
+                    {selectedUsers.length > 3 && (
+                      <span className="text-xs">+{selectedUsers.length - 3}</span>
                     )}
-                  </div>
-                  {selectedUsers.length > 3 && (
-                    <span className="text-xs">+{selectedUsers.length - 3}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  {MOCK_ASSIGNEES.map((user) => (
+                    <DropdownMenuItem
+                      key={user.id}
+                      onClick={() => toggleUserFilter(user.id)}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 flex-1">
+                        <div
+                          className={cn(
+                            'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
+                            user.color
+                          )}
+                        >
+                          {user.initials}
+                        </div>
+                        <span>{user.name}</span>
+                      </div>
+                      {selectedUsers.includes(user.id) && (
+                        <CheckSquare className="h-4 w-4 text-primary" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                  {selectedUsers.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setSelectedUsers([])}
+                        className="cursor-pointer text-muted-foreground"
+                      >
+                        Clear filters
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Filters dropdown */}
+              <FilterDropdown
+                tasks={allTasks}
+                assignees={assigneesFromApi.length > 0 ? assigneesFromApi : MOCK_ASSIGNEES}
+                selectedFilters={selectedFilters}
+                onFiltersChange={(filters) => {
+                  setSelectedFilters(filters)
+                  // Sync assignee filter to outside filter
+                  setSelectedUsers(filters.assignee)
+                }}
+              >
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className={cn(
+                    "h-9 gap-1.5 px-2 sm:px-3",
+                    (selectedFilters.type.length > 0 ||
+                     selectedFilters.assignee.length > 0 ||
+                     selectedFilters.labels.length > 0 ||
+                     selectedFilters.status.length > 0 ||
+                     selectedFilters.priority.length > 0) && "bg-primary/10 border-primary"
+                  )}
+                  title="Filters"
+                  aria-label="Filters"
+                >
+                  <Filter className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filters</span>
+                  {(selectedFilters.type.length > 0 ||
+                    selectedFilters.assignee.length > 0 ||
+                    selectedFilters.labels.length > 0 ||
+                    selectedFilters.status.length > 0 ||
+                    selectedFilters.priority.length > 0) && (
+                    <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
+                      {selectedFilters.type.length +
+                        selectedFilters.assignee.length +
+                        selectedFilters.labels.length +
+                        selectedFilters.status.length +
+                        selectedFilters.priority.length}
+                    </span>
                   )}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52">
-                {MOCK_ASSIGNEES.map((user) => (
-                  <DropdownMenuItem
-                    key={user.id}
-                    onClick={() => toggleUserFilter(user.id)}
-                    className="cursor-pointer"
+              </FilterDropdown>
+            </div>
+
+            {/* Right side - Group, Create, Settings */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5 px-2 sm:px-3"
+                    title="Group"
+                    aria-label="Group"
                   >
-                    <div className="flex items-center gap-2 flex-1">
-                      <div
-                        className={cn(
-                          'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
-                          user.color
-                        )}
-                      >
-                        {user.initials}
-                      </div>
-                      <span>{user.name}</span>
-                    </div>
-                    {selectedUsers.includes(user.id) && (
-                      <CheckSquare className="h-4 w-4 text-primary" />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-                {selectedUsers.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
+                    <LayoutGrid className="h-4 w-4" />
+                    <span className="hidden sm:inline">Group</span>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {GROUP_OPTIONS.map((option) => (
                     <DropdownMenuItem
-                      onClick={() => setSelectedUsers([])}
-                      className="cursor-pointer text-muted-foreground"
+                      key={option.value}
+                      onClick={() => setGroupBy(option.value)}
+                      className={cn(
+                        'cursor-pointer',
+                        groupBy === option.value && 'bg-accent'
+                      )}
                     >
-                      Clear filters
+                      {option.label}
                     </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Filters dropdown */}
-            <FilterDropdown
-              tasks={allTasks}
-              assignees={assigneesFromApi.length > 0 ? assigneesFromApi : MOCK_ASSIGNEES}
-              selectedFilters={selectedFilters}
-              onFiltersChange={(filters) => {
-                setSelectedFilters(filters)
-                // Sync assignee filter to outside filter
-                setSelectedUsers(filters.assignee)
-              }}
-            >
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={cn(
-                  "h-9 gap-1.5",
-                  (selectedFilters.type.length > 0 ||
-                   selectedFilters.assignee.length > 0 ||
-                   selectedFilters.labels.length > 0 ||
-                   selectedFilters.status.length > 0 ||
-                   selectedFilters.priority.length > 0) && "bg-primary/10 border-primary"
-                )}
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              <Button
+                size="sm"
+                className="h-9 gap-1.5 px-2 sm:px-3"
+                onClick={() => handleOpenCreateTask()}
+                disabled={!canTicketCreate}
+                title="Create ticket"
+                aria-label="Create ticket"
               >
-                <Filter className="h-4 w-4" />
-                <span className="hidden sm:inline">Filters</span>
-                {(selectedFilters.type.length > 0 ||
-                  selectedFilters.assignee.length > 0 ||
-                  selectedFilters.labels.length > 0 ||
-                  selectedFilters.status.length > 0 ||
-                  selectedFilters.priority.length > 0) && (
-                  <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
-                    {selectedFilters.type.length +
-                      selectedFilters.assignee.length +
-                      selectedFilters.labels.length +
-                      selectedFilters.status.length +
-                      selectedFilters.priority.length}
-                  </span>
-                )}
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create</span>
               </Button>
-            </FilterDropdown>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 px-2 sm:px-3"
+                onClick={() => setConfigureModalOpen(true)}
+                disabled={!canBoardUpdate}
+                title="Settings"
+                aria-label="Settings"
+              >
+                <Settings2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Settings</span>
+              </Button>
+            </div>
           </div>
-
-          {/* Right side - Group, Create, Settings */}
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1.5">
-                  Group
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {GROUP_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => setGroupBy(option.value)}
-                    className={cn(
-                      'cursor-pointer',
-                      groupBy === option.value && 'bg-accent'
-                    )}
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
-            <Button
-              size="sm"
-              className="h-9 gap-1.5"
-              onClick={() => handleOpenCreateTask()}
-              disabled={!canTicketCreate}
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Create</span>
-            </Button>
-            
+        ) : (
+          <div className="flex items-center justify-end">
             <Button
               variant="outline"
               size="sm"
-              className="h-9 gap-1.5"
+              className="h-9 gap-1.5 px-2 sm:px-3"
               onClick={() => setConfigureModalOpen(true)}
               disabled={!canBoardUpdate}
+              title="Settings"
+              aria-label="Settings"
             >
               <Settings2 className="h-4 w-4" />
               <span className="hidden sm:inline">Settings</span>
             </Button>
           </div>
-        </div>
+        )}
       </header>
 
       {/* Tab Content */}
       {activeTab === 'summary' && (
-        <div className="flex flex-col items-center justify-center py-20 px-4">
-          <div className="text-center max-w-md">
-            <div className="text-6xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">Coming Soon</h3>
-            <p className="text-muted-foreground">
-              The summary view is under development and will be available soon.
-            </p>
-          </div>
+        <div className="space-y-6">
+          {apiTickets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="text-center max-w-md">
+                <div className="text-5xl mb-4">📊</div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">No tickets yet</h3>
+                <p className="text-muted-foreground">
+                  Create a few tickets to see insights for this board.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Total Tickets</p>
+                  <p className="text-2xl font-semibold text-foreground">{summaryStats.total}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {summaryStats.openCount} open · {summaryStats.doneCount} done
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Open Tickets</p>
+                  <p className="text-2xl font-semibold text-foreground">{summaryStats.openCount}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {summaryStats.upcomingCount} due soon
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Done Tickets</p>
+                  <p className="text-2xl font-semibold text-foreground">{summaryStats.doneCount}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Avg cycle {formatDuration(summaryStats.avgCompletionMs)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Overdue</p>
+                  <p className="text-2xl font-semibold text-foreground">{summaryStats.overdueCount}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Needs attention this week
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Avg Open Age</p>
+                  <p className="text-2xl font-semibold text-foreground">{formatDuration(summaryStats.avgOpenMs)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Since creation
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Columns</p>
+                  <p className="text-2xl font-semibold text-foreground">{columnBreakdown.length}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Active workflow stages
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Tickets by Column</h3>
+                    <span className="text-xs text-muted-foreground">Distribution</span>
+                  </div>
+                  {columnPieData.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No column data yet.</p>
+                  ) : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={columnPieData}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={55}
+                            outerRadius={90}
+                            paddingAngle={2}
+                          >
+                            {columnPieData.map((entry) => (
+                              <Cell key={`cell-${entry.name}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend verticalAlign="bottom" height={24} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Done vs Not Done</h3>
+                    <span className="text-xs text-muted-foreground">Completion split</span>
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={doneVsNotData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.3)" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="done" fill="#22c55e" radius={[6, 6, 0, 0]} />
+                        <Line type="monotone" dataKey="notDone" stroke="#f97316" strokeWidth={2} dot={false} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4 lg:col-span-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Column Breakdown</h3>
+                    <span className="text-xs text-muted-foreground">Tickets per column</span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {columnBreakdown.map((column) => (
+                      <div key={column.id} className="rounded-lg border border-border/50 bg-background/60 p-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 rounded-sm"
+                            style={{ backgroundColor: getHexColor(column.color) || '#94a3b8' }}
+                          />
+                          <span className="text-sm font-medium text-foreground truncate">{column.name}</span>
+                          <span className="ml-auto text-xs text-muted-foreground">{column.count}</span>
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          {column.tasks.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No tickets</p>
+                          ) : (
+                            <>
+                              {column.tasks.slice(0, 3).map((task) => (
+                                <p key={task.id} className="text-xs text-muted-foreground truncate">
+                                  {task.key} · {task.title}
+                                </p>
+                              ))}
+                              {column.tasks.length > 3 && (
+                                <p className="text-xs text-muted-foreground">
+                                  +{column.tasks.length - 3} more
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Priority Mix</h3>
+                    <span className="text-xs text-muted-foreground">Current load</span>
+                  </div>
+                  <div className="space-y-3">
+                    {priorityStats.map((stat) => (
+                      <div key={stat.priority} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{getPriorityLabel(stat.priority)}</span>
+                          <span>{stat.count}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted/40">
+                          <div
+                            className="h-2 rounded-full bg-primary/70"
+                            style={{ width: `${(stat.count / maxPriorityCount) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Your Work</h3>
+                    <span className="text-xs text-muted-foreground">Most recent tickets</span>
+                  </div>
+                  {userTicketRanking.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No tickets assigned or reported yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {userTicketRanking.map((task) => (
+                        <div key={task.id} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {task.key} · {task.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {task.status} · {getPriorityLabel(task.priority)}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(task.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Upcoming Due</h3>
+                    <span className="text-xs text-muted-foreground">Next 7 days</span>
+                  </div>
+                  {upcomingTickets.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No upcoming due dates.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {upcomingTickets.map((task) => (
+                        <div key={task.id} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {task.key} · {task.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {task.status} · {getPriorityLabel(task.priority)}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {task.dueDate ? task.dueDate.toLocaleDateString() : 'No date'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -2141,14 +2721,25 @@ export function BoardView() {
                                   </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleTaskClick(task)}>
-                                    View details
+                                  <DropdownMenuItem
+                                    onClick={() => handleTaskClick(task)}
+                                    className="cursor-pointer"
+                                  >
+                                    View Details
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem>
-                                    Edit
+                                  <DropdownMenuItem
+                                    onClick={() => handleArchiveTicket(task.id)}
+                                    disabled={!canTicketCreate}
+                                    className="cursor-pointer"
+                                  >
+                                    Archive
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-destructive">
+                                  <DropdownMenuItem
+                                    className="text-destructive cursor-pointer"
+                                    disabled={!canTicketCreate}
+                                    onClick={() => handleDeleteTicket(task.id)}
+                                  >
                                     Delete
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -2262,14 +2853,16 @@ export function BoardView() {
                       ))}
 
                       {/* Create button - appears after last task card */}
-                      <button
-                        onClick={() => handleOpenCreateTask(column.id)}
-                        className="flex items-center gap-2 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors rounded-lg border border-dashed border-border/50 hover:border-primary/50 bg-card/50 hover:bg-card"
-                        disabled={!canTicketCreate}
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span className="text-sm">Create</span>
-                      </button>
+                      {column.tasks.length > 0 && (
+                        <button
+                          onClick={() => handleOpenCreateTask(column.id)}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors rounded-lg border border-dashed border-border/50 hover:border-primary/50 bg-card"
+                          disabled={!canTicketCreate}
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span className="text-sm">Create</span>
+                        </button>
+                      )}
 
                       {/* Drop indicator for empty column or dropping at end */}
                       {dragOverColumn === column.id && column.tasks.length === 0 && (
@@ -2427,13 +3020,129 @@ export function BoardView() {
       )}
 
       {activeTab === 'archived' && (
-        <div className="flex flex-col items-center justify-center py-20 px-4">
-          <div className="text-center max-w-md">
-            <div className="text-6xl mb-4">📦</div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">Coming Soon</h3>
-            <p className="text-muted-foreground">
-              The archived view is under development and will be available soon.
-            </p>
+        <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/50 bg-muted/30">
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    Key
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    Title
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    Assignee
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    Priority
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {archivedTicketsLoading ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                      Loading archived tickets...
+                    </td>
+                  </tr>
+                ) : (() => {
+                  const filteredTasks = filteredArchivedTasks
+                  return filteredTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                        {searchQuery || selectedUsers.length > 0 || 
+                         selectedFilters.type.length > 0 || 
+                         selectedFilters.labels.length > 0 ||
+                         selectedFilters.status.length > 0 ||
+                         selectedFilters.priority.length > 0
+                          ? 'No matching tasks found'
+                          : 'No archived tasks found'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTasks.map((task) => (
+                    <tr
+                      key={task.id}
+                      className="border-b border-border/30 hover:bg-accent/50 transition-colors cursor-pointer"
+                      onClick={() => handleTaskClick(task)}
+                    >
+                      <td className="px-4 py-3 text-sm font-medium text-foreground">
+                        {task.key}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-foreground">
+                        {task.title}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {getTaskTypeIcon(task.type, 'h-4 w-4')}
+                          <span className="text-sm text-muted-foreground capitalize">
+                            {task.type}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-muted-foreground">
+                          {task.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {task.assignee ? (
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={cn(
+                                'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
+                                task.assignee.color
+                              )}
+                              title={task.assignee.name}
+                            >
+                              {task.assignee.initials}
+                            </div>
+                            <span className="text-sm text-muted-foreground">
+                              {task.assignee.name}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {getPriorityIcon(task.priority)}
+                          <span className="text-sm text-muted-foreground">
+                            {getPriorityLabel(task.priority)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="cursor-pointer"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleUnarchiveTicket(task.id)
+                          }}
+                          disabled={!canTicketCreate}
+                        >
+                          Unarchive
+                        </Button>
+                      </td>
+                    </tr>
+                    ))
+                  )
+                })()}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
