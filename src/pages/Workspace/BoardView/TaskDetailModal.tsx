@@ -294,7 +294,7 @@ export function TaskDetailModal({
     if (ticketDetails?.ticket.github?.branchName) {
       setGithubBranches([{
         name: ticketDetails.ticket.github.branchName,
-        status: ticketDetails.ticket.github.status || 'open',
+        status: ticketDetails.ticket.github.status || 'pull-requested',
         pullRequestUrl: ticketDetails.ticket.github.pullRequestUrl,
       }])
     } else {
@@ -942,7 +942,7 @@ export function TaskDetailModal({
         ...prev.ticket,
         github: {
           branchName: branchNameToAdd,
-          status: 'open',
+          status: 'pull-requested',
           pullRequestUrl: oldGithub?.pullRequestUrl,
         },
       },
@@ -956,7 +956,7 @@ export function TaskDetailModal({
           data: {
             github: {
               branchName: branchNameToAdd,
-              status: 'open',
+              status: 'pull-requested',
             },
           },
         }
@@ -1056,7 +1056,7 @@ export function TaskDetailModal({
         ...prev.ticket,
         github: {
           branchName,
-          status: oldGithub?.status || 'open',
+          status: oldGithub?.status || 'pull-requested',
           pullRequestUrl,
         },
       },
@@ -1069,7 +1069,7 @@ export function TaskDetailModal({
           data: {
             github: {
               branchName,
-              status: oldGithub?.status || 'open',
+              status: oldGithub?.status || 'pull-requested',
               pullRequestUrl,
             },
           },

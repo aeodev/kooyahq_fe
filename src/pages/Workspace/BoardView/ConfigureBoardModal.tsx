@@ -433,6 +433,7 @@ export function ConfigureBoardModal({
           defaultView,
           showSwimlanes,
           ...(detailsSettings && { ticketDetailsSettings: detailsSettings }),
+          githubAutomation: board?.settings?.githubAutomation || { rules: [] },
         },
         columns: backendColumns,
       } as any)

@@ -63,27 +63,29 @@ const STATUS_META: Record<
   GithubStatus,
   { label: string; badge: 'default' | 'secondary' | 'outline'; dot: string }
 > = {
-  open: { label: 'Open', badge: 'outline', dot: 'bg-green-500' },
-  requested_pr: { label: 'Requested PR', badge: 'outline', dot: 'bg-amber-500' },
-  merging_pr: { label: 'Merging PR', badge: 'default', dot: 'bg-blue-500' },
-  merged_pr: { label: 'Merged PR', badge: 'default', dot: 'bg-purple-500' },
-  merged: { label: 'Merged', badge: 'default', dot: 'bg-purple-500' },
+  'pull-requested': { label: 'Pull requested', badge: 'outline', dot: 'bg-sky-500' },
+  'pull-request-build-check-passed': {
+    label: 'PR build check passed',
+    badge: 'default',
+    dot: 'bg-green-600',
+  },
+  'pull-request-build-check-failed': {
+    label: 'PR build check failed',
+    badge: 'secondary',
+    dot: 'bg-red-500',
+  },
   deploying: { label: 'Deploying', badge: 'default', dot: 'bg-indigo-500' },
+  'deployment-failed': { label: 'Deployment failed', badge: 'secondary', dot: 'bg-red-500' },
   deployed: { label: 'Deployed', badge: 'default', dot: 'bg-green-600' },
-  failed: { label: 'Failed', badge: 'secondary', dot: 'bg-red-500' },
-  closed: { label: 'Closed', badge: 'secondary', dot: 'bg-gray-500' },
 }
 
 const STATUS_OPTIONS: Array<{ value: GithubStatus; label: string }> = [
-  { value: 'open', label: 'Open' },
-  { value: 'requested_pr', label: 'Requested PR' },
-  { value: 'merging_pr', label: 'Merging PR' },
-  { value: 'merged_pr', label: 'Merged PR' },
-  { value: 'merged', label: 'Merged' },
+  { value: 'pull-requested', label: 'Pull requested' },
+  { value: 'pull-request-build-check-passed', label: 'PR build check passed' },
+  { value: 'pull-request-build-check-failed', label: 'PR build check failed' },
   { value: 'deploying', label: 'Deploying' },
+  { value: 'deployment-failed', label: 'Deployment failed' },
   { value: 'deployed', label: 'Deployed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'closed', label: 'Closed' },
 ]
 
 type GitHubBranchesProps = {
@@ -106,7 +108,7 @@ export function GitHubBranches({
   const [editingPRUrl, setEditingPRUrl] = useState<string | null>(null)
 
   const getStatusMeta = (status: GithubStatus) => {
-    return STATUS_META[status] || STATUS_META.open
+    return STATUS_META[status] || STATUS_META['pull-requested']
   }
 
   const statusMetaList = STATUS_OPTIONS.map((option) => ({

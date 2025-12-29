@@ -2,12 +2,12 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_ARCHIVED_TICKETS_BY_BOARD, GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD, GET_USERS } from '@/utils/api.routes'
-import type { Board as ApiBoardType, Ticket } from '@/types/board'
+import type { Board as ApiBoardType, Ticket, GithubStatus, GithubAutomationRule } from '@/types/board'
 import type { Board as BoardViewBoard, Column as BoardViewColumn } from './types'
 import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
 import { TicketSocketEvents } from '@/hooks/socket/ticket.socket'
-import { useUpdateTicket, useMoveTicket, useDeleteTicket } from '@/hooks/board.hooks'
+import { useUpdateTicket, useMoveTicket, useDeleteTicket, useUpdateBoard } from '@/hooks/board.hooks'
 import { BULK_UPDATE_RANKS } from '@/utils/api.routes'
 import { toast } from 'sonner'
 
@@ -48,6 +48,9 @@ import {
   Archive,
   BarChart3,
   MoreVertical,
+  GitBranch,
+  GitPullRequest,
+  Trash2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -65,6 +68,8 @@ import {
   YAxis,
 } from 'recharts'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/utils/cn'
 import {
   DropdownMenu,
@@ -360,6 +365,27 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: 'priority', label: 'Priority' },
 ]
 
+type DevTone = 'info' | 'warning' | 'error' | 'success' | 'neutral'
+
+const DEV_TONE_CLASSES: Record<DevTone, string> = {
+  info: 'border-sky-500/40 text-sky-600 bg-sky-500/10',
+  warning: 'border-amber-500/40 text-amber-600 bg-amber-500/10',
+  error: 'border-rose-500/40 text-rose-600 bg-rose-500/10',
+  success: 'border-emerald-500/40 text-emerald-600 bg-emerald-500/10',
+  neutral: 'border-slate-500/40 text-slate-600 bg-slate-500/10',
+}
+
+const DEV_STATUS_OPTIONS: Array<{ value: GithubStatus; label: string; tone: DevTone }> = [
+  { value: 'pull-requested', label: 'Pull requested', tone: 'info' },
+  { value: 'pull-request-build-check-passed', label: 'PR build check passed', tone: 'success' },
+  { value: 'pull-request-build-check-failed', label: 'PR build check failed', tone: 'error' },
+  { value: 'deploying', label: 'Deploying', tone: 'warning' },
+  { value: 'deployment-failed', label: 'Deployment failed', tone: 'error' },
+  { value: 'deployed', label: 'Deployed', tone: 'success' },
+]
+
+const createRuleId = () => `rule_${Math.random().toString(36).slice(2, 10)}`
+
 const resolveBoardRole = (board: ApiBoardType | null | undefined, userId?: string): 'owner' | 'admin' | 'member' | 'viewer' | 'none' => {
   if (!board || !userId) return 'none'
   if (board.createdBy === userId) return 'owner'
@@ -393,7 +419,7 @@ export function BoardView() {
   const optimisticUpdatesRef = useRef<Set<string>>(new Set())
   
   // Header state
-  type ViewTab = 'summary' | 'board' | 'list' | 'timeline' | 'archived'
+  type ViewTab = 'summary' | 'board' | 'list' | 'timeline' | 'development' | 'archived'
   
   const [activeTab, setActiveTab] = useState<ViewTab>('board')
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -452,7 +478,7 @@ export function BoardView() {
   const canTicketCreate =
     hasBoardFullAccess || boardRole === 'owner' || boardRole === 'admin' || boardRole === 'member'
   const canTicketRank = canTicketCreate
-  const showBoardControls = activeTab !== 'summary' && activeTab !== 'timeline'
+  const showBoardControls = activeTab !== 'summary' && activeTab !== 'timeline' && activeTab !== 'development'
   const [isLoading, setIsLoading] = useState(true)
   const [boardError, setBoardError] = useState<{ statusCode?: number; message: string } | null>(null)
   const [apiTickets, setApiTickets] = useState<Ticket[]>([])
@@ -463,6 +489,9 @@ export function BoardView() {
   const { updateTicket: updateTicketAPI } = useUpdateTicket()
   const { moveTicket: moveTicketAPI } = useMoveTicket()
   const { deleteTicket: deleteTicketAPI } = useDeleteTicket()
+  const { updateBoard: updateBoardAPI, loading: updateBoardLoading } = useUpdateBoard()
+  const [githubRules, setGithubRules] = useState<GithubAutomationRule[]>([])
+  const [rulesDirty, setRulesDirty] = useState(false)
   
   // Set initial view based on board's defaultView setting when board loads
   useEffect(() => {
@@ -478,7 +507,7 @@ export function BoardView() {
           setActiveTab(boardDefaultView as ViewTab)
           localStorage.setItem(`board-view-${boardKey}`, boardDefaultView)
         }
-      } else if (savedView && ['summary', 'board', 'list', 'timeline', 'archived'].includes(savedView)) {
+      } else if (savedView && ['summary', 'board', 'list', 'timeline', 'development', 'archived'].includes(savedView)) {
         // Use saved preference
         setActiveTab(savedView as ViewTab)
       } else if (typedBoard.settings?.defaultView && ['board', 'list', 'timeline'].includes(typedBoard.settings.defaultView)) {
@@ -493,6 +522,12 @@ export function BoardView() {
     setArchivedTicketsLoaded(false)
     setArchivedTicketsLoading(false)
   }, [apiBoard?.id])
+
+  useEffect(() => {
+    if (!apiBoard || !isApiBoardType(apiBoard)) return
+    if (rulesDirty) return
+    setGithubRules(apiBoard.settings?.githubAutomation?.rules ?? [])
+  }, [apiBoard, rulesDirty])
 
   // Fetch board by key when component mounts or key changes
   useEffect(() => {
@@ -1146,6 +1181,71 @@ export function BoardView() {
         buildTaskFromTicket(ticket, columnNameById[ticket.columnId] || 'Unknown')
       )
   }, [apiTickets, buildTaskFromTicket, columnNameById, doneColumnIds])
+
+  const boardColumnsForRules = useMemo(() => {
+    if (columns.length > 0) {
+      return columns.map((column) => ({ id: column.id, name: column.name }))
+    }
+    if (apiBoard && isApiBoardType(apiBoard) && Array.isArray(apiBoard.columns)) {
+      return apiBoard.columns.map((column) => ({
+        id: column.id,
+        name: column.name,
+      }))
+    }
+    return []
+  }, [columns, apiBoard])
+
+  const developmentStatusOptions = DEV_STATUS_OPTIONS
+
+  const addGithubRule = () => {
+    if (!canBoardUpdate) return
+    const firstColumnId = boardColumnsForRules[0]?.id || ''
+    setGithubRules((prev) => [
+      ...prev,
+      {
+        id: createRuleId(),
+        enabled: true,
+        status: 'pull-requested',
+        targetBranch: '',
+        columnId: firstColumnId,
+      },
+    ])
+    setRulesDirty(true)
+  }
+
+  const updateGithubRule = (id: string, updates: Partial<GithubAutomationRule>) => {
+    setGithubRules((prev) =>
+      prev.map((rule) => (rule.id === id ? { ...rule, ...updates } : rule))
+    )
+    setRulesDirty(true)
+  }
+
+  const removeGithubRule = (id: string) => {
+    setGithubRules((prev) => prev.filter((rule) => rule.id !== id))
+    setRulesDirty(true)
+  }
+
+  const handleSaveGithubRules = async () => {
+    if (!apiBoard || !isApiBoardType(apiBoard) || !canBoardUpdate) return
+    const settings = apiBoard.settings || { defaultView: 'board', showSwimlanes: false }
+    const updated = await updateBoardAPI(apiBoard.id, {
+      settings: {
+        defaultView: settings.defaultView,
+        showSwimlanes: settings.showSwimlanes,
+        ticketDetailsSettings: settings.ticketDetailsSettings,
+        githubAutomation: {
+          rules: githubRules,
+        },
+      },
+    })
+    if (updated) {
+      handleSaveBoardSettings(updated)
+      setRulesDirty(false)
+      toast.success('Development rules saved')
+    } else {
+      toast.error('Failed to save development rules')
+    }
+  }
 
   // Group tasks
   const groupedColumns = useMemo(() => {
@@ -2141,6 +2241,20 @@ export function BoardView() {
             </div>
           </button>
           <button
+            onClick={() => handleTabChange('development')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px]',
+              activeTab === 'development'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4" />
+              <span>Development</span>
+            </div>
+          </button>
+          <button
             onClick={() => handleTabChange('archived')}
             className={cn(
               'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px]',
@@ -3014,6 +3128,196 @@ export function BoardView() {
             <h3 className="text-xl font-semibold text-foreground mb-2">Coming Soon</h3>
             <p className="text-muted-foreground">
               The timeline view is under development and will be available soon.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'development' && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-border/50 bg-card/30 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">GitHub Actions Listener</h3>
+                <p className="text-xs text-muted-foreground">
+                  Incoming status updates apply to all tickets and follow your rules.
+                </p>
+              </div>
+              {canBoardUpdate && (
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 px-3"
+                  onClick={addGithubRule}
+                  disabled={boardColumnsForRules.length === 0}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add rule
+                </Button>
+              )}
+            </div>
+            <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+              <p>Match by status + target branch. Use <span className="font-medium">main</span> or <span className="font-medium">release/*</span>.</p>
+              <p>If no rules match, the ticket keeps its column but updates its GitHub status and branch.</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/50 bg-card/30 overflow-hidden">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-b border-border/50">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Automation Rules</h3>
+                <p className="text-xs text-muted-foreground">
+                  First matching rule wins. Reorder by removing/adding if needed.
+                </p>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {githubRules.length} rule{githubRules.length === 1 ? '' : 's'}
+              </Badge>
+            </div>
+            {githubRules.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <div className="text-4xl mb-3">🔭</div>
+                <p className="text-sm text-muted-foreground">
+                  No rules yet. GitHub updates will only sync status and branch metadata.
+                </p>
+                {canBoardUpdate && (
+                  <Button
+                    size="sm"
+                    className="mt-4 h-9 gap-1.5 px-3"
+                    onClick={addGithubRule}
+                    disabled={boardColumnsForRules.length === 0}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create your first rule
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {githubRules.map((rule, index) => {
+                  const statusMeta =
+                    developmentStatusOptions.find((option) => option.value === rule.status) ||
+                    ({ label: rule.status, tone: 'neutral' } as const)
+                  return (
+                    <div key={rule.id} className="p-4">
+                      <div className="grid gap-4 lg:grid-cols-[auto_minmax(200px,1fr)_minmax(200px,1fr)_minmax(220px,1fr)_auto]">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={rule.enabled}
+                            onCheckedChange={(checked) =>
+                              updateGithubRule(rule.id, { enabled: checked })
+                            }
+                            disabled={!canBoardUpdate}
+                          />
+                          <span className="text-xs text-muted-foreground">Active</span>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Status</p>
+                          <select
+                            value={rule.status}
+                            onChange={(event) =>
+                              updateGithubRule(rule.id, { status: event.target.value as GithubStatus })
+                            }
+                            disabled={!canBoardUpdate}
+                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                          >
+                            {developmentStatusOptions.map((status) => (
+                              <option key={status.value} value={status.value}>
+                                {status.label}
+                              </option>
+                            ))}
+                          </select>
+                          <Badge
+                            variant="outline"
+                            className={cn('w-fit text-[11px]', DEV_TONE_CLASSES[statusMeta.tone])}
+                          >
+                            {statusMeta.label}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Target Branch</p>
+                          <Input
+                            value={rule.targetBranch || ''}
+                            onChange={(event) =>
+                              updateGithubRule(rule.id, { targetBranch: event.target.value })
+                            }
+                            placeholder="main or release/*"
+                            disabled={!canBoardUpdate}
+                            className="h-9"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Use <span className="font-medium">*</span> for any branch.
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Move To</p>
+                          <select
+                            value={rule.columnId}
+                            onChange={(event) =>
+                              updateGithubRule(rule.id, { columnId: event.target.value })
+                            }
+                            disabled={!canBoardUpdate}
+                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                          >
+                            <option value="" disabled>
+                              Select column
+                            </option>
+                            {boardColumnsForRules.map((column) => (
+                              <option key={column.id} value={column.id}>
+                                {column.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-start justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeGithubRule(rule.id)}
+                            disabled={!canBoardUpdate}
+                            aria-label={`Remove rule ${index + 1}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-border/50">
+              <p className="text-xs text-muted-foreground">
+                Rules run top-to-bottom. First match wins.
+              </p>
+              {canBoardUpdate && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="border border-border/60"
+                  onClick={handleSaveGithubRules}
+                  disabled={!rulesDirty || updateBoardLoading}
+                >
+                  {updateBoardLoading ? 'Saving…' : 'Save rules'}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/50 bg-card/30 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <GitPullRequest className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">Webhook Payload</h3>
+            </div>
+            <pre className="rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-muted-foreground overflow-x-auto">
+{`{
+  "branchName": "feature/TT-1/add-cta",
+  "targetBranch": "main",
+  "status": "pull-requested",
+  "pullRequestUrl": "https://github.com/org/repo/pull/44"
+}`}
+            </pre>
+            <p className="text-xs text-muted-foreground">
+              branchName is the source branch and must include a ticket segment like /TT-1/. targetBranch is optional for pushes. pullRequestUrl is optional for PR events.
             </p>
           </div>
         </div>

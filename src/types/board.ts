@@ -27,6 +27,9 @@ export type Board = {
         order: number
       }>
     }
+    githubAutomation?: {
+      rules: GithubAutomationRule[]
+    }
   }
   columns: Array<{
     id: string
@@ -118,6 +121,7 @@ export type Ticket = {
   completedAt?: string
   github?: {
     branchName?: string
+    targetBranch?: string
     pullRequestUrl?: string
     status?: GithubStatus
   }
@@ -130,15 +134,21 @@ export type Ticket = {
 }
 
 export type GithubStatus =
-  | 'open'
-  | 'merged'
-  | 'closed'
-  | 'requested_pr'
-  | 'merging_pr'
-  | 'merged_pr'
+  | 'pull-requested'
+  | 'pull-request-build-check-passed'
+  | 'pull-request-build-check-failed'
   | 'deploying'
+  | 'deployment-failed'
   | 'deployed'
-  | 'failed'
+
+export type GithubAutomationRule = {
+  id: string
+  enabled: boolean
+  status: GithubStatus
+  targetBranch?: string
+  columnId: string
+  description?: string
+}
 
 export type Comment = {
   id: string
@@ -178,6 +188,16 @@ export type UpdateBoardInput = {
     settings?: {
       defaultView: 'board' | 'list' | 'timeline'
       showSwimlanes: boolean
+      ticketDetailsSettings?: {
+        fieldConfigs: Array<{
+          fieldName: 'priority' | 'assignee' | 'tags' | 'parent' | 'dueDate' | 'startDate' | 'endDate'
+          isVisible: boolean
+          order: number
+        }>
+      }
+      githubAutomation?: {
+        rules: GithubAutomationRule[]
+      }
     }
     columns?: Array<{
       id: string
@@ -248,8 +268,9 @@ export type CreateTicketInput = {
   dueDate?: string
   github?: {
     branchName?: string
+    targetBranch?: string
     pullRequestUrl?: string
-    status?: 'open' | 'merged' | 'closed'
+    status?: GithubStatus
   }
 }
 
@@ -275,8 +296,9 @@ export type UpdateTicketInput = {
     archivedAt?: string | null
     github?: {
       branchName?: string
+      targetBranch?: string
       pullRequestUrl?: string
-      status?: 'open' | 'merged' | 'closed'
+      status?: GithubStatus
     }
   }
 }
