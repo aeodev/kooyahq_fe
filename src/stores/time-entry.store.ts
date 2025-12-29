@@ -17,6 +17,7 @@ import {
 } from '@/utils/api.routes'
 import { normalizeError, type Errors } from '@/utils/error'
 import type { TimeEntry, StartTimerInput, UpdateTimeEntryInput, ManualEntryInput } from '@/types/time-entry'
+import { setPendingTimerStop, clearPendingTimerStop, hasPendingStop } from '@/utils/server-health'
 
 type TimeEntryState = {
   activeTimer: TimeEntry | null
@@ -43,12 +44,15 @@ type TimeEntryActions = {
   pauseTimer: () => Promise<TimeEntry | null>
   resumeTimer: () => Promise<TimeEntry | null>
   stopTimer: () => Promise<TimeEntry | null>
+  emergencyStopTimer: () => Promise<void>
+  completePendingStop: () => Promise<boolean>
   endDay: () => Promise<TimeEntry[]>
   checkDayEndedStatus: () => Promise<{ dayEnded: boolean; endedAt: string | null }>
   logManualEntry: (input: ManualEntryInput) => Promise<TimeEntry | null>
   updateEntry: (id: string, updates: UpdateTimeEntryInput) => Promise<TimeEntry | null>
   deleteEntry: (id: string) => Promise<boolean>
   setActiveTimer: (timer: TimeEntry | null) => void
+  setActiveTimerIfNotPending: (timer: TimeEntry | null) => void
   updateTimerDuration: () => void
 }
 
@@ -205,12 +209,52 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       const timer = response.data.data
       set({ activeTimer: null })
 
-      // Refresh entries after stopping timer
       get().fetchEntries()
 
       return timer
     } catch (err) {
       return null
+    }
+  },
+
+  emergencyStopTimer: async () => {
+    const activeTimer = get().activeTimer
+    if (!activeTimer) return
+
+    console.warn('[TimeEntryStore] Emergency stopping timer due to server unavailability')
+
+    setPendingTimerStop(activeTimer.id)
+
+    set({ activeTimer: null })
+
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      
+      await axiosInstance.post(STOP_TIMER(), {}, { signal: controller.signal })
+      
+      clearTimeout(timeoutId)
+      
+      clearPendingTimerStop()
+      get().fetchEntries()
+    } catch {
+      console.warn('[TimeEntryStore] Could not notify server of emergency stop - will retry when server is available')
+    }
+  },
+
+  completePendingStop: async () => {
+    try {
+      await axiosInstance.post<{ status: string; data: TimeEntry }>(STOP_TIMER())
+      
+      clearPendingTimerStop()
+      set({ activeTimer: null })
+      get().fetchEntries()
+      
+      console.log('[TimeEntryStore] Successfully completed pending timer stop on server')
+      return true
+    } catch {
+      console.warn('[TimeEntryStore] Failed to complete pending timer stop')
+      return false
     }
   },
 
@@ -220,7 +264,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       const entries = response.data.data || []
       set({ activeTimer: null })
 
-      // Refresh entries
       get().fetchEntries()
 
       return entries
@@ -248,9 +291,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       )
       const entry = response.data.data
 
-      // Don't add here - let fetchEntries() refresh the list to avoid race condition with socket
-      // The caller (handleAddManualEntry) will call fetchEntries() after this
-
       return entry
     } catch (err) {
       return null
@@ -265,12 +305,10 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       )
       const updatedEntry = response.data.data
 
-      // Update in entries list
       set({
         entries: get().entries.map((e) => (e.id === id ? updatedEntry : e)),
       })
 
-      // Update active timer if it's the one being updated
       if (get().activeTimer?.id === id) {
         set({ activeTimer: updatedEntry })
       }
@@ -285,7 +323,6 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
     try {
       await axiosInstance.delete(DELETE_TIME_ENTRY(id))
 
-      // Remove from entries list
       set({
         entries: get().entries.filter((e) => e.id !== id),
       })
@@ -300,13 +337,17 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
     set({ activeTimer: timer })
   },
 
+  setActiveTimerIfNotPending: (timer: TimeEntry | null) => {
+    if (timer && hasPendingStop(timer.id)) {
+      console.log('[TimeEntryStore] Ignoring timer update - pending stop for this timer')
+      return
+    }
+    set({ activeTimer: timer })
+  },
+
   updateTimerDuration: () => {
-    // This will be handled by the useTimerDuration hook
-    // But we can update the activeTimer reference if needed
     const timer = get().activeTimer
     if (timer && timer.isActive) {
-      // Timer duration is computed on the fly, no need to update here
     }
   },
 }))
-

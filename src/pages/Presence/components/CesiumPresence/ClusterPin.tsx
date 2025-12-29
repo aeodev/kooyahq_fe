@@ -28,7 +28,6 @@ function ClusterPinComponent({ idx, lon, lat, count, hasActiveUsers }: ClusterPi
         width={40}
         height={40}
         pixelOffset={pixelOffset}
-        disableDepthTestDistance={Number.POSITIVE_INFINITY}
       />
     </Entity>
   )

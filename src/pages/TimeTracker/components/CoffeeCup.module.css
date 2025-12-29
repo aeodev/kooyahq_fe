@@ -1,0 +1,434 @@
+/* CoffeeCup Component Animations */
+
+/* Steam Animations - Wispy curling steam */
+@keyframes steamWisp1 {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  40% {
+    transform: translateY(-15px) translateX(4px) rotate(10deg) scale(1.1);
+    opacity: 0.4;
+  }
+  70% {
+    transform: translateY(-25px) translateX(-2px) rotate(-5deg) scale(0.9);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(-35px) translateX(1px) rotate(8deg) scale(0.6);
+    opacity: 0;
+  }
+}
+
+@keyframes steamWisp2 {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg) scale(1);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(-18px) translateX(-5px) rotate(-12deg) scale(1.15);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateY(-38px) translateX(3px) rotate(5deg) scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes steamWisp3 {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg) scale(1);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.55;
+  }
+  45% {
+    transform: translateY(-14px) translateX(3px) rotate(8deg) scale(1.2);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-32px) translateX(-4px) rotate(-10deg) scale(0.55);
+    opacity: 0;
+  }
+}
+
+/* Wave animation for liquid surface */
+@keyframes waveOscillate {
+  0%, 100% {
+    d: path("M23,0 Q35,-3 50,0 Q65,3 77,0");
+  }
+  25% {
+    d: path("M23,0 Q35,2 50,-1 Q65,-2 77,0");
+  }
+  50% {
+    d: path("M23,0 Q35,3 50,0 Q65,-3 77,0");
+  }
+  75% {
+    d: path("M23,0 Q35,-2 50,1 Q65,2 77,0");
+  }
+}
+
+/* Alternate wave for more organic motion */
+@keyframes waveOscillate2 {
+  0%, 100% {
+    d: path("M23,0 Q37,2 50,-1 Q63,-2 77,0");
+  }
+  33% {
+    d: path("M23,0 Q37,-2 50,2 Q63,1 77,0");
+  }
+  66% {
+    d: path("M23,0 Q37,1 50,-2 Q63,2 77,0");
+  }
+}
+
+/* Coffee surface wobble when overflowing */
+@keyframes coffeeWobble {
+  0%, 100% {
+    transform: scaleX(1) translateY(0);
+  }
+  25% {
+    transform: scaleX(1.015) translateY(-0.5px);
+  }
+  50% {
+    transform: scaleX(0.985) translateY(0.3px);
+  }
+  75% {
+    transform: scaleX(1.01) translateY(-0.3px);
+  }
+}
+
+/* Cup shake during overflow */
+@keyframes cupShake {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(-0.6deg);
+  }
+  35% {
+    transform: rotate(0.5deg);
+  }
+  55% {
+    transform: rotate(-0.4deg);
+  }
+  75% {
+    transform: rotate(0.3deg);
+  }
+  90% {
+    transform: rotate(-0.2deg);
+  }
+}
+
+/* Micro-bubble rising animations */
+@keyframes bubbleRise1 {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-6px) translateX(1px) scale(0.9);
+    opacity: 0.5;
+  }
+  90% {
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(-12px) translateX(-1px) scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes bubbleRise2 {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.6;
+  }
+  60% {
+    transform: translateY(-8px) translateX(-2px) scale(0.85);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(-14px) translateX(1px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+@keyframes bubbleRise3 {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.65;
+  }
+  55% {
+    transform: translateY(-5px) translateX(2px) scale(0.95);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateY(-10px) translateX(-1px) scale(0.35);
+    opacity: 0;
+  }
+}
+
+/* Spill drip animations */
+@keyframes dripFall {
+  0% {
+    transform: translateY(0) scaleY(1);
+    opacity: 0.9;
+  }
+  30% {
+    transform: translateY(15px) scaleY(1.3);
+    opacity: 0.85;
+  }
+  60% {
+    transform: translateY(35px) scaleY(1.1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(55px) scaleY(0.6);
+    opacity: 0;
+  }
+}
+
+@keyframes dripFallSlow {
+  0% {
+    transform: translateY(0) scaleY(1);
+    opacity: 0.85;
+  }
+  40% {
+    transform: translateY(20px) scaleY(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(50px) scaleY(0.5);
+    opacity: 0;
+  }
+}
+
+/* Trail drip down cup side */
+@keyframes trailDrip {
+  0% {
+    stroke-dashoffset: 40;
+    opacity: 0.8;
+  }
+  100% {
+    stroke-dashoffset: -40;
+    opacity: 0.3;
+  }
+}
+
+/* Puddle animations */
+@keyframes puddleSpread {
+  0%, 100% {
+    transform: scaleX(1) scaleY(1);
+  }
+  30% {
+    transform: scaleX(1.08) scaleY(0.95);
+  }
+  60% {
+    transform: scaleX(1.05) scaleY(1.02);
+  }
+}
+
+@keyframes puddleRipple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+/* Latte art fade in */
+@keyframes latteArtAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+}
+
+/* Surface ripple effect */
+@keyframes surfaceRipple {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Hover lift effect */
+@keyframes hoverLift {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-2px);
+  }
+}
+
+/* CSS Classes for animations */
+.steamWisp1,
+.steamWisp2,
+.steamWisp3,
+.steamWisp4,
+.steamWisp5 {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.steamWisp1 {
+  animation: steamWisp1 2.8s ease-out infinite;
+}
+
+.steamWisp2 {
+  animation: steamWisp2 3.2s ease-out infinite 0.4s;
+}
+
+.steamWisp3 {
+  animation: steamWisp3 2.6s ease-out infinite 0.8s;
+}
+
+.steamWisp4 {
+  animation: steamWisp1 3s ease-out infinite 1.2s;
+}
+
+.steamWisp5 {
+  animation: steamWisp2 2.9s ease-out infinite 1.6s;
+}
+
+.coffeeWobble {
+  animation: coffeeWobble 0.35s ease-in-out infinite;
+}
+
+.cupShake {
+  animation: cupShake 0.25s ease-in-out infinite;
+}
+
+.bubble1 {
+  animation: bubbleRise1 2.2s ease-out infinite;
+}
+
+.bubble2 {
+  animation: bubbleRise2 2.6s ease-out infinite 0.5s;
+}
+
+.bubble3 {
+  animation: bubbleRise3 2s ease-out infinite 1s;
+}
+
+.bubble4 {
+  animation: bubbleRise1 2.4s ease-out infinite 1.5s;
+}
+
+.bubble5 {
+  animation: bubbleRise2 2.1s ease-out infinite 0.8s;
+}
+
+.drip1 {
+  animation: dripFall 1s ease-in infinite;
+}
+
+.drip2 {
+  animation: dripFallSlow 1.3s ease-in infinite 0.3s;
+}
+
+.drip3 {
+  animation: dripFall 1.1s ease-in infinite 0.6s;
+}
+
+.trail {
+  stroke-dasharray: 20;
+  animation: trailDrip 1.5s linear infinite;
+}
+
+.puddle {
+  animation: puddleSpread 2.5s ease-in-out infinite;
+}
+
+.puddleRipple {
+  animation: puddleRipple 2s ease-out infinite;
+}
+
+.latteArt {
+  animation: latteArtAppear 1s ease-out forwards;
+}
+
+.ripple {
+  animation: surfaceRipple 3s ease-out infinite;
+}
+
+.wave {
+  animation: waveOscillate 4s ease-in-out infinite;
+}
+
+.wave2 {
+  animation: waveOscillate2 5s ease-in-out infinite;
+}
+
+/* Container styles */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cupWrapper {
+  position: relative;
+  width: 100px;
+  height: 130px;
+  transition: transform 0.2s ease-out;
+}
+
+.cupWrapper:hover {
+  transform: translateY(-2px);
+}
+
+.svg {
+  overflow: visible;
+}
+
+.message {
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 0.25rem;
+  transition: color 0.3s ease;
+}
+
+.messageNormal {
+  color: hsl(var(--muted-foreground));
+}
+
+.messageOverflow {
+  color: hsl(var(--primary));
+}
+

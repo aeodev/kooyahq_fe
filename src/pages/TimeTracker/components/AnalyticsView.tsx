@@ -20,47 +20,9 @@ import {
   Award,
   Timer,
   ChevronRight,
-  ChevronDown,
   Moon
 } from 'lucide-react'
-
-// Collapsible Section Component
-function CollapsibleSection({
-  title,
-  icon: Icon,
-  badge,
-  defaultOpen = true,
-  children
-}: {
-  title: string
-  icon: React.ElementType
-  badge?: React.ReactNode
-  defaultOpen?: boolean
-  children: React.ReactNode
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
-
-  return (
-    <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 hover:bg-accent/30 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-primary" />
-          <span className="text-base font-semibold text-foreground">{title}</span>
-          {badge}
-        </div>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-      {isOpen && (
-        <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
-          {children}
-        </div>
-      )}
-    </Card>
-  )
-}
+import { CollapsibleSection } from './CollapsibleSection'
 
 // Sparkline Chart
 function SparklineChart({ data, height = 40 }: { data: number[]; height?: number }) {

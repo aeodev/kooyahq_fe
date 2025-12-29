@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardContent } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Plus, Square, Pause, Play, FolderPlus } from 'lucide-react'
+import { Plus, Square, Pause, Play, FolderPlus, Coffee, Clock, LogOut } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,28 +69,21 @@ export function ActiveTimerCard({
   }
 
   return (
-    <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-teal-500/10 h-full">
-      {/* Glow effect */}
-      <div className={`absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-transparent blur-3xl transition-opacity duration-1000 ${isPaused ? 'opacity-30' : 'opacity-60'}`} />
-      
-      <CardHeader className="relative pb-4">
+    <Card className="border-primary/50 bg-primary/5 backdrop-blur-sm h-full">
+      <CardContent className="p-6 space-y-6">
+        {/* Header: Status + Duration + Stop */}
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-4">
-            {/* Status Badge */}
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className={`h-3 w-3 rounded-full ${isPaused ? 'bg-amber-500' : 'bg-emerald-500'} ${isPaused ? '' : 'animate-pulse shadow-lg shadow-emerald-500/50'}`} />
-              <span className="text-sm font-medium text-muted-foreground">
-                {isPaused ? 'Paused' : 'Recording'}
+              <div className="relative flex items-center justify-center">
+                <span className={`absolute h-3 w-3 rounded-full ${isPaused ? 'bg-yellow-500/40' : 'bg-red-500/40'} ${isPaused ? '' : 'animate-ping'}`} />
+                <span className={`relative h-2.5 w-2.5 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-red-500'}`} />
+              </div>
+              <span className={`text-sm font-medium tracking-wide ${isPaused ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+                {isPaused ? 'PAUSED' : 'TRACKING'}
               </span>
             </div>
-            
-            {/* Hero Timer Display */}
-            <div className="space-y-1">
-              <p className={`text-5xl font-bold tracking-tight tabular-nums transition-colors duration-300 ${isPaused ? 'text-muted-foreground' : 'text-foreground'}`}>
-                {duration}
-              </p>
-              <p className="text-xs text-muted-foreground">elapsed time</p>
-            </div>
+            <p className="text-4xl font-bold text-primary tracking-tight tabular-nums">{duration}</p>
           </div>
           
           {/* Stop Button */}
@@ -99,70 +92,95 @@ export function ActiveTimerCard({
             onClick={onStop} 
             size="sm"
             disabled={controlsDisabled}
-            className="h-10 px-4 text-sm font-medium shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 gap-2"
+            className="h-10 px-5 text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 gap-2"
           >
-            <Square className="h-4 w-4" />
-            Stop
+            <Square className="h-3.5 w-3.5 fill-current" />
+            Stop Timer
           </Button>
         </div>
-      </CardHeader>
-      
-      <CardContent className="relative space-y-6">
-        {/* Project Info */}
-        <div className="space-y-2">
+
+        {/* HERO: Current Task - The star of the show */}
+        <div className="relative p-4 -mx-1 rounded-xl bg-primary/10 border border-primary/20">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                <Coffee className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-primary font-semibold mb-1">
+                Current Focus
+              </p>
+              <p className="text-lg font-medium text-foreground leading-snug line-clamp-2">
+                {latestTask || <span className="text-muted-foreground italic">No task description</span>}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Project Selector - Cleaner pills with obvious active state */}
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {hasMultipleProjects ? 'Projects' : 'Project'} {hasMultipleProjects && `(${selectedProjects.length})`}
+            <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">
+              {hasMultipleProjects ? 'Active Project' : 'Project'}
             </p>
             {hasMultipleProjects && (
-              <span className="text-xs text-muted-foreground">
-                Click to switch
+              <span className="text-[10px] text-muted-foreground font-medium">
+                {selectedProjects.indexOf(activeProject) + 1} of {selectedProjects.length}
               </span>
             )}
           </div>
           
-          {/* All Projects - Visible & Clickable */}
           <div className="flex items-center gap-2 flex-wrap">
             {selectedProjects.map((project) => {
               const isActive = project === activeProject
               return (
                 <button
                   key={project}
-                  onClick={() => !isActive && !controlsDisabled && onSwitchProject(project)}
+                  onClick={() => {
+                    if (!isActive && !controlsDisabled) {
+                      onSwitchProject(project)
+                    }
+                  }}
                   disabled={controlsDisabled}
                   className={`
-                    text-sm font-medium px-3 py-1.5 rounded-lg transition-all duration-200
+                    relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
                     ${isActive 
-                      ? 'bg-emerald-500/20 text-emerald-600 ring-2 ring-emerald-500/30 shadow-sm' 
-                      : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground cursor-pointer'
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-2 ring-primary/50' 
+                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border'
                     }
-                    ${controlsDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+                    ${!isActive && !controlsDisabled ? 'cursor-pointer' : ''}
+                    ${controlsDisabled ? 'opacity-50' : ''}
                   `}
                 >
-                  {isActive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />}
+                  {isActive && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary-foreground border-2 border-primary" />
+                    </span>
+                  )}
                   {project}
                 </button>
               )
             })}
             
-            {/* Add Project Dropdown */}
+            {/* Add Projects Dropdown */}
             {availableToAdd.length > 0 && onAddProject && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="h-8 px-2 text-muted-foreground hover:text-foreground hover:bg-foreground/10 gap-1" 
+                    className="h-9 w-9 p-0 rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-border hover:bg-accent" 
                     disabled={controlsDisabled}
                   >
                     <Plus className="h-4 w-4" />
-                    <span className="text-xs">Add</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 max-h-64 overflow-y-auto">
-                  <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <FolderPlus className="h-3 w-3" />
-                    Add Project
+                    Add to session
                   </DropdownMenuLabel>
                   {availableToAdd.map((project) => (
                     <DropdownMenuItem
@@ -170,7 +188,6 @@ export function ActiveTimerCard({
                       onClick={() => onAddProject(project)}
                       className="cursor-pointer text-sm"
                     >
-                      <Plus className="h-3 w-3 mr-2 text-muted-foreground" />
                       {project}
                     </DropdownMenuItem>
                   ))}
@@ -180,19 +197,13 @@ export function ActiveTimerCard({
           </div>
         </div>
 
-        {/* Current Task */}
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Current Task</p>
-          <p className="text-base font-medium text-foreground leading-relaxed">{latestTask || 'No task'}</p>
-        </div>
-
         {/* Quick Add Task */}
         {onQuickAddTask && (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">Add Task</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">Quick Add Task</p>
             <div className="flex gap-2">
               <Input
-                placeholder="What are you working on?"
+                placeholder="What are you working on now?"
                 value={quickTask}
                 onChange={(e) => setQuickTask(e.target.value)}
                 onKeyDown={(e) => {
@@ -201,13 +212,13 @@ export function ActiveTimerCard({
                   }
                 }}
                 disabled={controlsDisabled}
-                className="flex-1 h-10 text-sm bg-background/50 border-border/50 focus:bg-background transition-colors"
+                className="flex-1 h-10 text-sm"
               />
               <Button
                 onClick={handleQuickAdd}
                 disabled={!quickTask.trim() || controlsDisabled}
                 size="sm"
-                className="h-10 px-4 hover:scale-105 transition-transform"
+                className="h-10 px-4"
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -215,17 +226,18 @@ export function ActiveTimerCard({
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex gap-2 pt-2">
+        {/* Action Buttons - Visually differentiated */}
+        <div className="flex gap-3 pt-2">
+          {/* Pause/Resume - Primary action style */}
           {isPaused ? (
             onResume && (
               <Button
                 variant="outline"
                 onClick={onResume}
                 disabled={controlsDisabled}
-                className="flex-1 h-10 text-sm font-medium gap-2 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20 hover:scale-[1.02] transition-all"
+                className="flex-1 h-11 text-sm font-semibold gap-2 bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:border-primary/50"
               >
-                <Play className="h-4 w-4" />
+                <Play className="h-4 w-4 fill-current" />
                 Resume
               </Button>
             )
@@ -235,30 +247,36 @@ export function ActiveTimerCard({
                 variant="outline"
                 onClick={onPause}
                 disabled={controlsDisabled}
-                className="flex-1 h-10 text-sm font-medium gap-2 bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20 hover:scale-[1.02] transition-all"
+                className="flex-1 h-11 text-sm font-semibold gap-2"
               >
                 <Pause className="h-4 w-4" />
                 Pause
               </Button>
             )
           )}
+          
+          {/* Add Manual - Secondary/neutral style */}
           {onAdd && (
             <Button
               variant="outline"
               onClick={onAdd}
               disabled={controlsDisabled || disableAdd}
-              className="flex-1 h-10 text-sm font-medium hover:scale-[1.02] transition-all"
+              className="flex-1 h-11 text-sm font-semibold gap-2"
             >
+              <Clock className="h-4 w-4" />
               Add Manual
             </Button>
           )}
+          
+          {/* End Day - Destructive/final action with distinct styling */}
           {showEndDay && onEndDay && (
             <Button
               variant="outline"
               onClick={onEndDay}
               disabled={controlsDisabled || disableEndDay}
-              className="flex-1 h-10 text-sm font-medium hover:scale-[1.02] transition-all"
+              className="h-11 px-4 text-sm font-semibold gap-2 bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20 hover:border-destructive/50"
             >
+              <LogOut className="h-4 w-4" />
               End Day
             </Button>
           )}

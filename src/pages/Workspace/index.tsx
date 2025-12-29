@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Star, MoreHorizontal, ChevronLeft, ChevronRight, LayoutGrid, Zap, Pencil, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -14,8 +14,9 @@ import {
 import { CreateBoardModal } from './components/CreateBoardModal'
 import { EditBoardModal } from './components/EditBoardModal'
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal'
-import { useBoards, useToggleBoardFavorite } from '@/hooks/board.hooks'
-import { useUsers } from '@/hooks/user.hooks'
+import { useToggleBoardFavorite } from '@/hooks/board.hooks'
+import { useBoardsQuery, useBoardsQueryActions } from '@/hooks/queries/board.queries'
+import { useUsersQuery } from '@/hooks/queries/user.queries'
 import type { Board as ApiBoard } from '@/types/board'
 import type { User } from '@/types/user'
 import { useSocketStore } from '@/stores/socket.store'
@@ -109,25 +110,18 @@ export function Workspace() {
   const can = useAuthStore((state) => state.can)
   const hasBoardFullAccess = can(PERMISSIONS.BOARD_FULL_ACCESS)
   const canCreateBoard = hasBoardFullAccess || can(PERMISSIONS.BOARD_CREATE)
-  // Fetch boards accessible to user (member or creator)
-  const { 
-    data: boards, 
-    loading: boardsLoading, 
-    fetchBoards,
-    updateBoardFavorite,
-    updateBoard,
-    addBoard,
-    removeBoard,
-  } = useBoards()
+  
+  // Fetch boards using TanStack Query (cached across navigation)
+  const { data: boards = [], isLoading } = useBoardsQuery()
+  const { updateBoardInCache, addBoardToCache, removeBoardFromCache } = useBoardsQueryActions()
+  
+  // Only show loading skeleton if we have NO data (first load)
+  // If we have cached data, show it immediately even if refetching
+  const showLoadingSkeleton = isLoading && boards.length === 0
   const { toggleFavorite: toggleFavoriteApi } = useToggleBoardFavorite()
   
-  // Fetch users for lead display
-  const { users: allUsers } = useUsers()
-
-  // Fetch boards on mount
-  useEffect(() => {
-    fetchBoards()
-  }, [fetchBoards])
+  // Fetch users for lead display (cached)
+  const { data: allUsers = [] } = useUsersQuery()
 
   const getBoardRole = useCallback(
     (boardId: string): BoardRole => {
@@ -168,13 +162,22 @@ export function Workspace() {
   // Socket connection for real-time updates
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
+  const workspaceJoinedRef = useRef(false)
 
   // Join global board room for real-time events
   useEffect(() => {
-    if (!socket || !connected) return
+    if (!socket || !connected) {
+      workspaceJoinedRef.current = false
+      return
+    }
+    if (workspaceJoinedRef.current) return // already joined
+
     socket.emit('workspace:join', GLOBAL_WORKSPACE_ID)
+    workspaceJoinedRef.current = true
+
     return () => {
       socket.emit('workspace:leave', GLOBAL_WORKSPACE_ID)
+      workspaceJoinedRef.current = false
     }
   }, [socket, connected])
 
@@ -183,20 +186,20 @@ export function Workspace() {
     if (!socket || !connected) return
 
     const handleBoardCreated = (data: { board: ApiBoard; userId: string; timestamp: string }) => {
-      addBoard(data.board)
+      addBoardToCache(data.board)
     }
 
     const handleBoardUpdated = (data: { board: ApiBoard; userId: string; timestamp: string }) => {
-      updateBoard(data.board)
+      updateBoardInCache(data.board.id, () => data.board)
     }
 
     const handleBoardDeleted = (data: { boardId: string; userId: string; timestamp: string }) => {
-      removeBoard(data.boardId)
+      removeBoardFromCache(data.boardId)
     }
 
     const handleBoardFavoriteToggled = (data: { boardId: string; userId: string; isFavorite: boolean; timestamp: string }) => {
-      // Update the board's favorite status locally
-      updateBoardFavorite(data.boardId, data.isFavorite)
+      // Update the board's favorite status in cache
+      updateBoardInCache(data.boardId, (board) => ({ ...board, isFavorite: data.isFavorite }))
     }
 
     socket.on(BoardSocketEvents.CREATED, handleBoardCreated)
@@ -210,7 +213,7 @@ export function Workspace() {
       socket.off(BoardSocketEvents.DELETED, handleBoardDeleted)
       socket.off(BoardSocketEvents.FAVORITE_TOGGLED, handleBoardFavoriteToggled)
     }
-  }, [socket, connected, addBoard, updateBoard, removeBoard, updateBoardFavorite])
+  }, [socket, connected, addBoardToCache, updateBoardInCache, removeBoardFromCache])
 
   // Convert backend boards to display format
   const displayBoards = useMemo(() => {
@@ -287,14 +290,14 @@ export function Workspace() {
     const currentFavoriteStatus = board.isFavorite ?? false
     const newFavoriteStatus = !currentFavoriteStatus
 
-    // Optimistically update local state
-    updateBoardFavorite(id, newFavoriteStatus)
+    // Optimistically update cache
+    updateBoardInCache(id, (b) => ({ ...b, isFavorite: newFavoriteStatus }))
 
     // Update backend
     const result = await toggleFavoriteApi(id)
     if (!result) {
       // On error, revert to previous state
-      updateBoardFavorite(id, currentFavoriteStatus)
+      updateBoardInCache(id, (b) => ({ ...b, isFavorite: currentFavoriteStatus }))
     }
   }
 
@@ -312,9 +315,9 @@ export function Workspace() {
   }
 
   const handleSaveEdit = (updatedBoard: ApiBoard | null) => {
-    // Update local state with the updated board
+    // Update cache with the updated board
     if (updatedBoard) {
-      updateBoard(updatedBoard)
+      updateBoardInCache(updatedBoard.id, () => updatedBoard)
     }
     setEditModalOpen(false)
     setSelectedBoard(null)
@@ -328,15 +331,13 @@ export function Workspace() {
   }
 
   const handleConfirmDelete = (boardId: string) => {
-    // Remove from local state
-    removeBoard(boardId)
+    // Remove from cache
+    removeBoardFromCache(boardId)
     setDeleteModalOpen(false)
     setSelectedBoard(null)
   }
 
-  const loading = boardsLoading
-
-  if (loading) {
+  if (showLoadingSkeleton) {
     return (
       <section className="space-y-4 sm:space-y-6">
         {/* Header skeleton */}

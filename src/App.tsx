@@ -1,8 +1,20 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { DashboardLayout } from '@/components/layout/MainLayout'
 import { ThemeProvider } from '@/composables/useTheme'
-import { Home } from '@/pages/Home'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 min before refetch
+      gcTime: Infinity, // Never garbage collect cache
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      retry: 1,
+    },
+  },
+})
+import { Home } from '@/pages/Home/index.tsx'
 import { Auth } from '@/pages/Auth'
 import { TimeTracker } from '@/pages/TimeTracker'
 import { Workspace } from '@/pages/Workspace'
@@ -15,10 +27,13 @@ import { KooyaFeed } from '@/pages/KooyaFeed'
 import { Games } from '@/pages/Games'
 import { PlayGame } from '@/pages/Games/PlayGame'
 import { UserManagement } from '@/pages/UserManagement'
+import { ServerManagement } from '@/pages/ServerManagement'
+import { SystemManagement } from '@/pages/SystemManagement'
 import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
 import { PreJoin } from '@/pages/Meet/PreJoin'
+import { MeetFiles } from '@/pages/Meet/Files'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
 import { UserManagementRoute } from '@/routes/UserManagementRoute'
@@ -29,8 +44,9 @@ import { PermissionGate } from '@/components/auth/PermissionGate'
 
 function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <BrowserRouter>
         <Routes>
           {/* Auth routes */}
           <Route path="/login" element={<PublicRoute><AuthLayout><Auth /></AuthLayout></PublicRoute>} />
@@ -268,7 +284,79 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/server-management"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.SERVER_MANAGEMENT_VIEW,
+                    PERMISSIONS.SERVER_MANAGEMENT_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <ServerManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/server-management/projects/:projectId"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.SERVER_MANAGEMENT_VIEW,
+                    PERMISSIONS.SERVER_MANAGEMENT_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <ServerManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/server-management/projects/:projectId/servers/:serverId"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.SERVER_MANAGEMENT_VIEW,
+                    PERMISSIONS.SERVER_MANAGEMENT_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE,
+                    PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <ServerManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
           <Route path="/admin" element={<Navigate to="/user-management" replace />} />
+          <Route
+            path="/system-management"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.SYSTEM_FULL_ACCESS]}>
+                  <DashboardLayout>
+                    <SystemManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/meet"
             element={
@@ -321,10 +409,29 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/meet/files"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.MEET_TOKEN,
+                    PERMISSIONS.MEET_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <MeetFiles />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
         </Routes>
-      </BrowserRouter>
-      <Toaster />
-    </ThemeProvider>
+        </BrowserRouter>
+        <Toaster />
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 export default App

@@ -5,6 +5,8 @@ import { useAuthStore } from './auth.store'
 import { registerTimeEntryHandlers } from '@/hooks/socket/time-entry.socket'
 import { registerNotificationHandlers } from '@/hooks/socket/notification.socket'
 import { registerTicketHandlers } from '@/hooks/socket/ticket.socket'
+import { registerAIAssistantHandlers } from '@/hooks/socket/ai-assistant.socket'
+import { registerThemeSettingsHandlers } from '@/hooks/socket/theme-settings.socket'
 
 type SocketState = {
   socket: Socket | null
@@ -102,6 +104,8 @@ export const useSocketStore = create<SocketStore>((set) => {
     registerTimeEntryHandlers(socketInstance, eventHandlers)
     registerNotificationHandlers(socketInstance, eventHandlers)
     registerTicketHandlers(socketInstance, eventHandlers, {})
+    registerAIAssistantHandlers(socketInstance, eventHandlers)
+    registerThemeSettingsHandlers(socketInstance, eventHandlers)
 
     set({ socket: socketInstance })
   }

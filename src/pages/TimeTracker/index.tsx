@@ -3,8 +3,8 @@ import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useProjectTaskStore } from '@/stores/project-task.store'
 import { useTimerDuration } from '@/hooks/time-entry.hooks'
-import { useUsers } from '@/hooks/user.hooks'
-import { useProjects } from '@/hooks/project.hooks'
+import { useUsersQuery } from '@/hooks/queries/user.queries'
+import { useProjectsQuery } from '@/hooks/queries/project.queries'
 import { ActiveTimerCard } from './components/ActiveTimerCard'
 import { StartTimerForm } from './components/StartTimerForm'
 import { TodayOverview } from './components/TodayOverview'
@@ -23,8 +23,6 @@ type TabType = 'you' | 'all' | 'analytics'
 
 export function TimeTracker() {
   const [activeTab, setActiveTab] = useState<TabType>('you')
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
-  const [activeProject, setActiveProject] = useState<string | null>(null)
   const [taskDescription, setTaskDescription] = useState('')
   const [showManualModal, setShowManualModal] = useState(false)
   const [showEndDayModal, setShowEndDayModal] = useState(false)
@@ -32,6 +30,8 @@ export function TimeTracker() {
   const [dayEndedToday, setDayEndedToday] = useState(false)
   const [pendingTimerStart, setPendingTimerStart] = useState<(() => void) | null>(null)
   const [pendingManualEntryData, setPendingManualEntryData] = useState<{ projects: string[]; task: string; hours: number; minutes: number } | null>(null)
+  const [isSwitchingProject, setIsSwitchingProject] = useState(false)
+  const [switchingToProject, setSwitchingToProject] = useState<string | null>(null)
   const can = useAuthStore((state) => state.can)
   const canReadEntries = can(PERMISSIONS.TIME_ENTRY_READ) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
   const canCreateEntries = can(PERMISSIONS.TIME_ENTRY_CREATE) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
@@ -57,23 +57,22 @@ export function TimeTracker() {
     resetProjectTask,
     clearAll,
     getProjectTask,
+    selectedProjects,
+    setSelectedProjects,
+    activeProject,
+    setActiveProject,
   } = useProjectTaskStore()
 
   const allEntries = useTimeEntryStore((state) => state.allTodayEntries)
   const fetchAllEntries = useTimeEntryStore((state) => state.fetchAllTodayEntries)
-  const { data: projectsData, fetchProjects } = useProjects()
+  
+  // Use TanStack Query for cached projects data
+  const { data: projectsData = [] } = useProjectsQuery(canReadProjects)
   
   // Convert projects to array of names for compatibility
   const projects = useMemo(() => {
-    return projectsData?.map((p) => p.name) || []
+    return projectsData.map((p) => p.name)
   }, [projectsData])
-
-  // Fetch projects on mount
-  useEffect(() => {
-    if (canReadProjects) {
-      fetchProjects()
-    }
-  }, [fetchProjects, canReadProjects])
   const myEntries = useTimeEntryStore((state) => state.entries)
   const fetchMyEntries = useTimeEntryStore((state) => state.fetchEntries)
   const activeTimer = useTimeEntryStore((state) => state.activeTimer)
@@ -89,21 +88,38 @@ export function TimeTracker() {
   const timerDuration = useTimerDuration(activeTimer)
   
   const [loggingManual, setLoggingManual] = useState(false)
-  const { users } = useUsers()
+  const { data: users = [] } = useUsersQuery()
 
   const user = useAuthStore((state) => state.user)
   const isLoading = useAuthStore((state) => state.isLoading)
   
-  // Initial fetch - only when user is authenticated and auth is ready
+  // Check if store already has data (persists across navigation)
+  const hasStoreData = myEntries.length > 0 || activeTimer !== null
+  
+  // Track if initial fetch has been done (for first load only)
+  const [initialFetchDone, setInitialFetchDone] = useState(hasStoreData)
+  
+  // Initial fetch - only when user is authenticated and we DON'T have store data
   useEffect(() => {
-    if (user && !isLoading && canReadEntries) {
-      fetchMyEntries()
-      fetchActiveTimer()
-      checkDayEndedStatus().then((status) => {
-        setDayEndedToday(status.dayEnded)
+    if (user && !isLoading && canReadEntries && !initialFetchDone && !hasStoreData) {
+      Promise.all([
+        fetchMyEntries(),
+        fetchActiveTimer(),
+        checkDayEndedStatus().then((status) => {
+          setDayEndedToday(status.dayEnded)
+        })
+      ]).finally(() => {
+        setInitialFetchDone(true)
       })
+    } else if (hasStoreData && !initialFetchDone) {
+      // If we already have store data, mark as done immediately
+      setInitialFetchDone(true)
     }
-  }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus, canReadEntries])
+  }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus, canReadEntries, initialFetchDone, hasStoreData])
+  
+  // Determine if we're in initial loading state
+  // Show loading if: auth is loading OR (we haven't completed initial fetch AND we have no data)
+  const isInitialLoading = isLoading || (user && canReadEntries && !initialFetchDone && !hasStoreData)
 
 
   // Fetch immediately when switching to "All" tab
@@ -118,12 +134,8 @@ export function TimeTracker() {
   const handleProjectSelection = (projects: string[]) => {
     if (!canControlTimer) return
     setSelectedProjects(projects)
-    if (projects.length > 0) {
-      setActiveProject(projects[0])
-    } else {
-      setActiveProject(null)
-    }
-    projectTasks.forEach((_, project) => {
+    // Clean up tasks for deselected projects
+    Object.keys(projectTasks).forEach((project) => {
       if (!projects.includes(project)) {
         resetProjectTask(project)
       }
@@ -184,25 +196,38 @@ export function TimeTracker() {
     if (newProject === activeProject) return
 
     const previousProject = activeProject
+    // Preserve overtime status when switching projects
+    const wasOvertime = activeTimer.isOvertime
 
-    // Stop current timer (saves time entry for current project)
-    await stopTimer()
+    // Show switching state
+    setIsSwitchingProject(true)
+    setSwitchingToProject(newProject)
 
-    // Switch to new project
-    setActiveProject(newProject)
+    try {
+      // Stop current timer (saves time entry for current project)
+      await stopTimer()
 
-    // Get the preset task for the new project (keep it if switching to a fresh project)
-    const presetTask = getProjectTask(newProject) || ''
+      // Switch to new project
+      setActiveProject(newProject)
 
-    // Start new timer with the preset task
-    await startTimer({
-      projects: [newProject],
-      task: presetTask,
-    })
-    
-    // Clear the task for the previous project since it was already logged
-    if (previousProject) {
-      resetProjectTask(previousProject)
+      // Get the preset task for the new project (keep it if switching to a fresh project)
+      const presetTask = getProjectTask(newProject) || ''
+
+      // Start new timer with the preset task, preserving overtime status
+      await startTimer({
+        projects: [newProject],
+        task: presetTask,
+        isOvertime: wasOvertime,
+      })
+      
+      // Clear the task for the previous project since it was already logged
+      if (previousProject) {
+        resetProjectTask(previousProject)
+      }
+    } finally {
+      // Hide switching state
+      setIsSwitchingProject(false)
+      setSwitchingToProject(null)
     }
   }
 
@@ -218,9 +243,7 @@ export function TimeTracker() {
   const handleStop = async () => {
     if (!canUpdateEntries) return
     await stopTimer()
-    setSelectedProjects([])
-    setActiveProject(null)
-    clearAll()
+    clearAll() // This clears selectedProjects, activeProject, and projectTasks
     setTaskDescription('')
   }
 
@@ -383,6 +406,68 @@ export function TimeTracker() {
     return transformEntriesToTeamMembers(allTodayEntries, users, user?.id, timerDuration, now)
   }, [allTodayEntries, now, timerDuration, user?.id, users])
 
+  // Loading skeleton component
+  const LoadingSkeleton = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Tab skeleton */}
+      <div className="flex gap-2">
+        <div className="h-10 w-16 rounded-xl bg-muted/50 animate-pulse" />
+        <div className="h-10 w-14 rounded-xl bg-muted/30 animate-pulse" />
+        <div className="h-10 w-20 rounded-xl bg-muted/30 animate-pulse" />
+      </div>
+      
+      {/* Two column layout skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left column - Timer form skeleton */}
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="h-5 w-32 rounded bg-muted/50 animate-pulse" />
+            <div className="h-10 w-full rounded-lg bg-muted/40 animate-pulse" />
+            <div className="h-5 w-24 rounded bg-muted/50 animate-pulse" />
+            <div className="h-10 w-full rounded-lg bg-muted/40 animate-pulse" />
+            <div className="flex gap-2 pt-2">
+              <div className="h-10 flex-1 rounded-lg bg-primary/20 animate-pulse" />
+              <div className="h-10 w-10 rounded-lg bg-muted/40 animate-pulse" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Right column - Today overview skeleton */}
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="h-5 w-28 rounded bg-muted/50 animate-pulse" />
+              <div className="h-8 w-16 rounded bg-muted/40 animate-pulse" />
+            </div>
+            <div className="space-y-3 pt-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-muted/40 animate-pulse" />
+                  <div className="h-4 flex-1 rounded bg-muted/30 animate-pulse" />
+                  <div className="h-4 w-12 rounded bg-muted/40 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Entry list skeleton */}
+      <Card>
+        <CardContent className="pt-6 space-y-3">
+          <div className="h-5 w-36 rounded bg-muted/50 animate-pulse mb-4" />
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-4 py-3 border-b border-border/30 last:border-0">
+              <div className="h-4 w-20 rounded bg-muted/40 animate-pulse" />
+              <div className="h-4 flex-1 rounded bg-muted/30 animate-pulse" />
+              <div className="h-4 w-16 rounded bg-muted/40 animate-pulse" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  )
+
   return (
     <section className="space-y-8">
       {/* Header */}
@@ -391,8 +476,13 @@ export function TimeTracker() {
         <p className="text-sm text-muted-foreground">Track your work time across multiple projects</p>
       </header>
 
-      {/* Tabs - Clean pill design */}
-      <div className="flex gap-2 p-1 bg-muted/50 rounded-lg w-fit">
+      {/* Show loading skeleton during initial load */}
+      {isInitialLoading ? (
+        <LoadingSkeleton />
+      ) : (
+        <>
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
         <button
           onClick={() => setActiveTab('you')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
@@ -431,32 +521,49 @@ export function TimeTracker() {
 
       {/* Tab Content */}
       {activeTab === 'you' && (
-        <div className="space-y-8">
-          {/* Active Timer - Two Column Layout */}
-          {activeTimer && (
+        <div className="space-y-6">
+          {/* Active Timer - Two Column Layout (also show during project switching) */}
+          {(activeTimer || isSwitchingProject) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Column: Active Timer Card */}
-              <ActiveTimerCard
-                duration={timerDuration}
-                projects={activeTimer.projects}
-                tasks={activeTimer.tasks || []}
-                isPaused={activeTimer.isPaused}
-                onStop={handleStop}
-                onPause={handlePause}
-                onResume={handleResume}
-                selectedProjects={selectedProjects}
-                activeProject={activeProject || activeTimer.projects[0]}
-                onSwitchProject={handleSwitchProject}
-                onQuickAddTask={handleQuickAddTask}
-                controlsDisabled={!canUpdateEntries}
-                onAdd={() => canCreateEntries && setShowManualModal(true)}
-                onEndDay={handleEndDay}
-                showEndDay={showEndDayButton}
-                disableAdd={!canCreateEntries}
-                disableEndDay={!canUpdateEntries}
-                allProjects={projects}
-                onAddProject={handleAddProjectToTimer}
-              />
+              {/* Left Column: Active Timer Card with optional switching overlay */}
+              <div className="relative">
+                <ActiveTimerCard
+                  duration={timerDuration}
+                  projects={activeTimer?.projects || selectedProjects}
+                  tasks={activeTimer?.tasks || []}
+                  isPaused={activeTimer?.isPaused || false}
+                  onStop={handleStop}
+                  onPause={handlePause}
+                  onResume={handleResume}
+                  selectedProjects={selectedProjects}
+                  activeProject={activeProject || activeTimer?.projects[0] || ''}
+                  onSwitchProject={handleSwitchProject}
+                  onQuickAddTask={handleQuickAddTask}
+                  controlsDisabled={!canUpdateEntries || isSwitchingProject}
+                  onAdd={() => canCreateEntries && setShowManualModal(true)}
+                  onEndDay={handleEndDay}
+                  showEndDay={showEndDayButton}
+                  disableAdd={!canCreateEntries}
+                  disableEndDay={!canUpdateEntries}
+                  allProjects={projects}
+                  onAddProject={handleAddProjectToTimer}
+                />
+                
+                {/* Switching Project Overlay */}
+                {isSwitchingProject && (
+                  <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center z-10">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="text-lg font-semibold text-foreground">Switching Project</span>
+                    </div>
+                    {switchingToProject && (
+                      <p className="text-sm text-muted-foreground">
+                        Starting timer on <span className="font-medium text-primary">{switchingToProject}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
               
               {/* Right Column: Today's Overview */}
               <TodayOverview
@@ -468,7 +575,7 @@ export function TimeTracker() {
           )}
 
           {/* Two-Column Layout: Start Timer + Today's Overview */}
-          {!activeTimer && (
+          {!activeTimer && !isSwitchingProject && (
             <>
               {canControlTimer ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -569,6 +676,8 @@ export function TimeTracker() {
 
       {activeTab === 'analytics' && canViewAnalytics && (
         <AnalyticsView />
+      )}
+        </>
       )}
     </section>
   )

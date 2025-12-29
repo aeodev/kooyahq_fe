@@ -5,6 +5,7 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Sidebar, useSidebarStore } from '@/components/layout/Sidebar'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { AISpotlight } from '@/components/ai-assistant/AISpotlight'
 import { cn } from '@/utils/cn'
 
 type DashboardLayoutProps = PropsWithChildren<{
@@ -17,6 +18,7 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
   return (
     <div className={cn('flex h-screen bg-background text-foreground', className)}>
       <Sidebar />
+      <AISpotlight />
 
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
         {/* Mobile Header */}

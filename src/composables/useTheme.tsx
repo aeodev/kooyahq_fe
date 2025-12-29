@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import { type ColorScheme, usePrefersColorScheme } from './usePrefersColorScheme'
+import { useThemeSettingsStore } from '@/stores/theme-settings.store'
 
 const THEME_STORAGE_KEY = 'kooyahq-theme'
 
@@ -77,6 +78,19 @@ function useThemeState() {
 
 export function ThemeProvider({ children }: PropsWithChildren) {
   const value = useThemeState()
+  const { fetchThemeSettings, applyTheme, settings } = useThemeSettingsStore()
+
+  // Fetch theme settings on mount
+  useEffect(() => {
+    fetchThemeSettings()
+  }, [fetchThemeSettings])
+
+  // Apply theme when settings are loaded or theme mode changes
+  useEffect(() => {
+    if (settings) {
+      applyTheme(value.theme)
+    }
+  }, [settings, value.theme, applyTheme])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

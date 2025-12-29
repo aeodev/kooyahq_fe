@@ -9,6 +9,11 @@ export const PERMISSIONS = {
 
   SYSTEM_LOGS: 'system:logs',
 
+  SERVER_MANAGEMENT_VIEW: 'serverManagement:view',
+  SERVER_MANAGEMENT_USE: 'serverManagement:use',
+  SERVER_MANAGEMENT_ELEVATED_USE: 'serverManagement:elevatedUse',
+  SERVER_MANAGEMENT_MANAGE: 'serverManagement:manage',
+
   BOARD_FULL_ACCESS: 'board:fullAccess',
   BOARD_VIEW: 'board:view',
   BOARD_CREATE: 'board:create',
@@ -31,6 +36,7 @@ export const PERMISSIONS = {
   GALLERY_BULK_CREATE: 'gallery:bulkCreate',
   GALLERY_UPDATE: 'gallery:update',
   GALLERY_DELETE: 'gallery:delete',
+  GALLERY_APPROVE: 'gallery:approve',
 
   MEDIA_FULL_ACCESS: 'media:fullAccess',
   MEDIA_UPLOAD: 'media:upload',
@@ -76,6 +82,12 @@ export const PERMISSIONS = {
 
   LINK_PREVIEW_FETCH: 'link-preview:fetch',
   CESIUM_TOKEN: 'cesium:token',
+
+  AI_ASSISTANT_ACCESS: 'ai-assistant:access',
+
+  SETTINGS_FULL_ACCESS: 'settings:fullAccess',
+  SETTINGS_VIEW: 'settings:view',
+  SETTINGS_MANAGE: 'settings:manage',
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -90,6 +102,12 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   { value: PERMISSIONS.PROJECTS_VIEW, label: 'View Projects' },
   { value: PERMISSIONS.PROJECTS_MANAGE, label: 'Manage Projects' },
   { value: PERMISSIONS.SYSTEM_LOGS, label: 'View System Logs', description: 'Access activity logs' },
+
+  // Server management
+  { value: PERMISSIONS.SERVER_MANAGEMENT_VIEW, label: 'Server Management View' },
+  { value: PERMISSIONS.SERVER_MANAGEMENT_USE, label: 'Server Management Use' },
+  { value: PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE, label: 'Server Management Elevated Use' },
+  { value: PERMISSIONS.SERVER_MANAGEMENT_MANAGE, label: 'Server Management Manage' },
 
   // Workspaces & Boards
   { value: PERMISSIONS.BOARD_FULL_ACCESS, label: 'Board Full Access' },
@@ -164,4 +182,12 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   // Misc
   { value: PERMISSIONS.LINK_PREVIEW_FETCH, label: 'Fetch Link Previews' },
   { value: PERMISSIONS.CESIUM_TOKEN, label: 'Cesium Token' },
+
+  // AI Assistant
+  { value: PERMISSIONS.AI_ASSISTANT_ACCESS, label: 'AI Assistant Access', description: 'Use the Kooya AI assistant' },
+
+  // Settings
+  { value: PERMISSIONS.SETTINGS_FULL_ACCESS, label: 'Settings Full Access', description: 'Full control over system settings' },
+  { value: PERMISSIONS.SETTINGS_VIEW, label: 'View Settings', description: 'View system settings' },
+  { value: PERMISSIONS.SETTINGS_MANAGE, label: 'Manage Settings', description: 'Change theme and other settings' },
 ]

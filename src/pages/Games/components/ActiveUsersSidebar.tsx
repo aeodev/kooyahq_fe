@@ -1,7 +1,8 @@
 import { Users, ChevronRight, Circle, Gamepad2, Hand, CheckCircle2, Clock, Moon, Disc } from 'lucide-react'
 import type { ActiveUser, GameTypeInfo } from '@/types/game'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +31,11 @@ export function ActiveUsersSidebar({
   const [inviting, setInviting] = useState<string | null>(null)
   const [poking, setPoking] = useState<string | null>(null)
 
-  const { user: currentUser, updateStatus } = useAuthStore()
+  const { user: currentUser, updateStatus, can } = useAuthStore()
+  const canInviteToGames = useMemo(
+    () => can(PERMISSIONS.GAME_INVITE) || can(PERMISSIONS.GAME_FULL_ACCESS),
+    [can]
+  )
 
   const displayActiveUsers = (() => {
     if (!currentUser || !currentUserId) return activeUsers
@@ -338,7 +343,7 @@ export function ActiveUsersSidebar({
                       </DropdownMenuItem>
                     )}
 
-                    {onInvite && gameTypes.length > 0 && (
+                    {canInviteToGames && onInvite && gameTypes.length > 0 && (
                       <>
                         {onPoke && <DropdownMenuSeparator className="bg-[hsl(var(--ios-divider))]" />}
                         <div className="px-2.5 py-1 mt-0.5">

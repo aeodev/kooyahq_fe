@@ -116,7 +116,6 @@ function UserPinComponent({ id, name, lon, lat, avatar, isCurrentUser, isActive 
         height={52}
         scale={isCurrentUser ? 1.1 : 1}
         pixelOffset={pixelOffset}
-        disableDepthTestDistance={Number.POSITIVE_INFINITY}
         horizontalOrigin={Cesium.HorizontalOrigin.CENTER}
         verticalOrigin={Cesium.VerticalOrigin.BOTTOM}
       />

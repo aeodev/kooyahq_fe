@@ -37,6 +37,7 @@ export const PROFILE = () => `/auth/me`
 
 // User routes
 export const GET_USERS = () => `/users`
+export const CREATE_USER = () => `/users`
 export const GET_USER_BY_ID = (userId: string) => `/users/${userId}`
 export const UPDATE_EMPLOYEE = (userId: string) => `/users/${userId}`
 export const DELETE_EMPLOYEE = (userId: string) => `/users/${userId}`
@@ -66,6 +67,7 @@ export const TOGGLE_BOARD_FAVORITE = (boardId: string) => `/boards/${boardId}/fa
 export const CREATE_TICKET = (boardId: string) => `/boards/${boardId}/tickets`
 export const GET_TICKETS_BY_BOARD = (boardId: string) => `/boards/${boardId}/tickets`
 export const GET_TICKET_BY_ID = (ticketId: string) => `/tickets/${ticketId}`
+export const GET_ASSIGNED_TICKETS = () => `/tickets/assigned`
 export const UPDATE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
 export const DELETE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
 export const BULK_UPDATE_RANKS = (boardId: string) => `/boards/${boardId}/tickets/bulk-rank`
@@ -103,12 +105,21 @@ export const UPDATE_TIME_ENTRY = (id: string) => `/time-entries/${id}`
 export const DELETE_TIME_ENTRY = (id: string) => `/time-entries/${id}`
 
 // Gallery routes (admin only)
-export const GET_GALLERY_ITEMS = () => `/gallery`
+export const GET_GALLERY_ITEMS = (params?: { page?: number; limit?: number; search?: string; sort?: string }) => {
+  const query = new URLSearchParams()
+  if (params?.page) query.append('page', params.page.toString())
+  if (params?.limit) query.append('limit', params.limit.toString())
+  if (params?.search) query.append('search', params.search)
+  if (params?.sort) query.append('sort', params.sort)
+  return `/gallery${query.toString() ? `?${query.toString()}` : ''}`
+}
 export const GET_GALLERY_ITEM = (id: string) => `/gallery/${id}`
 export const CREATE_GALLERY_ITEM = () => `/gallery`
 export const CREATE_GALLERY_MULTIPLE = () => `/gallery/multiple`
 export const UPDATE_GALLERY_ITEM = (id: string) => `/gallery/${id}`
 export const DELETE_GALLERY_ITEM = (id: string) => `/gallery/${id}`
+export const DELETE_GALLERY_ITEMS_BATCH = () => `/gallery/batch`
+export const APPROVE_GALLERY_ITEM = (id: string) => `/gallery/${id}/approve`
 
 // AI News routes
 export const GET_AI_NEWS = () => `/ai-news`
@@ -169,8 +180,43 @@ export const CREATE_PROJECT = () => `/projects`
 export const UPDATE_PROJECT = (id: string) => `/projects/${id}`
 export const DELETE_PROJECT = (id: string) => `/projects/${id}`
 
+// Server management routes
+export const GET_SERVER_MANAGEMENT_PROJECTS = () => `/server-management/projects`
+export const GET_SERVER_MANAGEMENT_PROJECT = (projectId: string) => `/server-management/projects/${projectId}`
+export const CREATE_SERVER_MANAGEMENT_PROJECT = () => `/server-management/projects`
+export const UPDATE_SERVER_MANAGEMENT_PROJECT = (projectId: string) => `/server-management/projects/${projectId}`
+export const DELETE_SERVER_MANAGEMENT_PROJECT = (projectId: string) => `/server-management/projects/${projectId}`
+export const CREATE_SERVER_MANAGEMENT_SERVER = (projectId: string) => `/server-management/projects/${projectId}/servers`
+export const UPDATE_SERVER_MANAGEMENT_SERVER = (projectId: string, serverId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}`
+export const DELETE_SERVER_MANAGEMENT_SERVER = (projectId: string, serverId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}`
+export const CREATE_SERVER_MANAGEMENT_ACTION = (projectId: string, serverId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}/actions`
+export const UPDATE_SERVER_MANAGEMENT_ACTION = (projectId: string, serverId: string, actionId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}/actions/${actionId}`
+export const DELETE_SERVER_MANAGEMENT_ACTION = (projectId: string, serverId: string, actionId: string) =>
+  `/server-management/projects/${projectId}/servers/${serverId}/actions/${actionId}`
+export const RUN_SERVER_MANAGEMENT_ACTION = (serverId: string, actionId: string) =>
+  `/server-management/servers/${serverId}/actions/${actionId}/run`
+export const GET_SERVER_STATUS = (serverId: string) => `/server-management/servers/${serverId}/status`
+
+export const SocketServerManagementEvents = {
+  RUN_STARTED: 'server-management:run-started',
+  RUN_OUTPUT: 'server-management:run-output',
+  RUN_COMPLETED: 'server-management:run-completed',
+  RUN_ERROR: 'server-management:run-error',
+} as const
+
+export type SocketServerManagementEventsEnum =
+  typeof SocketServerManagementEvents[keyof typeof SocketServerManagementEvents]
+
 // Meet routes
 export const GET_LIVEKIT_TOKEN = () => `/meet/token`
+export const UPLOAD_MEET_RECORDING = () => `/meet/recordings`
+export const GET_MEET_RECORDINGS = () => `/meet/recordings`
+export const GET_MEET_RECORDING = (id: string) => `/meet/recordings/${id}`
+export const GET_MEET_RECORDING_ANALYSIS = (id: string) => `/meet/recordings/${id}/analysis`
 
 // Media upload routes (for rich text editor)
 export const UPLOAD_MEDIA = () => `/media/upload`
@@ -178,3 +224,7 @@ export const UPLOAD_MEDIA = () => `/media/upload`
 export const GET_USER_MANAGEMENT_STATS = () => `/user-management/stats`
 export const GET_USER_MANAGEMENT_ACTIVITY = () => `/user-management/activity`
 export const EXPORT_USERS = (format: 'csv' | 'json') => `/user-management/export/users?format=${format}`
+
+// Settings routes
+export const GET_THEME_SETTINGS = () => `/settings/theme`
+export const UPDATE_THEME_SETTINGS = () => `/settings/theme`
