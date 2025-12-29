@@ -3,6 +3,7 @@ import { TicTacToe } from './components/TicTacToe'
 import { ReactionTimeTest } from './components/ReactionTimeTest'
 import { RockPaperScissors } from './components/RockPaperScissors'
 import { NumberGuessing } from './components/NumberGuessing'
+import { TetrisBattle } from './components/TetrisBattle'
 import type { GameType } from '@/types/game'
 
 export function PlayGame() {
@@ -29,7 +30,8 @@ export function PlayGame() {
       {gameType === 'reaction-test' && <ReactionTimeTest onClose={handleClose} opponentId={opponentId} />}
       {gameType === 'rock-paper-scissors' && <RockPaperScissors onClose={handleClose} opponentId={opponentId} />}
       {gameType === 'number-guessing' && <NumberGuessing onClose={handleClose} opponentId={opponentId} />}
-      {!['tic-tac-toe', 'reaction-test', 'rock-paper-scissors', 'number-guessing'].includes(gameType) && (
+      {gameType === 'tetris-battle' && <TetrisBattle onClose={handleClose} opponentId={opponentId} />}
+      {!['tic-tac-toe', 'reaction-test', 'rock-paper-scissors', 'number-guessing', 'tetris-battle'].includes(gameType) && (
         <div className="text-center">
           <p>Game not implemented yet</p>
           <button onClick={handleClose} className="mt-4 text-primary hover:underline">

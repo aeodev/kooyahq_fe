@@ -1,4 +1,4 @@
-export type GameType = 'tic-tac-toe' | 'rock-paper-scissors' | 'number-guessing' | 'reaction-test'
+export type GameType = 'tic-tac-toe' | 'rock-paper-scissors' | 'number-guessing' | 'reaction-test' | 'tetris-battle'
 
 export type GameStatus = 'waiting' | 'in-progress' | 'completed' | 'abandoned'
 
