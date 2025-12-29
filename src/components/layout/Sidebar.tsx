@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, FileVideo } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -96,6 +96,16 @@ const SOCIAL_ITEMS: NavItem[] = [
     name: 'Meet',
     to: '/meet',
     icon: Video,
+    requiredPermissions: [
+      PERMISSIONS.MEET_TOKEN,
+      PERMISSIONS.MEET_FULL_ACCESS,
+      PERMISSIONS.SYSTEM_FULL_ACCESS,
+    ],
+  },
+  {
+    name: 'Meet Files',
+    to: '/meet/files',
+    icon: FileVideo,
     requiredPermissions: [
       PERMISSIONS.MEET_TOKEN,
       PERMISSIONS.MEET_FULL_ACCESS,

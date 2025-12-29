@@ -33,6 +33,7 @@ import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
 import { PreJoin } from '@/pages/Meet/PreJoin'
+import { MeetFiles } from '@/pages/Meet/Files'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
 import { UserManagementRoute } from '@/routes/UserManagementRoute'
@@ -404,6 +405,24 @@ function App() {
                   ]}
                 >
                   <PreJoin />
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/meet/files"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.MEET_TOKEN,
+                    PERMISSIONS.MEET_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <MeetFiles />
+                  </DashboardLayout>
                 </PermissionGate>
               </PrivateRoute>
             }

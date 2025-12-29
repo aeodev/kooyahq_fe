@@ -1,8 +1,11 @@
 import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, Square, LogOut, FlipHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DeviceSettings } from './DeviceSettings'
+import { MorganAIButton } from './MorganAIButton'
+import { InviteMemberButton } from './InviteMemberButton'
 
 interface ControlsBarProps {
+  meetId: string | null
   isVideoEnabled: boolean
   isAudioEnabled: boolean
   isScreenSharing: boolean
@@ -25,6 +28,7 @@ interface ControlsBarProps {
 }
 
 export function ControlsBar({
+  meetId,
   isVideoEnabled,
   isAudioEnabled,
   isScreenSharing,
@@ -112,6 +116,10 @@ export function ControlsBar({
           />
         </div>
       )}
+
+      <MorganAIButton />
+
+      <InviteMemberButton meetId={meetId} className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md" />
 
       <Button
         variant="outline"

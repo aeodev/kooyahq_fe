@@ -213,6 +213,10 @@ export type SocketServerManagementEventsEnum =
 
 // Meet routes
 export const GET_LIVEKIT_TOKEN = () => `/meet/token`
+export const UPLOAD_MEET_RECORDING = () => `/meet/recordings`
+export const GET_MEET_RECORDINGS = () => `/meet/recordings`
+export const GET_MEET_RECORDING = (id: string) => `/meet/recordings/${id}`
+export const GET_MEET_RECORDING_ANALYSIS = (id: string) => `/meet/recordings/${id}/analysis`
 
 // Media upload routes (for rich text editor)
 export const UPLOAD_MEDIA = () => `/media/upload`

@@ -9,6 +9,7 @@ import { useRecording } from '@/composables/meet/useRecording'
 import { VideoTile } from '@/components/meet/VideoTile'
 import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
+import { InvitationModal } from '@/components/meet/InvitationModal'
 import { cn } from '@/utils/cn'
 
 export function Meet() {
@@ -61,7 +62,7 @@ export function Meet() {
     cleanup,
   } = useLiveKit(meetId || null, initialVideoEnabled, initialAudioEnabled)
 
-  const { isRecording, startRecording, stopRecording } = useRecording(localStream)
+  const { isRecording, startRecording, stopRecording } = useRecording(localStream, meetId || null)
 
   // Initialize meet
   useEffect(() => {
@@ -298,6 +299,7 @@ export function Meet() {
 
       <div className="fixed bottom-0 left-0 right-0 md:relative md:bottom-auto md:left-auto md:right-auto z-50" style={{ bottom: isMobile ? '20px' : '0' }}>
         <ControlsBar
+          meetId={meetId || null}
           isVideoEnabled={isVideoEnabled}
           isAudioEnabled={isAudioEnabled}
           isScreenSharing={isScreenSharing}
@@ -319,6 +321,8 @@ export function Meet() {
           onAudioOutputChange={changeAudioOutput}
         />
       </div>
+
+      <InvitationModal />
     </div>
   )
 }

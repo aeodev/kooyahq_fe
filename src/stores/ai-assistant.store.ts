@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+ import { create } from 'zustand'
 import { useProjectTaskStore } from '@/stores/project-task.store'
 
 // Types
@@ -72,7 +72,7 @@ type AIAssistantActions = {
   clearSelections: () => void
   showSelectionUI: () => void
   hideSelectionUI: () => void
-  confirmSelections: () => void
+  confirmSelections: () => string | null
 }
 
 type AIAssistantStore = AIAssistantState & AIAssistantActions
