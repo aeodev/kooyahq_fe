@@ -22,7 +22,7 @@ export function MeetLanding() {
       return
     }
     if (meetId.trim()) {
-      navigate(`/meet/${meetId.trim()}`)
+      navigate(`/meet/${meetId.trim()}/join`)
     }
   }
 
@@ -31,7 +31,7 @@ export function MeetLanding() {
       return
     }
     const newMeetId = Math.random().toString(36).substring(2, 9)
-    navigate(`/meet/${newMeetId}`)
+    navigate(`/meet/${newMeetId}/join`)
   }
 
   return (
