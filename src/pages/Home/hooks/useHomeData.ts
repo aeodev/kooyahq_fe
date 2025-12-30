@@ -8,6 +8,7 @@ import { useGameTypesQuery } from '@/hooks/queries/game.queries'
 import { useAssignedTicketsQuery } from '@/hooks/queries/ticket.queries'
 import { usePosts } from '@/hooks/post.hooks'
 import { PERMISSIONS } from '@/constants/permissions'
+import { useAnnouncementSocket } from '@/hooks/announcement.socket.hook'
 
 export function useHomeData() {
   const user = useAuthStore((state) => state.user)
@@ -69,6 +70,9 @@ export function useHomeData() {
 
   // Expose refetch functions for mutations
   const { invalidateAnnouncements } = useAnnouncementQueryActions()
+
+  // Listen for announcement socket events to update in real-time
+  useAnnouncementSocket()
 
   // Only show loading on first load when we have no data
   const isLoading = entriesLoading && myEntries.length === 0 && !storeEntries.length
