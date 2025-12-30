@@ -81,7 +81,7 @@ export function AssignedTicketsWidget({ tickets, className }: AssignedTicketsWid
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                 >
                   <Link
-                    to={`/workspace/ticket/${ticket.ticketKey}`}
+                    to={`/workspace/${ticket.ticketKey.split('-')[0]}?selectedTask=${ticket.ticketKey}`}
                     className="group flex items-center gap-3 p-3 -mx-2 rounded-xl hover:bg-muted/40 transition-all duration-200"
                   >
                     {/* Priority badge with text label */}

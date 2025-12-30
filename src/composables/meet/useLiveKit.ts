@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { Room, RoomEvent, Track, createLocalVideoTrack, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState, RemoteParticipant } from 'livekit-client'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore } from '@/stores/meet.store'
+import { useSocketStore } from '@/stores/socket.store'
 import { fetchLiveKitToken } from '@/utils/livekit'
 
 export function useLiveKit(
@@ -10,6 +11,7 @@ export function useLiveKit(
   initialAudioEnabled = true
 ) {
   const user = useAuthStore((state) => state.user)
+  const socket = useSocketStore((state) => state.socket)
   const getStore = useCallback(() => useMeetStore.getState(), [])
 
   // State
@@ -26,6 +28,8 @@ export function useLiveKit(
   const localAudioTrackRef = useRef<LocalAudioTrack | null>(null)
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
   const connectAttemptRef = useRef(0) // For race condition protection
+  // Identity mapping: LiveKit ID -> Database ID
+  const identityMapRef = useRef<Map<string, string>>(new Map())
   // Store initial values in refs so cleanup can access them
   const initialVideoRef = useRef(initialVideoEnabled)
   const initialAudioRef = useRef(initialAudioEnabled)
@@ -38,6 +42,22 @@ export function useLiveKit(
 
   // Force update for streams
   const forceUpdate = useCallback(() => setStreamsUpdateCounter((v) => v + 1), [])
+
+  // Identity mapping helpers
+  const setIdentityMapping = useCallback((liveKitId: string, databaseId: string) => {
+    identityMapRef.current.set(liveKitId, databaseId)
+  }, [])
+
+  const getDatabaseId = useCallback((liveKitId: string): string => {
+    return identityMapRef.current.get(liveKitId) || liveKitId // Fallback to LiveKit ID if no mapping
+  }, [])
+
+  const getLiveKitId = useCallback((databaseId: string): string | undefined => {
+    for (const [liveKitId, dbId] of identityMapRef.current.entries()) {
+      if (dbId === databaseId) return liveKitId
+    }
+    return undefined
+  }, [])
 
   // Helper to read initial state from participant's publications
   const getParticipantState = (participant: RemoteParticipant) => {
@@ -80,14 +100,15 @@ export function useLiveKit(
     localAudioTrackRef.current = null
 
     remoteStreamsRef.current.clear()
+    identityMapRef.current.clear()
     setLocalStream(null)
     setConnectionState(ConnectionState.Disconnected)
-    
+
     // Reset UI state to initial values
     setIsVideoEnabled(initialVideoRef.current)
     setIsAudioEnabled(initialAudioRef.current)
     setIsScreenSharing(false)
-    
+
     // Reset the meet store (clear participants)
     getStore().reset()
   }, [getStore])
@@ -105,6 +126,7 @@ export function useLiveKit(
     // Increment attempt counter for race condition protection
     const currentAttempt = ++connectAttemptRef.current
     let mounted = true
+    let cleanupSocket: (() => void) | undefined
 
     const connectRoom = async () => {
       try {
@@ -153,7 +175,7 @@ export function useLiveKit(
         // Track unsubscribed - properly remove tracks from stream
         room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
           if (!mounted || currentAttempt !== connectAttemptRef.current) return
-          
+
           const stream = remoteStreamsRef.current.get(participant.identity)
           if (stream) {
             stream.removeTrack(track.mediaStreamTrack)
@@ -171,13 +193,14 @@ export function useLiveKit(
           const localIdentity = room.localParticipant?.identity
           if (participant.identity === localIdentity) return // Skip self
 
+          const databaseId = getDatabaseId(participant.identity)
           if (publication.kind === Track.Kind.Video) {
-            getStore().updateParticipant(participant.identity, { isVideoEnabled: false })
+            getStore().updateParticipant(databaseId, { isVideoEnabled: false })
           } else if (publication.kind === Track.Kind.Audio) {
-            getStore().updateParticipant(participant.identity, { isAudioEnabled: false })
+            getStore().updateParticipant(databaseId, { isAudioEnabled: false })
           }
           if (publication.source === Track.Source.ScreenShare) {
-            getStore().updateParticipant(participant.identity, { isScreenSharing: false })
+            getStore().updateParticipant(databaseId, { isScreenSharing: false })
           }
         })
 
@@ -186,26 +209,30 @@ export function useLiveKit(
           const localIdentity = room.localParticipant?.identity
           if (participant.identity === localIdentity) return // Skip self
 
+          const databaseId = getDatabaseId(participant.identity)
           if (publication.kind === Track.Kind.Video) {
-            getStore().updateParticipant(participant.identity, { isVideoEnabled: true })
+            getStore().updateParticipant(databaseId, { isVideoEnabled: true })
           } else if (publication.kind === Track.Kind.Audio) {
-            getStore().updateParticipant(participant.identity, { isAudioEnabled: true })
+            getStore().updateParticipant(databaseId, { isAudioEnabled: true })
           }
           if (publication.source === Track.Source.ScreenShare) {
-            getStore().updateParticipant(participant.identity, { isScreenSharing: true })
+            getStore().updateParticipant(databaseId, { isScreenSharing: true })
           }
         })
 
-        // Participant connected
+        // Participant connected - handle real-time connections
+        // Note: Initial participants are handled via socket events for proper identity mapping
         room.on(RoomEvent.ParticipantConnected, (participant) => {
           if (!mounted || currentAttempt !== connectAttemptRef.current) return
           const localIdentity = room.localParticipant?.identity
           if (participant.identity === localIdentity) return // Skip self
-          
-          // Read initial state from publications
+
+          // For now, add with LiveKit identity - socket events will update with proper mapping
+          // This ensures we don't miss participants if socket events fail
+          const databaseId = getDatabaseId(participant.identity)
           const state = getParticipantState(participant)
           getStore().addParticipant({
-            userId: participant.identity,
+            userId: databaseId,
             userName: participant.name || undefined,
             ...state,
           })
@@ -215,7 +242,8 @@ export function useLiveKit(
         room.on(RoomEvent.ParticipantDisconnected, (participant) => {
           if (!mounted || currentAttempt !== connectAttemptRef.current) return
           remoteStreamsRef.current.delete(participant.identity)
-          getStore().removeParticipant(participant.identity)
+          const databaseId = getDatabaseId(participant.identity)
+          getStore().removeParticipant(databaseId)
           forceUpdate()
         })
 
@@ -224,7 +252,8 @@ export function useLiveKit(
           if (!mounted || currentAttempt !== connectAttemptRef.current) return
           if (publication.source === Track.Source.ScreenShare) {
             const localIdentity = room.localParticipant?.identity
-            getStore().updateParticipant(participant.identity, {
+            const databaseId = getDatabaseId(participant.identity)
+            getStore().updateParticipant(databaseId, {
               isScreenSharing: true,
             })
             if (participant.identity === localIdentity) {
@@ -237,7 +266,8 @@ export function useLiveKit(
           if (!mounted || currentAttempt !== connectAttemptRef.current) return
           if (publication.source === Track.Source.ScreenShare) {
             const localIdentity = room.localParticipant?.identity
-            getStore().updateParticipant(participant.identity, {
+            const databaseId = getDatabaseId(participant.identity)
+            getStore().updateParticipant(databaseId, {
               isScreenSharing: false,
             })
             if (participant.identity === localIdentity) {
@@ -280,7 +310,7 @@ export function useLiveKit(
 
         // Create and publish local tracks
         const tracks: MediaStreamTrack[] = []
-        
+
         if (initialVideoEnabled) {
           try {
             const videoTrack = await createLocalVideoTrack({
@@ -312,10 +342,22 @@ export function useLiveKit(
           setLocalStream(stream)
         }
 
-        // Add self as participant using room's local participant identity
+        // Set up identity mapping for local participant
         const localIdentity = room.localParticipant.identity
+        setIdentityMapping(localIdentity, user.id)
+
+        // Broadcast LiveKit identity mapping to other participants
+        if (socket?.connected && meetId) {
+          socket.emit('meet:livekit-identity', {
+            meetId,
+            userId: user.id,
+            liveKitIdentity: localIdentity,
+          })
+        }
+
+        // Add self as participant using database user ID
         getStore().addParticipant({
-          userId: localIdentity,
+          userId: user.id, // Always use database ID
           userName: user.name,
           profilePic: user.profilePic,
           isVideoEnabled: localVideoTrackRef.current !== null,
@@ -324,14 +366,66 @@ export function useLiveKit(
         })
 
         // Add existing remote participants with their current state
+        // Note: These will be updated with proper identity mapping via socket events
         room.remoteParticipants.forEach((participant) => {
+          const databaseId = getDatabaseId(participant.identity)
           const state = getParticipantState(participant)
           getStore().addParticipant({
-            userId: participant.identity,
+            userId: databaseId,
             userName: participant.name || undefined,
             ...state,
           })
         })
+
+        // Set up socket event handlers for participant synchronization
+        if (socket?.connected) {
+          const handleParticipantJoined = (data: { userId: string; userName: string; liveKitIdentity?: string }) => {
+            if (!mounted || currentAttempt !== connectAttemptRef.current) return
+
+            // Update identity mapping if LiveKit identity is provided
+            if (data.liveKitIdentity) {
+              setIdentityMapping(data.liveKitIdentity, data.userId)
+            }
+
+            // Update or add participant with correct database ID
+            const existing = getStore().participants.get(data.userId)
+            if (!existing) {
+              getStore().addParticipant({
+                userId: data.userId,
+                userName: data.userName,
+                isVideoEnabled: true, // Default state, will be updated by LiveKit events
+                isAudioEnabled: true,
+                isScreenSharing: false,
+              })
+            }
+          }
+
+          const handleParticipantLeft = (data: { userId: string }) => {
+            if (!mounted || currentAttempt !== connectAttemptRef.current) return
+            getStore().removeParticipant(data.userId)
+          }
+
+          const handleLiveKitIdentity = (data: { userId: string; liveKitIdentity: string }) => {
+            if (!mounted || currentAttempt !== connectAttemptRef.current) return
+            setIdentityMapping(data.liveKitIdentity, data.userId)
+            // Update participant if they exist (in case they were added without proper mapping)
+            const existing = getStore().participants.get(data.userId)
+            if (existing) {
+              // Force a re-render by updating the participant (identity mapping may have changed stream lookup)
+              getStore().updateParticipant(data.userId, {})
+            }
+          }
+
+          socket.on('meet:participant-joined', handleParticipantJoined)
+          socket.on('meet:participant-left', handleParticipantLeft)
+          socket.on('meet:livekit-identity', handleLiveKitIdentity)
+
+          cleanupSocket = () => {
+            socket.off('meet:participant-joined', handleParticipantJoined)
+            socket.off('meet:participant-left', handleParticipantLeft)
+            socket.off('meet:livekit-identity', handleLiveKitIdentity)
+          }
+        }
       } catch (error) {
         console.error('[LiveKit] Error connecting to room:', error)
       }
@@ -341,6 +435,7 @@ export function useLiveKit(
 
     return () => {
       mounted = false
+      cleanupSocket?.()
       cleanupRoom()
     }
   }, [meetId, user, initialVideoEnabled, initialAudioEnabled, getStore, forceUpdate, cleanupRoom])
@@ -348,7 +443,7 @@ export function useLiveKit(
   // Toggle video using LiveKit's API
   const toggleVideo = useCallback(async () => {
     const room = roomRef.current
-    if (!room) return
+    if (!room || !user) return
 
     const prev = isVideoEnabled
     const next = !prev
@@ -357,8 +452,7 @@ export function useLiveKit(
       await room.localParticipant.setCameraEnabled(next)
       setIsVideoEnabled(next)
 
-      const localIdentity = room.localParticipant.identity
-      getStore().updateParticipant(localIdentity, { isVideoEnabled: next })
+      getStore().updateParticipant(user.id, { isVideoEnabled: next })
 
       if (next) {
         // Enabling - get the new track and add to stream
@@ -392,7 +486,7 @@ export function useLiveKit(
   // Toggle audio using LiveKit's API
   const toggleAudio = useCallback(async () => {
     const room = roomRef.current
-    if (!room) return
+    if (!room || !user) return
 
     const prev = isAudioEnabled
     const next = !prev
@@ -401,8 +495,7 @@ export function useLiveKit(
       await room.localParticipant.setMicrophoneEnabled(next)
       setIsAudioEnabled(next)
 
-      const localIdentity = room.localParticipant.identity
-      getStore().updateParticipant(localIdentity, { isAudioEnabled: next })
+      getStore().updateParticipant(user.id, { isAudioEnabled: next })
 
       if (next) {
         // Enabling - get the new track and add to stream
@@ -436,7 +529,7 @@ export function useLiveKit(
   // Toggle screen share using LiveKit's native API
   const toggleScreenShare = useCallback(async () => {
     const room = roomRef.current
-    if (!room) return
+    if (!room || !user) return
 
     const prev = isScreenSharing
     const next = !prev
@@ -444,9 +537,8 @@ export function useLiveKit(
     try {
       await room.localParticipant.setScreenShareEnabled(next)
       setIsScreenSharing(next)
-      
-      const localIdentity = room.localParticipant.identity
-      getStore().updateParticipant(localIdentity, { isScreenSharing: next })
+
+      getStore().updateParticipant(user.id, { isScreenSharing: next })
     } catch (error) {
       // User cancelled the screen share dialog or permission denied
       console.error('[LiveKit] Screen share error:', error)
@@ -454,16 +546,17 @@ export function useLiveKit(
     }
   }, [isScreenSharing, getStore])
 
-  // Get remote streams - simple function, no memoization needed (cheap to create)
-  const getRemoteStreams = () => {
+  // Get remote streams mapped to database IDs
+  const getRemoteStreams = useCallback(() => {
     const streams: Array<{ userId: string; stream: MediaStream }> = []
-    remoteStreamsRef.current.forEach((stream, userId) => {
+    remoteStreamsRef.current.forEach((stream, liveKitId) => {
       if (stream?.getTracks().length) {
-        streams.push({ userId, stream })
+        const databaseId = getDatabaseId(liveKitId)
+        streams.push({ userId: databaseId, stream })
       }
     })
     return streams
-  }
+  }, [getDatabaseId])
 
   // Change video device - respects current enable state
   const changeVideoDevice = useCallback(async (deviceId: string) => {
@@ -612,5 +705,8 @@ export function useLiveKit(
     changeAudioOutput,
     flipCamera,
     cleanup: cleanupRoom,
+    // Identity mapping helpers (for debugging/advanced use)
+    getDatabaseId,
+    getLiveKitId,
   }
 }

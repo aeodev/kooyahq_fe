@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { ConnectionState } from 'livekit-client'
 import { useSocketStore } from '@/stores/socket.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore } from '@/stores/meet.store'
@@ -48,6 +49,7 @@ export function Meet() {
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
+    connectionState,
     toggleVideo,
     toggleAudio,
     toggleScreenShare,
@@ -133,15 +135,19 @@ export function Meet() {
   // Get all participants including self
   const allParticipants = useMemo(() => {
     const participantArray = Array.from(participants.values())
+
+    // Ensure local user is always included (defensive programming)
     if (user && !participants.has(user.id)) {
       participantArray.push({
         userId: user.id,
         userName: user.name,
+        profilePic: user.profilePic,
         isVideoEnabled,
         isAudioEnabled,
         isScreenSharing,
       })
     }
+
     return participantArray
   }, [participants, user, isVideoEnabled, isAudioEnabled, isScreenSharing])
 
@@ -256,6 +262,54 @@ export function Meet() {
         <div className="text-center">
           <h2 className="text-2xl font-semibold mb-2">Invalid Meeting</h2>
           <p className="text-muted-foreground">Please check the meeting ID</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show connection error if LiveKit connection failed
+  if (connectionState === ConnectionState.Disconnected && meetId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 mx-auto">
+            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-semibold mb-2">Connection Failed</h2>
+          <p className="text-muted-foreground mb-4">
+            Unable to connect to the video meeting. This could be due to network issues or server problems.
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Retry Connection
+            </button>
+            <button
+              onClick={handleLeave}
+              className="w-full px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors"
+            >
+              Leave Meeting
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show connecting state
+  if (connectionState === ConnectionState.Connecting) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-4 mx-auto">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <h2 className="text-2xl font-semibold mb-2">Connecting...</h2>
+          <p className="text-muted-foreground">Setting up your video meeting</p>
         </div>
       </div>
     )
