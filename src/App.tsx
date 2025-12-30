@@ -41,6 +41,7 @@ import { Toaster } from 'sonner'
 import { BoardView } from './pages/Workspace/BoardView'
 import { PERMISSIONS } from '@/constants/permissions'
 import { PermissionGate } from '@/components/auth/PermissionGate'
+import { HeyKooya } from '@/components/ai-assistant/HeyKooya'
 
 function App() {
   return (
@@ -430,6 +431,7 @@ function App() {
         </Routes>
         </BrowserRouter>
         <Toaster />
+        <HeyKooya />
       </ThemeProvider>
     </QueryClientProvider>
   )

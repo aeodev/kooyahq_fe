@@ -45,11 +45,13 @@ type AIAssistantState = {
   queuedMessages: string[]
   selectedProjects: string[]
   showSelections: boolean
+  startVoiceRecording: boolean
 }
 
 // Actions type
 type AIAssistantActions = {
   open: () => void
+  openWithVoiceRecording: () => void
   close: () => void
   toggle: () => void
   sendMessage: (message: string) => void
@@ -89,14 +91,17 @@ const initialState: AIAssistantState = {
   queuedMessages: [],
   selectedProjects: [],
   showSelections: false,
+  startVoiceRecording: false,
 }
 
 export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
   ...initialState,
 
   open: () => set({ isOpen: true }),
-  
-  close: () => set({ isOpen: false }),
+
+  openWithVoiceRecording: () => set({ isOpen: true, startVoiceRecording: true }),
+
+  close: () => set({ isOpen: false, startVoiceRecording: false }),
   
   toggle: () => set((state) => ({ isOpen: !state.isOpen })),
 

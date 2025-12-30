@@ -33,6 +33,7 @@ function AISpotlightContent() {
   const sendMessage = useAIAssistantStore((s) => s.sendMessage)
   const clearMessages = useAIAssistantStore((s) => s.clearMessages)
   const setError = useAIAssistantStore((s) => s.setError)
+  const startVoiceRecording = useAIAssistantStore((s) => s.startVoiceRecording)
 
   // Socket and auth
   const socket = useSocketStore((s) => s.socket)
@@ -98,6 +99,11 @@ function AISpotlightContent() {
       clearAIConversation(socket, conversationId)
     }
     clearMessages()
+  }
+
+  const handleVoiceRecordingStarted = () => {
+    // Reset the flag after voice recording has started
+    useAIAssistantStore.setState({ startVoiceRecording: false })
   }
 
   const pendingTools = pendingToolExecutions
@@ -218,6 +224,8 @@ function AISpotlightContent() {
               onClose={close}
               isLoading={isLoading}
               disabled={isOffline}
+              startVoiceRecording={startVoiceRecording}
+              onVoiceRecordingStarted={handleVoiceRecordingStarted}
             />
           </motion.div>
         </div>

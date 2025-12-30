@@ -10,9 +10,11 @@ interface AIInputProps {
   onClose: () => void
   isLoading: boolean
   disabled?: boolean
+  startVoiceRecording?: boolean
+  onVoiceRecordingStarted?: () => void
 }
 
-export function AIInput({ value, onChange, onSubmit, onClose, isLoading, disabled }: AIInputProps) {
+export function AIInput({ value, onChange, onSubmit, onClose, isLoading, disabled, startVoiceRecording, onVoiceRecordingStarted }: AIInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const pendingSubmitRef = useRef<string | null>(null)
 
@@ -44,6 +46,8 @@ export function AIInput({ value, onChange, onSubmit, onClose, isLoading, disable
     },
   })
 
+  const isListening = voiceState === 'listening'
+
   // Auto-submit when value matches pending submit text
   useEffect(() => {
     if (pendingSubmitRef.current && value === pendingSubmitRef.current && !isLoading && !disabled) {
@@ -62,6 +66,14 @@ export function AIInput({ value, onChange, onSubmit, onClose, isLoading, disable
     }
   }, [disabled])
 
+  // Start voice recording when requested (e.g., from "hey kooya" activation)
+  useEffect(() => {
+    if (startVoiceRecording && isSupported && !disabled && !isLoading && !isListening) {
+      startListening()
+      onVoiceRecordingStarted?.()
+    }
+  }, [startVoiceRecording, isSupported, disabled, isLoading, isListening, startListening, onVoiceRecordingStarted])
+
   // Cleanup voice recognition when component unmounts or disabled
   useEffect(() => {
     if (disabled || isLoading) {
@@ -79,8 +91,6 @@ export function AIInput({ value, onChange, onSubmit, onClose, isLoading, disable
       startListening()
     }
   }
-
-  const isListening = voiceState === 'listening'
   const isVoiceDisabled = !isSupported || disabled || isLoading || !!voiceError
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
