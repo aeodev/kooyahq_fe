@@ -22,10 +22,8 @@ export function Meet() {
   // Redirect to pre-join if accessed directly without going through pre-join
   useEffect(() => {
     if (meetId && location.pathname === `/meet/${meetId}/join`) {
-      // Check if we have state from pre-join screen
       const hasPreJoinState = location.state?.initialVideoEnabled !== undefined || location.state?.initialAudioEnabled !== undefined
       if (!hasPreJoinState) {
-        // Redirect to pre-join if accessed directly
         navigate(`/meet/${meetId}`, { replace: true })
         return
       }
@@ -54,6 +52,7 @@ export function Meet() {
     toggleAudio,
     toggleScreenShare,
     getRemoteStreams,
+    getLocalScreenShareStream,
     streamsUpdateCounter,
     changeVideoDevice,
     changeAudioInput,
@@ -64,16 +63,22 @@ export function Meet() {
 
   const { isRecording, startRecording, stopRecording } = useRecording(localStream, meetId || null)
 
-  // Initialize meet
+  // Initialize meet and join socket room for chat
   useEffect(() => {
     if (meetId) {
       setMeetId(meetId)
+      if (socket?.connected) {
+        socket.emit('meet:join', meetId)
+      }
     }
 
     return () => {
+      if (meetId && socket?.connected) {
+        socket.emit('meet:leave', meetId)
+      }
       reset()
     }
-  }, [meetId, setMeetId, reset])
+  }, [meetId, setMeetId, reset, socket])
 
   // Ensure socket is connected
   useEffect(() => {
@@ -84,9 +89,7 @@ export function Meet() {
   }, [socket?.connected])
 
   const handleLeave = () => {
-    // Stop all camera/microphone tracks before leaving
     cleanup()
-    
     if (meetId && socket?.connected) {
       socket.emit('meet:leave', meetId)
     }
@@ -95,7 +98,6 @@ export function Meet() {
   }
 
   // Get remote streams mapped by userId
-  // Recalculate when participants change or streams update to ensure we get updated streams
   const remoteStreams = useMemo(() => {
     const streams = getRemoteStreams()
     const streamMap = new Map<string, MediaStream>()
@@ -105,20 +107,24 @@ export function Meet() {
     return streamMap
   }, [getRemoteStreams, participants, streamsUpdateCounter])
 
+  // Get local screen share stream
+  const localScreenShareStream = useMemo(() => {
+    return getLocalScreenShareStream()
+  }, [getLocalScreenShareStream, isScreenSharing])
+
   // Detect active speaker
   const activeSpeakerId = useActiveSpeaker({
     remoteStreams,
     currentUserId: user?.id || null,
   })
 
-  // Track if we're on mobile (below md breakpoint)
+  // Track if we're on mobile
   const [isMobile, setIsMobile] = useState(false)
   
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768) // md breakpoint
+      setIsMobile(window.innerWidth < 768)
     }
-    
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
@@ -139,20 +145,24 @@ export function Meet() {
     return participantArray
   }, [participants, user, isVideoEnabled, isAudioEnabled, isScreenSharing])
 
-  // Determine which participant to show on mobile (prioritize screen sharing, then active speaker, then fallback)
+  // Detect if anyone is screen sharing
+  const screenSharingParticipant = useMemo(() => {
+    return allParticipants.find(p => p.isScreenSharing) || null
+  }, [allParticipants])
+
+  // Is the local user the one screen sharing?
+  const isLocalScreenSharing = isScreenSharing && screenSharingParticipant?.userId === user?.id
+
+  // Determine which participant to show on mobile
   const mobileDisplayParticipant = useMemo(() => {
-    // Edge case: Only one participant (self)
     if (allParticipants.length === 1) {
       return allParticipants[0] || null
     }
 
-    // Priority 1: Screen sharing participant (highest priority)
-    const screenSharingParticipant = allParticipants.find(p => p.isScreenSharing)
     if (screenSharingParticipant) {
       return screenSharingParticipant
     }
 
-    // Priority 2: Active speaker
     if (activeSpeakerId) {
       const activeParticipant = allParticipants.find(p => p.userId === activeSpeakerId)
       if (activeParticipant) {
@@ -160,7 +170,6 @@ export function Meet() {
       }
     }
     
-    // Priority 3: Self if available
     if (user) {
       const selfParticipant = allParticipants.find(p => p.userId === user.id)
       if (selfParticipant) {
@@ -168,12 +177,11 @@ export function Meet() {
       }
     }
     
-    // Priority 4: Fallback to first other participant
     const otherParticipants = allParticipants.filter(p => p.userId !== user?.id)
     return otherParticipants[0] || allParticipants[0] || null
-  }, [activeSpeakerId, allParticipants, user])
+  }, [activeSpeakerId, allParticipants, user, screenSharingParticipant])
 
-  // Filter participants for display: on mobile show only one, on desktop show all
+  // Filter participants for display
   const displayParticipants = useMemo(() => {
     if (isMobile && mobileDisplayParticipant) {
       return [mobileDisplayParticipant]
@@ -181,43 +189,44 @@ export function Meet() {
     return allParticipants
   }, [isMobile, mobileDisplayParticipant, allParticipants])
 
+  // Calculate optimal grid layout for thumbnail strip (when screen sharing)
+  const thumbnailCount = screenSharingParticipant 
+    ? displayParticipants.length + (isLocalScreenSharing && isVideoEnabled ? 1 : 0) // +1 for camera tile when local screen sharing
+    : displayParticipants.length
+
   // Calculate optimal grid layout (Google Meet-style) with mobile responsiveness
   const { gridCols, gridRows, gridStyle } = useMemo(() => {
-    const count = allParticipants.length
+    const count = thumbnailCount
     
-    // Helper to calculate optimal grid dimensions for desktop
     const calculateGrid = (participantCount: number) => {
       if (participantCount === 1) return { cols: 1, rows: 1 }
       if (participantCount === 2) return { cols: 2, rows: 1 }
-      if (participantCount === 3) return { cols: 2, rows: 2 } // 2x2 with one empty
+      if (participantCount === 3) return { cols: 2, rows: 2 }
       if (participantCount === 4) return { cols: 2, rows: 2 }
-      if (participantCount === 5) return { cols: 3, rows: 2 } // 3x2 with one empty
+      if (participantCount === 5) return { cols: 3, rows: 2 }
       if (participantCount === 6) return { cols: 3, rows: 2 }
-      if (participantCount === 7) return { cols: 3, rows: 3 } // 3x3 with two empty
-      if (participantCount === 8) return { cols: 3, rows: 3 } // 3x3 with one empty
+      if (participantCount === 7) return { cols: 3, rows: 3 }
+      if (participantCount === 8) return { cols: 3, rows: 3 }
       if (participantCount === 9) return { cols: 3, rows: 3 }
-      if (participantCount === 10) return { cols: 4, rows: 3 } // 4x3 with two empty
-      if (participantCount === 11) return { cols: 4, rows: 3 } // 4x3 with one empty
+      if (participantCount === 10) return { cols: 4, rows: 3 }
+      if (participantCount === 11) return { cols: 4, rows: 3 }
       if (participantCount === 12) return { cols: 4, rows: 3 }
       if (participantCount <= 16) return { cols: 4, rows: 4 }
       if (participantCount <= 20) return { cols: 5, rows: 4 }
       if (participantCount <= 25) return { cols: 5, rows: 5 }
-      // For larger groups, use a more compact grid
-      const cols = Math.ceil(Math.sqrt(participantCount * 1.2)) // 1.2 aspect ratio preference
+      const cols = Math.ceil(Math.sqrt(participantCount * 1.2))
       const rows = Math.ceil(participantCount / cols)
       return { cols, rows }
     }
     
     const { cols, rows } = calculateGrid(count)
     
-    // Responsive column classes: mobile (1 col), tablet (2 cols), desktop (calculated cols)
     const getResponsiveCols = (desktopCols: number) => {
       if (desktopCols === 1) return 'grid-cols-1'
       if (desktopCols === 2) return 'grid-cols-1 sm:grid-cols-2'
       if (desktopCols === 3) return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
       if (desktopCols === 4) return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4'
       if (desktopCols === 5) return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
-      // For larger grids, use responsive classes up to 4 columns max
       return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
     }
     
@@ -229,7 +238,6 @@ export function Meet() {
       5: 'grid-rows-5',
     }
 
-    // Use inline styles for grids larger than 5x5
     const useInlineStyle = cols > 5 || rows > 5
 
     return {
@@ -240,7 +248,7 @@ export function Meet() {
         gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
       } : undefined,
     }
-  }, [allParticipants.length])
+  }, [thumbnailCount])
 
   if (!meetId || !user) {
     return (
@@ -253,15 +261,128 @@ export function Meet() {
     )
   }
 
+  // Render function for a video tile
+  const renderVideoTile = (
+    participant: typeof displayParticipants[0],
+    stream: MediaStream | null,
+    isLocal: boolean,
+    className?: string,
+    label?: string
+  ) => (
+    <VideoTile
+      key={participant.userId + (label || '')}
+      participant={{
+        ...participant,
+        userName: label || participant.userName,
+      }}
+      stream={stream}
+      isLocal={isLocal}
+      isMirrored={isLocal && isMirrored && !participant.isScreenSharing}
+      className={className}
+    />
+  )
+
+  // Screen sharing focus mode layout
+  if (screenSharingParticipant && !isMobile) {
+    const isScreenSharerLocal = screenSharingParticipant.userId === user.id
+    const screenShareStream = isScreenSharerLocal 
+      ? localScreenShareStream 
+      : remoteStreams.get(screenSharingParticipant.userId) || null
+
+    // Thumbnails: all participants except show screen sharer's camera separately
+    const thumbnailParticipants = displayParticipants.map(p => {
+      if (p.userId === screenSharingParticipant.userId && isScreenSharerLocal) {
+        // For local screen sharer, show camera tile (not screen share)
+        return { ...p, isScreenSharing: false }
+      }
+      return p
+    })
+
+    return (
+      <div className="flex flex-col h-screen bg-background overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 p-2 gap-2">
+          {/* Main screen share area */}
+          <div className={cn(
+            'flex-1 min-h-0 min-w-0',
+            isChatOpen && 'md:mr-0'
+          )}>
+            <div className="w-full h-full rounded-lg overflow-hidden bg-gray-900">
+              <VideoTile
+                participant={{
+                  ...screenSharingParticipant,
+                  userName: isScreenSharerLocal ? 'Your Screen' : `${screenSharingParticipant.userName}'s Screen`,
+                }}
+                stream={screenShareStream}
+                isLocal={isScreenSharerLocal}
+                isMirrored={false}
+              />
+            </div>
+          </div>
+
+          {/* Thumbnail strip */}
+          <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto md:overflow-x-hidden md:w-48 lg:w-56 xl:w-64 flex-shrink-0">
+            {thumbnailParticipants.map((participant) => {
+              const isLocal = participant.userId === user.id
+              const stream = isLocal ? localStream : remoteStreams.get(participant.userId) || null
+
+              return (
+                <div 
+                  key={participant.userId} 
+                  className="flex-shrink-0 w-32 h-24 md:w-full md:h-auto md:aspect-video rounded-lg overflow-hidden"
+                >
+                  {renderVideoTile(
+                    participant,
+                    stream,
+                    isLocal,
+                    'h-full',
+                    isLocal ? 'You' : participant.userName
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <ChatPanel meetId={meetId} isOpen={isChatOpen} onClose={() => toggleChat()} />
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 md:relative md:bottom-auto md:left-auto md:right-auto z-50">
+          <ControlsBar
+            meetId={meetId || null}
+            isVideoEnabled={isVideoEnabled}
+            isAudioEnabled={isAudioEnabled}
+            isScreenSharing={isScreenSharing}
+            isRecording={isRecording}
+            isMirrored={isMirrored}
+            isChatOpen={isChatOpen}
+            isMobile={isMobile}
+            onToggleVideo={toggleVideo}
+            onToggleAudio={toggleAudio}
+            onToggleScreenShare={toggleScreenShare}
+            onToggleChat={toggleChat}
+            onToggleMirror={toggleMirror}
+            onFlipCamera={flipCamera}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onLeave={handleLeave}
+            onVideoDeviceChange={changeVideoDevice}
+            onAudioInputChange={changeAudioInput}
+            onAudioOutputChange={changeAudioOutput}
+          />
+        </div>
+
+        <InvitationModal />
+      </div>
+    )
+  }
+
+  // Default grid layout (no screen sharing or mobile)
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
       <div className="flex-1 relative overflow-hidden flex min-h-0" style={{ paddingBottom: isMobile ? '160px' : '0' }}>
         <div 
           className={cn(
             'grid gap-1 w-full h-full transition-all duration-300',
-            // Mobile: single column, no overflow, add padding to reduce tile size
             'grid-cols-1 overflow-hidden p-3',
-            // Desktop: use calculated grid with responsive classes
             'md:overflow-auto md:p-1',
             gridCols,
             gridRows,
@@ -272,15 +393,6 @@ export function Meet() {
           {displayParticipants.map((participant) => {
             const isLocal = participant.userId === user.id
             const stream = isLocal ? localStream : remoteStreams.get(participant.userId) || null
-
-            console.log(`[Meet] Rendering VideoTile for ${participant.userId}`, {
-              isLocal,
-              hasStream: !!stream,
-              streamId: stream?.id,
-              videoTracks: stream?.getVideoTracks().length,
-              remoteStreamsSize: remoteStreams.size,
-              remoteStreamsKeys: Array.from(remoteStreams.keys()),
-            })
 
             return (
               <VideoTile
@@ -326,4 +438,3 @@ export function Meet() {
     </div>
   )
 }
-

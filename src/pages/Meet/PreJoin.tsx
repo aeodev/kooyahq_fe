@@ -14,6 +14,7 @@ export function PreJoin() {
   const [isVideoEnabled, setIsVideoEnabled] = useState(true)
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [permissionError, setPermissionError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
@@ -32,6 +33,7 @@ export function PreJoin() {
   useEffect(() => {
     const initializePreview = async () => {
       try {
+        setPermissionError(null)
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
@@ -43,6 +45,19 @@ export function PreJoin() {
         }
       } catch (error) {
         console.error('Error accessing media devices:', error)
+        if (error instanceof DOMException) {
+          if (error.name === 'NotAllowedError') {
+            setPermissionError('Camera and microphone access denied. Please enable permissions in your browser settings.')
+          } else if (error.name === 'NotFoundError') {
+            setPermissionError('No camera or microphone found. Please connect a device and try again.')
+          } else if (error.name === 'NotReadableError') {
+            setPermissionError('Camera or microphone is already in use by another application.')
+          } else {
+            setPermissionError('Failed to access camera and microphone. Please check your device settings.')
+          }
+        } else {
+          setPermissionError('An unexpected error occurred. Please refresh and try again.')
+        }
       }
     }
 
@@ -127,6 +142,11 @@ export function PreJoin() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+          {permissionError && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-destructive">
+              {permissionError}
+            </div>
+          )}
           <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
             {/* Always render video element, hide with CSS when disabled */}
             <video

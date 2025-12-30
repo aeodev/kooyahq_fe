@@ -1,8 +1,6 @@
-import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, Square, LogOut, FlipHorizontal } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, LogOut, FlipHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { DeviceSettings } from './DeviceSettings'
-import { MorganAIButton } from './MorganAIButton'
-import { InviteMemberButton } from './InviteMemberButton'
+import { MoreMenu } from './MoreMenu'
 
 interface ControlsBarProps {
   meetId: string | null
@@ -63,6 +61,24 @@ export function ControlsBar({
 
   return (
     <div className="flex items-center justify-center gap-3 md:gap-1 sm:gap-2 p-4 md:p-2 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg z-50 flex-shrink-0 flex-wrap">
+      {/* 3-dot More Menu - left side */}
+      {!hideCallControlsOnMobile && (
+        <MoreMenu
+          meetId={meetId}
+          isRecording={isRecording}
+          onStartRecording={onStartRecording}
+          onStopRecording={onStopRecording}
+          onVideoDeviceChange={onVideoDeviceChange}
+          onAudioInputChange={onAudioInputChange}
+          onAudioOutputChange={onAudioOutputChange}
+        />
+      )}
+
+      {!hideCallControlsOnMobile && (
+        <div className="w-px h-6 sm:h-8 bg-border mx-1 sm:mx-2 hidden sm:block" />
+      )}
+
+      {/* Audio toggle */}
       {!hideCallControlsOnMobile && (
         <Button
           variant={isAudioEnabled ? 'default' : 'destructive'}
@@ -75,6 +91,7 @@ export function ControlsBar({
         </Button>
       )}
 
+      {/* Video toggle */}
       {!hideCallControlsOnMobile && (
         <Button
           variant={isVideoEnabled ? 'default' : 'destructive'}
@@ -87,6 +104,7 @@ export function ControlsBar({
         </Button>
       )}
 
+      {/* Screen share */}
       <Button
         variant={isScreenSharing ? 'default' : 'outline'}
         size="icon"
@@ -97,6 +115,7 @@ export function ControlsBar({
         <Monitor className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
       </Button>
 
+      {/* Flip/Mirror camera */}
       <Button
         variant={isMirrored ? 'default' : 'outline'}
         size="icon"
@@ -107,20 +126,7 @@ export function ControlsBar({
         <FlipHorizontal className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
       </Button>
 
-      {!hideCallControlsOnMobile && (
-        <div className="hidden sm:block">
-          <DeviceSettings
-            onVideoDeviceChange={onVideoDeviceChange}
-            onAudioInputChange={onAudioInputChange}
-            onAudioOutputChange={onAudioOutputChange}
-          />
-        </div>
-      )}
-
-      <MorganAIButton />
-
-      <InviteMemberButton meetId={meetId} className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md" />
-
+      {/* Chat toggle */}
       <Button
         variant="outline"
         size="icon"
@@ -131,32 +137,11 @@ export function ControlsBar({
         <MessageSquare className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5 text-white" />
       </Button>
 
-      {!isRecording ? (
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={onStartRecording}
-          title="Start recording"
-          className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md hidden sm:flex"
-        >
-          <Square className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
-        </Button>
-      ) : (
-        <Button
-          variant="destructive"
-          size="icon"
-          onClick={onStopRecording}
-          title="Stop recording"
-          className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md hidden sm:flex"
-        >
-          <Square className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5 fill-current" />
-        </Button>
-      )}
-
       {!hideCallControlsOnMobile && (
         <div className="w-px h-6 sm:h-8 bg-border mx-1 sm:mx-2 hidden sm:block" />
       )}
 
+      {/* Leave button */}
       <Button
         variant="destructive"
         onClick={onLeave}
@@ -168,4 +153,3 @@ export function ControlsBar({
     </div>
   )
 }
-

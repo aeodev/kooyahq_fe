@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { Room, RoomEvent, Track, createLocalVideoTrack, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack } from 'livekit-client'
+import { Room, RoomEvent, Track, createLocalVideoTrack, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack, ConnectionState, RemoteParticipant } from 'livekit-client'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore } from '@/stores/meet.store'
 import { fetchLiveKitToken } from '@/utils/livekit'
@@ -18,21 +18,92 @@ export function useLiveKit(
   const [isScreenSharing, setIsScreenSharing] = useState(false)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [streamsUpdateCounter, setStreamsUpdateCounter] = useState(0)
+  const [connectionState, setConnectionState] = useState<ConnectionState>(ConnectionState.Disconnected)
 
   // Refs
   const roomRef = useRef<Room | null>(null)
   const localVideoTrackRef = useRef<LocalVideoTrack | null>(null)
   const localAudioTrackRef = useRef<LocalAudioTrack | null>(null)
-  const screenTrackRef = useRef<LocalVideoTrack | null>(null)
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
+  const connectAttemptRef = useRef(0) // For race condition protection
+  // Store initial values in refs so cleanup can access them
+  const initialVideoRef = useRef(initialVideoEnabled)
+  const initialAudioRef = useRef(initialAudioEnabled)
+
+  // Update refs when initial values change
+  useEffect(() => {
+    initialVideoRef.current = initialVideoEnabled
+    initialAudioRef.current = initialAudioEnabled
+  }, [initialVideoEnabled, initialAudioEnabled])
 
   // Force update for streams
   const forceUpdate = useCallback(() => setStreamsUpdateCounter((v) => v + 1), [])
 
+  // Helper to read initial state from participant's publications
+  const getParticipantState = (participant: RemoteParticipant) => {
+    let isVideoEnabled = false
+    let isAudioEnabled = false
+    let isScreenSharing = false
+
+    participant.trackPublications.forEach((pub) => {
+      if (pub.source === Track.Source.Camera && !pub.isMuted) {
+        isVideoEnabled = true
+      }
+      if (pub.source === Track.Source.Microphone && !pub.isMuted) {
+        isAudioEnabled = true
+      }
+      // Screen share should also check mute state
+      if (pub.source === Track.Source.ScreenShare && !pub.isMuted) {
+        isScreenSharing = true
+      }
+    })
+
+    return { isVideoEnabled, isAudioEnabled, isScreenSharing }
+  }
+
+  // Cleanup function - defined BEFORE the useEffect that uses it
+  const cleanupRoom = useCallback(() => {
+    // Invalidate any inflight connection attempts
+    connectAttemptRef.current += 1
+
+    const room = roomRef.current
+    if (room) {
+      // Remove all listeners before disconnecting
+      room.removeAllListeners()
+      room.disconnect()
+      roomRef.current = null
+    }
+
+    localVideoTrackRef.current?.stop()
+    localVideoTrackRef.current = null
+    localAudioTrackRef.current?.stop()
+    localAudioTrackRef.current = null
+
+    remoteStreamsRef.current.clear()
+    setLocalStream(null)
+    setConnectionState(ConnectionState.Disconnected)
+    
+    // Reset UI state to initial values
+    setIsVideoEnabled(initialVideoRef.current)
+    setIsAudioEnabled(initialAudioRef.current)
+    setIsScreenSharing(false)
+    
+    // Reset the meet store (clear participants)
+    getStore().reset()
+  }, [getStore])
+
   // Initialize room connection
   useEffect(() => {
-    if (!meetId || !user) return
+    // If meetId or user becomes null, cleanup only if we were connected
+    if (!meetId || !user) {
+      if (roomRef.current) {
+        cleanupRoom()
+      }
+      return
+    }
 
+    // Increment attempt counter for race condition protection
+    const currentAttempt = ++connectAttemptRef.current
     let mounted = true
 
     const connectRoom = async () => {
@@ -41,13 +112,20 @@ export function useLiveKit(
         const { data } = await fetchLiveKitToken(meetId)
         const { token, url } = data
 
+        // Check if this attempt is still valid (no newer attempt started)
+        if (currentAttempt !== connectAttemptRef.current || !mounted) {
+          return
+        }
+
         // Create room
         const room = new Room()
         roomRef.current = room
 
-        // Set up event handlers
-        room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-          if (!mounted) return
+        // --- Event Handlers ---
+
+        // Track subscribed (remote participant's track becomes available)
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
 
           if (track.kind === Track.Kind.Video || track.kind === Track.Kind.Audio) {
             // Get or create stream for this participant
@@ -59,88 +137,174 @@ export function useLiveKit(
             stream.addTrack(track.mediaStreamTrack)
             forceUpdate()
 
-            // Update participant state based on track kind
+            // Update participant state using publication mute state (more reliable than track.enabled)
             if (track.kind === Track.Kind.Video) {
               getStore().updateParticipant(participant.identity, {
-                isVideoEnabled: track.mediaStreamTrack.enabled,
+                isVideoEnabled: !publication.isMuted,
               })
             } else if (track.kind === Track.Kind.Audio) {
               getStore().updateParticipant(participant.identity, {
-                isAudioEnabled: track.mediaStreamTrack.enabled,
+                isAudioEnabled: !publication.isMuted,
               })
             }
           }
         })
 
-        room.on(RoomEvent.TrackUnsubscribed, (_track, _publication, _participant) => {
-          if (!mounted) return
-          // Note: We keep the stream but remove tracks individually
-          // Stream will be cleaned up when participant disconnects
+        // Track unsubscribed - properly remove tracks from stream
+        room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          
+          const stream = remoteStreamsRef.current.get(participant.identity)
+          if (stream) {
+            stream.removeTrack(track.mediaStreamTrack)
+            // Clean up empty streams
+            if (stream.getTracks().length === 0) {
+              remoteStreamsRef.current.delete(participant.identity)
+            }
+          }
           forceUpdate()
         })
 
+        // Track muted/unmuted - use publication state for accurate remote mute status
+        room.on(RoomEvent.TrackMuted, (publication, participant) => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          const localIdentity = room.localParticipant?.identity
+          if (participant.identity === localIdentity) return // Skip self
+
+          if (publication.kind === Track.Kind.Video) {
+            getStore().updateParticipant(participant.identity, { isVideoEnabled: false })
+          } else if (publication.kind === Track.Kind.Audio) {
+            getStore().updateParticipant(participant.identity, { isAudioEnabled: false })
+          }
+          if (publication.source === Track.Source.ScreenShare) {
+            getStore().updateParticipant(participant.identity, { isScreenSharing: false })
+          }
+        })
+
+        room.on(RoomEvent.TrackUnmuted, (publication, participant) => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          const localIdentity = room.localParticipant?.identity
+          if (participant.identity === localIdentity) return // Skip self
+
+          if (publication.kind === Track.Kind.Video) {
+            getStore().updateParticipant(participant.identity, { isVideoEnabled: true })
+          } else if (publication.kind === Track.Kind.Audio) {
+            getStore().updateParticipant(participant.identity, { isAudioEnabled: true })
+          }
+          if (publication.source === Track.Source.ScreenShare) {
+            getStore().updateParticipant(participant.identity, { isScreenSharing: true })
+          }
+        })
+
+        // Participant connected
         room.on(RoomEvent.ParticipantConnected, (participant) => {
-          if (!mounted || participant.identity === user.id) return
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          const localIdentity = room.localParticipant?.identity
+          if (participant.identity === localIdentity) return // Skip self
+          
+          // Read initial state from publications
+          const state = getParticipantState(participant)
           getStore().addParticipant({
             userId: participant.identity,
             userName: participant.name || undefined,
-            isVideoEnabled: false,
-            isAudioEnabled: false,
-            isScreenSharing: false,
+            ...state,
           })
         })
 
+        // Participant disconnected
         room.on(RoomEvent.ParticipantDisconnected, (participant) => {
-          if (!mounted) return
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
           remoteStreamsRef.current.delete(participant.identity)
           getStore().removeParticipant(participant.identity)
           forceUpdate()
         })
 
+        // Screen share tracking
         room.on(RoomEvent.TrackPublished, (publication, participant) => {
-          if (!mounted) return
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
           if (publication.source === Track.Source.ScreenShare) {
+            const localIdentity = room.localParticipant?.identity
             getStore().updateParticipant(participant.identity, {
               isScreenSharing: true,
             })
-            if (participant.identity === user.id) {
+            if (participant.identity === localIdentity) {
               setIsScreenSharing(true)
             }
           }
         })
 
         room.on(RoomEvent.TrackUnpublished, (publication, participant) => {
-          if (!mounted) return
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
           if (publication.source === Track.Source.ScreenShare) {
+            const localIdentity = room.localParticipant?.identity
             getStore().updateParticipant(participant.identity, {
               isScreenSharing: false,
             })
-            if (participant.identity === user.id) {
+            if (participant.identity === localIdentity) {
               setIsScreenSharing(false)
             }
           }
         })
 
+        // Connection state handlers
+        room.on(RoomEvent.ConnectionStateChanged, (state) => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          setConnectionState(state)
+        })
+
+        room.on(RoomEvent.Disconnected, () => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          // Clear remote streams on disconnect (don't reset store here - let cleanupRoom handle it)
+          remoteStreamsRef.current.clear()
+          forceUpdate()
+        })
+
+        room.on(RoomEvent.Reconnecting, () => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          console.log('[LiveKit] Reconnecting...')
+        })
+
+        room.on(RoomEvent.Reconnected, () => {
+          if (!mounted || currentAttempt !== connectAttemptRef.current) return
+          console.log('[LiveKit] Reconnected')
+        })
+
         // Connect to room
         await room.connect(url, token)
+
+        // Check again after async operation
+        if (currentAttempt !== connectAttemptRef.current || !mounted) {
+          room.disconnect()
+          return
+        }
 
         // Create and publish local tracks
         const tracks: MediaStreamTrack[] = []
         
         if (initialVideoEnabled) {
-          const videoTrack = await createLocalVideoTrack({
-            resolution: { width: 1280, height: 720 },
-          })
-          localVideoTrackRef.current = videoTrack
-          await room.localParticipant.publishTrack(videoTrack)
-          tracks.push(videoTrack.mediaStreamTrack)
+          try {
+            const videoTrack = await createLocalVideoTrack({
+              resolution: { width: 1280, height: 720 },
+            })
+            localVideoTrackRef.current = videoTrack
+            await room.localParticipant.publishTrack(videoTrack)
+            tracks.push(videoTrack.mediaStreamTrack)
+          } catch (error) {
+            console.error('[LiveKit] Failed to create video track:', error)
+            setIsVideoEnabled(false)
+          }
         }
 
         if (initialAudioEnabled) {
-          const audioTrack = await createLocalAudioTrack()
-          localAudioTrackRef.current = audioTrack
-          await room.localParticipant.publishTrack(audioTrack)
-          tracks.push(audioTrack.mediaStreamTrack)
+          try {
+            const audioTrack = await createLocalAudioTrack()
+            localAudioTrackRef.current = audioTrack
+            await room.localParticipant.publishTrack(audioTrack)
+            tracks.push(audioTrack.mediaStreamTrack)
+          } catch (error) {
+            console.error('[LiveKit] Failed to create audio track:', error)
+            setIsAudioEnabled(false)
+          }
         }
 
         if (tracks.length > 0) {
@@ -148,24 +312,24 @@ export function useLiveKit(
           setLocalStream(stream)
         }
 
-        // Add self as participant
+        // Add self as participant using room's local participant identity
+        const localIdentity = room.localParticipant.identity
         getStore().addParticipant({
-          userId: user.id,
+          userId: localIdentity,
           userName: user.name,
           profilePic: user.profilePic,
-          isVideoEnabled: initialVideoEnabled,
-          isAudioEnabled: initialAudioEnabled,
+          isVideoEnabled: localVideoTrackRef.current !== null,
+          isAudioEnabled: localAudioTrackRef.current !== null,
           isScreenSharing: false,
         })
 
-        // Update existing participants from room
+        // Add existing remote participants with their current state
         room.remoteParticipants.forEach((participant) => {
+          const state = getParticipantState(participant)
           getStore().addParticipant({
             userId: participant.identity,
             userName: participant.name || undefined,
-            isVideoEnabled: false,
-            isAudioEnabled: false,
-            isScreenSharing: false,
+            ...state,
           })
         })
       } catch (error) {
@@ -177,126 +341,121 @@ export function useLiveKit(
 
     return () => {
       mounted = false
-      cleanup()
+      cleanupRoom()
     }
-  }, [meetId, user, initialVideoEnabled, initialAudioEnabled, getStore, forceUpdate])
+  }, [meetId, user, initialVideoEnabled, initialAudioEnabled, getStore, forceUpdate, cleanupRoom])
 
-  // Toggle video
+  // Toggle video using LiveKit's API
   const toggleVideo = useCallback(async () => {
     const room = roomRef.current
     if (!room) return
 
-    const newEnabled = !isVideoEnabled
-    setIsVideoEnabled(newEnabled)
+    const prev = isVideoEnabled
+    const next = !prev
 
     try {
-      if (newEnabled) {
-        if (!localVideoTrackRef.current) {
-          const videoTrack = await createLocalVideoTrack({
-            resolution: { width: 1280, height: 720 },
+      await room.localParticipant.setCameraEnabled(next)
+      setIsVideoEnabled(next)
+
+      const localIdentity = room.localParticipant.identity
+      getStore().updateParticipant(localIdentity, { isVideoEnabled: next })
+
+      if (next) {
+        // Enabling - get the new track and add to stream
+        const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+        if (camPub?.track) {
+          localVideoTrackRef.current = camPub.track as LocalVideoTrack
+          setLocalStream((prevStream) => {
+            const s = new MediaStream(prevStream?.getTracks() || [])
+            s.getVideoTracks().forEach(t => s.removeTrack(t))
+            s.addTrack(camPub.track!.mediaStreamTrack)
+            return s
           })
-          localVideoTrackRef.current = videoTrack
-          await room.localParticipant.publishTrack(videoTrack)
-          
-          setLocalStream((prev) => {
-            if (prev) {
-              const newStream = new MediaStream(prev.getTracks())
-              newStream.addTrack(videoTrack.mediaStreamTrack)
-              return newStream
-            }
-            return new MediaStream([videoTrack.mediaStreamTrack])
-          })
-        } else {
-          // Track exists, just enable it
-          localVideoTrackRef.current.mediaStreamTrack.enabled = true
         }
       } else {
-        if (localVideoTrackRef.current) {
-          localVideoTrackRef.current.mediaStreamTrack.enabled = false
-        }
-        // Keep track published but disabled (don't unpublish)
+        // Disabling - remove video track from stream and clear ref
+        localVideoTrackRef.current = null
+        setLocalStream((prevStream) => {
+          if (!prevStream) return null
+          const s = new MediaStream(prevStream.getTracks())
+          s.getVideoTracks().forEach(t => s.removeTrack(t))
+          return s.getTracks().length ? s : null
+        })
       }
-
-      getStore().updateParticipant(user?.id || '', { isVideoEnabled: newEnabled })
     } catch (error) {
       console.error('[LiveKit] Error toggling video:', error)
+      // Revert state on error
+      setIsVideoEnabled(prev)
     }
-  }, [isVideoEnabled, user, getStore])
+  }, [isVideoEnabled, getStore])
 
-  // Toggle audio
+  // Toggle audio using LiveKit's API
   const toggleAudio = useCallback(async () => {
     const room = roomRef.current
     if (!room) return
 
-    const newEnabled = !isAudioEnabled
-    setIsAudioEnabled(newEnabled)
+    const prev = isAudioEnabled
+    const next = !prev
 
     try {
-      if (newEnabled) {
-        if (!localAudioTrackRef.current) {
-          const audioTrack = await createLocalAudioTrack()
-          localAudioTrackRef.current = audioTrack
-          await room.localParticipant.publishTrack(audioTrack)
-          
-          setLocalStream((prev) => {
-            if (prev) {
-              const newStream = new MediaStream(prev.getTracks())
-              newStream.addTrack(audioTrack.mediaStreamTrack)
-              return newStream
-            }
-            return new MediaStream([audioTrack.mediaStreamTrack])
+      await room.localParticipant.setMicrophoneEnabled(next)
+      setIsAudioEnabled(next)
+
+      const localIdentity = room.localParticipant.identity
+      getStore().updateParticipant(localIdentity, { isAudioEnabled: next })
+
+      if (next) {
+        // Enabling - get the new track and add to stream
+        const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+        if (micPub?.track) {
+          localAudioTrackRef.current = micPub.track as LocalAudioTrack
+          setLocalStream((prevStream) => {
+            const s = new MediaStream(prevStream?.getTracks() || [])
+            s.getAudioTracks().forEach(t => s.removeTrack(t))
+            s.addTrack(micPub.track!.mediaStreamTrack)
+            return s
           })
-        } else {
-          // Track exists, just enable it
-          localAudioTrackRef.current.mediaStreamTrack.enabled = true
         }
       } else {
-        if (localAudioTrackRef.current) {
-          localAudioTrackRef.current.mediaStreamTrack.enabled = false
-        }
-        // Keep track published but disabled (don't unpublish)
+        // Disabling - remove audio track from stream and clear ref
+        localAudioTrackRef.current = null
+        setLocalStream((prevStream) => {
+          if (!prevStream) return null
+          const s = new MediaStream(prevStream.getTracks())
+          s.getAudioTracks().forEach(t => s.removeTrack(t))
+          return s.getTracks().length ? s : null
+        })
       }
-
-      getStore().updateParticipant(user?.id || '', { isAudioEnabled: newEnabled })
     } catch (error) {
       console.error('[LiveKit] Error toggling audio:', error)
+      // Revert state on error
+      setIsAudioEnabled(prev)
     }
-  }, [isAudioEnabled, user, getStore])
+  }, [isAudioEnabled, getStore])
 
-  // Toggle screen share
+  // Toggle screen share using LiveKit's native API
   const toggleScreenShare = useCallback(async () => {
     const room = roomRef.current
     if (!room) return
 
-    try {
-      if (isScreenSharing) {
-        // Stop screen sharing
-        if (screenTrackRef.current) {
-          await room.localParticipant.unpublishTrack(screenTrackRef.current)
-          screenTrackRef.current.stop()
-          screenTrackRef.current = null
-        }
-        setIsScreenSharing(false)
-        getStore().updateParticipant(user?.id || '', { isScreenSharing: false })
-      } else {
-        // Start screen sharing
-        const screenTrack = await createLocalVideoTrack({
-          resolution: { width: 1920, height: 1080 },
-        })
-        screenTrackRef.current = screenTrack
-        await room.localParticipant.publishTrack(screenTrack, {
-          source: Track.Source.ScreenShare,
-        })
-        setIsScreenSharing(true)
-        getStore().updateParticipant(user?.id || '', { isScreenSharing: true })
-      }
-    } catch (error) {
-      console.error('[LiveKit] Error toggling screen share:', error)
-    }
-  }, [isScreenSharing, user, getStore])
+    const prev = isScreenSharing
+    const next = !prev
 
-  // Get remote streams
-  const getRemoteStreams = useCallback(() => {
+    try {
+      await room.localParticipant.setScreenShareEnabled(next)
+      setIsScreenSharing(next)
+      
+      const localIdentity = room.localParticipant.identity
+      getStore().updateParticipant(localIdentity, { isScreenSharing: next })
+    } catch (error) {
+      // User cancelled the screen share dialog or permission denied
+      console.error('[LiveKit] Screen share error:', error)
+      // State wasn't updated yet if it failed, no revert needed
+    }
+  }, [isScreenSharing, getStore])
+
+  // Get remote streams - simple function, no memoization needed (cheap to create)
+  const getRemoteStreams = () => {
     const streams: Array<{ userId: string; stream: MediaStream }> = []
     remoteStreamsRef.current.forEach((stream, userId) => {
       if (stream?.getTracks().length) {
@@ -304,12 +463,18 @@ export function useLiveKit(
       }
     })
     return streams
-  }, [streamsUpdateCounter])
+  }
 
-  // Change video device
+  // Change video device - respects current enable state
   const changeVideoDevice = useCallback(async (deviceId: string) => {
     const room = roomRef.current
-    if (!room || !localVideoTrackRef.current) return
+    if (!room) return
+    
+    // Only allow device change if video is currently enabled
+    if (!isVideoEnabled || !localVideoTrackRef.current) {
+      console.warn('[LiveKit] Cannot change video device while camera is disabled')
+      return
+    }
 
     try {
       const newTrack = await createLocalVideoTrack({
@@ -338,12 +503,18 @@ export function useLiveKit(
     } catch (error) {
       console.error('[LiveKit] Error changing video device:', error)
     }
-  }, [])
+  }, [isVideoEnabled])
 
-  // Change audio input device
+  // Change audio input device - respects current enable state
   const changeAudioInput = useCallback(async (deviceId: string) => {
     const room = roomRef.current
-    if (!room || !localAudioTrackRef.current) return
+    if (!room) return
+    
+    // Only allow device change if audio is currently enabled
+    if (!isAudioEnabled || !localAudioTrackRef.current) {
+      console.warn('[LiveKit] Cannot change audio device while microphone is disabled')
+      return
+    }
 
     try {
       const newTrack = await createLocalAudioTrack({ deviceId })
@@ -369,16 +540,14 @@ export function useLiveKit(
     } catch (error) {
       console.error('[LiveKit] Error changing audio input:', error)
     }
-  }, [])
+  }, [isAudioEnabled])
 
   // Change audio output device
   const changeAudioOutput = useCallback(async (deviceId: string) => {
     // LiveKit handles audio output through HTMLAudioElement
     // This is typically handled in VideoTile component
-    // For now, we'll just update the device preference
     try {
       if ('setSinkId' in HTMLAudioElement.prototype) {
-        // This will be handled in VideoTile when rendering audio elements
         console.log('[LiveKit] Audio output device change requested:', deviceId)
       }
     } catch (error) {
@@ -386,10 +555,15 @@ export function useLiveKit(
     }
   }, [])
 
-  // Flip camera (switch between front/back)
+  // Flip camera (switch between front/back) - respects current enable state
   const flipCamera = useCallback(async () => {
     const room = roomRef.current
-    if (!room || !localVideoTrackRef.current) return
+    if (!room) return
+    
+    if (!isVideoEnabled || !localVideoTrackRef.current) {
+      console.warn('[LiveKit] Cannot flip camera while camera is disabled')
+      return
+    }
 
     try {
       const currentDeviceId = localVideoTrackRef.current.mediaStreamTrack.getSettings().deviceId
@@ -407,42 +581,36 @@ export function useLiveKit(
     } catch (error) {
       console.error('[LiveKit] Error flipping camera:', error)
     }
-  }, [changeVideoDevice])
+  }, [isVideoEnabled, changeVideoDevice])
 
-  // Cleanup
-  const cleanup = useCallback(() => {
+  // Get local screen share stream (separate from camera)
+  const getLocalScreenShareStream = useCallback((): MediaStream | null => {
     const room = roomRef.current
-    if (room) {
-      room.disconnect()
-      roomRef.current = null
+    if (!room || !isScreenSharing) return null
+
+    const screenPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare)
+    if (screenPub?.track) {
+      return new MediaStream([screenPub.track.mediaStreamTrack])
     }
-
-    localVideoTrackRef.current?.stop()
-    localVideoTrackRef.current = null
-    localAudioTrackRef.current?.stop()
-    localAudioTrackRef.current = null
-    screenTrackRef.current?.stop()
-    screenTrackRef.current = null
-
-    remoteStreamsRef.current.clear()
-    setLocalStream(null)
-  }, [])
+    return null
+  }, [isScreenSharing])
 
   return {
     localStream,
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
+    connectionState,
     toggleVideo,
     toggleAudio,
     toggleScreenShare,
     getRemoteStreams,
+    getLocalScreenShareStream,
     streamsUpdateCounter,
     changeVideoDevice,
     changeAudioInput,
     changeAudioOutput,
     flipCamera,
-    cleanup,
+    cleanup: cleanupRoom,
   }
 }
-

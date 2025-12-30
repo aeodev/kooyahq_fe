@@ -8,9 +8,10 @@ interface VideoTileProps {
   stream: MediaStream | null
   isLocal?: boolean
   isMirrored?: boolean
+  className?: string
 }
 
-export function VideoTile({ participant, stream, isLocal = false, isMirrored = false }: VideoTileProps) {
+export function VideoTile({ participant, stream, isLocal = false, isMirrored = false, className }: VideoTileProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -217,7 +218,8 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
       ref={containerRef}
       className={cn(
         'relative w-full h-full bg-gray-900 rounded-lg min-h-0',
-        isScreenShare ? 'overflow-auto touch-pan-y touch-pan-x' : 'overflow-hidden'
+        isScreenShare ? 'overflow-auto touch-pan-y touch-pan-x' : 'overflow-hidden',
+        className
       )}
     >
       <video

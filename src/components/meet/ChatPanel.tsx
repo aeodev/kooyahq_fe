@@ -38,9 +38,12 @@ export function ChatPanel({ meetId, isOpen, onClose }: ChatPanelProps) {
     if (!socket?.connected || !meetId) return
 
     const handleChatMessage = (data: { userId: string; userName?: string; message: string; timestamp: string }) => {
+      // Skip if this is our own message (already added locally via optimistic update)
+      if (data.userId === user?.id) return
+      
       storeRef.current.addChatMessage({
         userId: data.userId,
-        userName: data.userId === user?.id ? user.name : data.userName,
+        userName: data.userName,
         message: data.message,
         timestamp: data.timestamp,
       })
@@ -56,9 +59,19 @@ export function ChatPanel({ meetId, isOpen, onClose }: ChatPanelProps) {
   const handleSend = () => {
     if (!message.trim() || !socket?.connected || !user || !meetId) return
 
+    const trimmedMessage = message.trim()
+    
+    // Add locally first (optimistic update)
+    storeRef.current.addChatMessage({
+      userId: user.id,
+      userName: user.name,
+      message: trimmedMessage,
+      timestamp: new Date().toISOString(),
+    })
+
     socket.emit('meet:chat-message', {
       meetId,
-      message: message.trim(),
+      message: trimmedMessage,
     })
 
     setMessage('')
@@ -81,8 +94,8 @@ export function ChatPanel({ meetId, isOpen, onClose }: ChatPanelProps) {
         onClick={onClose}
       />
       
-      {/* Chat panel */}
-      <div className="fixed md:relative inset-0 md:inset-auto md:w-80 bg-background border-l border-border/50 flex flex-col flex-shrink-0 z-50 md:z-auto pb-24 md:pb-0">
+      {/* Chat panel - responsive width */}
+      <div className="fixed md:relative inset-0 md:inset-auto md:w-72 lg:w-80 xl:w-96 bg-background border-l border-border/50 flex flex-col flex-shrink-0 z-50 md:z-auto pb-24 md:pb-0">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold">Chat</h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
