@@ -25,7 +25,6 @@ export function AIHeader({ hasMessages, onClear, onClose }: AIHeaderProps) {
           <Switch
             checked={heyKooyaEnabled}
             onCheckedChange={toggleHeyKooya}
-            title={heyKooyaEnabled ? 'Disable "Hey Kooya" voice activation' : 'Enable "Hey Kooya" voice activation'}
             aria-label={heyKooyaEnabled ? 'Disable "Hey Kooya" voice activation' : 'Enable "Hey Kooya" voice activation'}
           />
         </div>

@@ -19,7 +19,7 @@ const initialState: UserPreferencesState = {
 
 export const useUserPreferencesStore = create<UserPreferencesStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
       setHeyKooyaEnabled: (enabled: boolean) => set({ heyKooyaEnabled: enabled }),
