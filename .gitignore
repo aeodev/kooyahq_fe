@@ -21,7 +21,6 @@ vite.config.ts.timestamp*
 
 # Environment and secrets
 .env
-.env.*
 !.env.example
 
 # Logs and diagnostics
