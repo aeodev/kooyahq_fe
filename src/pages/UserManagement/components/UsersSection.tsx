@@ -202,14 +202,12 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
   const [createUserData, setCreateUserData] = useState<{
     name: string
     email: string
-    password: string
     position: string
     birthday: string
     permissions: string[]
   }>({
     name: '',
     email: '',
-    password: '',
     position: '',
     birthday: '',
     permissions: DEFAULT_NEW_USER_PERMISSIONS,
@@ -372,10 +370,6 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       if (!emailRegex.test(createUserData.email)) {
         errors.email = 'Invalid email format'
       }
-    }
-
-    if (!createUserData.password || createUserData.password.length < 8) {
-      errors.password = 'Password must be at least 8 characters'
     }
 
     if (createUserData.birthday) {
@@ -661,7 +655,6 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     setCreateUserData({
       name: '',
       email: '',
-      password: '',
       position: '',
       birthday: '',
       permissions: getDefaultCreatePermissions(),
@@ -679,7 +672,6 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     const result = await createUser({
       name: createUserData.name.trim(),
       email: createUserData.email.trim(),
-      password: createUserData.password,
       position: createUserData.position.trim() || undefined,
       birthday: createUserData.birthday || undefined,
       permissions: normalizedPerms,
@@ -742,7 +734,6 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 setCreateUserData({
                   name: '',
                   email: '',
-                  password: '',
                   position: '',
                   birthday: '',
                   permissions: getDefaultCreatePermissions(),
@@ -1026,7 +1017,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
           <div className="flex items-start justify-between gap-4">
             <div>
               <h3 className="text-lg font-semibold">Create User</h3>
-              <p className="text-sm text-muted-foreground">Set profile, password, and permissions</p>
+              <p className="text-sm text-muted-foreground">Set profile and permissions</p>
             </div>
             <Button variant="ghost" size="icon" onClick={resetCreateUserForm}>
               <X className="h-4 w-4" />
@@ -1063,21 +1054,6 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 {createValidationErrors.email && <p className="text-xs text-destructive">{createValidationErrors.email}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-password">Password</Label>
-                <Input
-                  id="create-password"
-                  type="password"
-                  value={createUserData.password}
-                  onChange={(e) => {
-                    setCreateUserData({ ...createUserData, password: e.target.value })
-                    if (createValidationErrors.password) setCreateValidationErrors((prev) => ({ ...prev, password: '' }))
-                  }}
-                  placeholder="Minimum 8 characters"
-                  className={createValidationErrors.password ? 'border-destructive' : ''}
-                />
-                {createValidationErrors.password && <p className="text-xs text-destructive">{createValidationErrors.password}</p>}
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="create-position">Position</Label>
                 <Input
                   id="create-position"
@@ -1106,7 +1082,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
+              <div className="space-y-4">
                 {/* Role Templates */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -1134,8 +1110,8 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 </div>
 
                 {/* Search */}
-                <div className="relative flex items-center">
-                  <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
                     value={createPermissionSearch}
                     onChange={(e) => setCreatePermissionSearch(e.target.value)}

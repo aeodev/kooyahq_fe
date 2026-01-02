@@ -201,7 +201,6 @@ export const useUserManagementStats = () => {
 type CreateClientInput = {
   name: string
   email: string
-  password: string
   clientCompanyId?: string
 }
 
@@ -241,7 +240,6 @@ export const useCreateClient = () => {
 type CreateUserInput = {
   name: string
   email: string
-  password: string
   position?: string
   birthday?: string
   status?: string
@@ -281,5 +279,3 @@ export const useCreateUser = () => {
     createUser,
   }
 }
-
-
