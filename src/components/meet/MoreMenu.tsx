@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MoreVertical, Settings, Bot, Square, UserPlus, Loader2 } from 'lucide-react'
+import { MoreVertical, Settings, Bot, Square, UserPlus, Loader2, PictureInPicture2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -34,8 +34,11 @@ interface MediaDevice {
 interface MoreMenuProps {
   meetId: string | null
   isRecording: boolean
+  isPiPActive?: boolean
+  isPiPSupported?: boolean
   onStartRecording: () => void
   onStopRecording: () => void
+  onTogglePiP?: () => void
   onVideoDeviceChange: (deviceId: string) => void
   onAudioInputChange: (deviceId: string) => void
   onAudioOutputChange: (deviceId: string) => void
@@ -44,8 +47,11 @@ interface MoreMenuProps {
 export function MoreMenu({
   meetId,
   isRecording,
+  isPiPActive = false,
+  isPiPSupported = false,
   onStartRecording,
   onStopRecording,
+  onTogglePiP,
   onVideoDeviceChange,
   onAudioInputChange,
   onAudioOutputChange,
@@ -214,6 +220,15 @@ export function MoreMenu({
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
+
+          {/* Picture-in-Picture */}
+          {isPiPSupported && onTogglePiP && (
+            <DropdownMenuItem onClick={onTogglePiP}>
+              <PictureInPicture2 className="mr-2 h-4 w-4" />
+              {isPiPActive ? 'Exit picture-in-picture' : 'Open picture-in-picture'}
+              {isPiPActive && <Check className="ml-auto h-4 w-4" />}
+            </DropdownMenuItem>
+          )}
 
           {/* Recording */}
           <DropdownMenuItem onClick={isRecording ? onStopRecording : onStartRecording}>

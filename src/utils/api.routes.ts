@@ -219,6 +219,12 @@ export const GET_MEET_RECORDINGS = () => `/meet/recordings`
 export const GET_MEET_RECORDING = (id: string) => `/meet/recordings/${id}`
 export const GET_MEET_RECORDING_ANALYSIS = (id: string) => `/meet/recordings/${id}/analysis`
 
+// Meet Egress routes (server-side recording to S3)
+export const START_MEET_EGRESS = (roomName: string) => `/meet/egress/start/${roomName}`
+export const STOP_MEET_EGRESS = (egressId: string) => `/meet/egress/stop/${egressId}`
+export const GET_EGRESS_STATUS = (egressId: string) => `/meet/egress/status/${egressId}`
+export const GET_ACTIVE_EGRESS = (roomName: string) => `/meet/egress/active/${roomName}`
+
 // Media upload routes (for rich text editor)
 export const UPLOAD_MEDIA = () => `/media/upload`
 // User management routes

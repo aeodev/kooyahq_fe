@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ConnectionState } from 'livekit-client'
 import { useSocketStore } from '@/stores/socket.store'
@@ -7,7 +7,8 @@ import { useMeetStore } from '@/stores/meet.store'
 import { useLiveKit } from '@/composables/meet/useLiveKit'
 import { useActiveSpeaker } from '@/composables/meet/useActiveSpeaker'
 import { useRecording } from '@/composables/meet/useRecording'
-import { VideoTile } from '@/components/meet/VideoTile'
+import { usePictureInPicture } from '@/composables/meet/usePictureInPicture'
+import { VideoTile, type VideoTileRef } from '@/components/meet/VideoTile'
 import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
 import { InvitationModal } from '@/components/meet/InvitationModal'
@@ -38,8 +39,6 @@ export function Meet() {
     participants,
     isChatOpen,
     toggleChat,
-    isMirrored,
-    toggleMirror,
     reset,
     setMeetId,
   } = useMeetStore()
@@ -49,11 +48,14 @@ export function Meet() {
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
+    isMirroredForRemote,
     connectionState,
     toggleVideo,
     toggleAudio,
     toggleScreenShare,
+    toggleMirrorForRemote,
     getRemoteStreams,
+    getRemoteScreenShareStream,
     getLocalScreenShareStream,
     streamsUpdateCounter,
     changeVideoDevice,
@@ -64,6 +66,37 @@ export function Meet() {
   } = useLiveKit(meetId || null, initialVideoEnabled, initialAudioEnabled)
 
   const { isRecording, startRecording, stopRecording } = useRecording(localStream, meetId || null)
+
+  // Picture-in-Picture support
+  const { isPiPActive, isPiPSupported, togglePiP, setVideoElement, enterPiP } = usePictureInPicture()
+  const localVideoTileRef = useRef<VideoTileRef>(null)
+
+  // Handler for PiP toggle
+  const handleTogglePiP = useCallback(() => {
+    const videoElement = localVideoTileRef.current?.getVideoElement()
+    if (videoElement) {
+      togglePiP(videoElement)
+    }
+  }, [togglePiP])
+
+  // Register video element for auto-PiP on tab switch
+  useEffect(() => {
+    const videoElement = localVideoTileRef.current?.getVideoElement()
+    if (videoElement) {
+      setVideoElement(videoElement)
+    }
+  }, [setVideoElement, connectionState]) // Re-run when connection state changes
+
+  // Auto-PiP when screen sharing starts
+  useEffect(() => {
+    if (isScreenSharing && isPiPSupported) {
+      // Small delay to ensure video is ready
+      const timer = setTimeout(() => {
+        enterPiP()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [isScreenSharing, isPiPSupported, enterPiP])
 
   // Initialize meet and join socket room for chat
   useEffect(() => {
@@ -331,7 +364,7 @@ export function Meet() {
       }}
       stream={stream}
       isLocal={isLocal}
-      isMirrored={isLocal && isMirrored && !participant.isScreenSharing}
+      isMirrored={isLocal && isMirroredForRemote && !participant.isScreenSharing}
       className={className}
     />
   )
@@ -339,9 +372,10 @@ export function Meet() {
   // Screen sharing focus mode layout
   if (screenSharingParticipant && !isMobile) {
     const isScreenSharerLocal = screenSharingParticipant.userId === user.id
+    // Use dedicated screen share stream for remote participants (not their camera stream)
     const screenShareStream = isScreenSharerLocal 
       ? localScreenShareStream 
-      : remoteStreams.get(screenSharingParticipant.userId) || null
+      : getRemoteScreenShareStream(screenSharingParticipant.userId)
 
     // Thumbnails: all participants except show screen sharer's camera separately
     const thumbnailParticipants = displayParticipants.map(p => {
@@ -406,14 +440,17 @@ export function Meet() {
             isAudioEnabled={isAudioEnabled}
             isScreenSharing={isScreenSharing}
             isRecording={isRecording}
-            isMirrored={isMirrored}
+            isMirrored={isMirroredForRemote}
+            isPiPActive={isPiPActive}
+            isPiPSupported={isPiPSupported}
             isChatOpen={isChatOpen}
             isMobile={isMobile}
             onToggleVideo={toggleVideo}
             onToggleAudio={toggleAudio}
             onToggleScreenShare={toggleScreenShare}
             onToggleChat={toggleChat}
-            onToggleMirror={toggleMirror}
+            onToggleMirror={toggleMirrorForRemote}
+            onTogglePiP={handleTogglePiP}
             onFlipCamera={flipCamera}
             onStartRecording={startRecording}
             onStopRecording={stopRecording}
@@ -451,10 +488,11 @@ export function Meet() {
             return (
               <VideoTile
                 key={participant.userId}
+                ref={isLocal ? localVideoTileRef : undefined}
                 participant={participant}
                 stream={stream}
                 isLocal={isLocal}
-                isMirrored={isLocal && isMirrored}
+                isMirrored={isLocal && isMirroredForRemote}
               />
             )
           })}
@@ -470,14 +508,17 @@ export function Meet() {
           isAudioEnabled={isAudioEnabled}
           isScreenSharing={isScreenSharing}
           isRecording={isRecording}
-          isMirrored={isMirrored}
+          isMirrored={isMirroredForRemote}
+          isPiPActive={isPiPActive}
+          isPiPSupported={isPiPSupported}
           isChatOpen={isChatOpen}
           isMobile={isMobile}
           onToggleVideo={toggleVideo}
           onToggleAudio={toggleAudio}
           onToggleScreenShare={toggleScreenShare}
           onToggleChat={toggleChat}
-          onToggleMirror={toggleMirror}
+          onToggleMirror={toggleMirrorForRemote}
+          onTogglePiP={handleTogglePiP}
           onFlipCamera={flipCamera}
           onStartRecording={startRecording}
           onStopRecording={stopRecording}

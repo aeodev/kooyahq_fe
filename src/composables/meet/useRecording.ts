@@ -1,100 +1,126 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMeetStore } from '@/stores/meet.store'
 import axiosInstance from '@/utils/axios.instance'
-import { UPLOAD_MEET_RECORDING } from '@/utils/api.routes'
+import { START_MEET_EGRESS, STOP_MEET_EGRESS, GET_ACTIVE_EGRESS } from '@/utils/api.routes'
 
-export function useRecording(stream: MediaStream | null, meetId: string | null) {
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+interface EgressResponse {
+  success: boolean
+  data: {
+    egressId: string
+    status: string
+    recordingUrl?: string
+    duration?: number
+    isRecording?: boolean
+  }
+}
+
+/**
+ * Hook for server-side recording via LiveKit Egress
+ * Records directly to S3 - zero RAM usage on the client
+ */
+export function useRecording(_stream: MediaStream | null, meetId: string | null) {
   const [isRecording, setIsRecording] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const recordedChunksRef = useRef<Blob[]>([])
-  const startTimeRef = useRef<Date | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const egressIdRef = useRef<string | null>(null)
 
-  const startRecording = useCallback(() => {
-    if (!stream) return
+  // Check for active egress when joining a room
+  useEffect(() => {
+    if (!meetId) return
 
-    const chunks: Blob[] = []
-    recordedChunksRef.current = chunks
-    startTimeRef.current = new Date()
-
-    const recorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp8,opus',
-    })
-
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunks.push(event.data)
+    const checkActiveEgress = async () => {
+      try {
+        const response = await axiosInstance.get<EgressResponse>(GET_ACTIVE_EGRESS(meetId))
+        if (response.data.success && response.data.data.isRecording) {
+          egressIdRef.current = response.data.data.egressId || null
+          setIsRecording(true)
+          useMeetStore.getState().setRecording(true)
+        }
+      } catch {
+        // No active egress, that's fine
       }
     }
 
-    recorder.onstop = async () => {
-      const endTime = new Date()
-      const startTime = startTimeRef.current || endTime
-      const duration = Math.round((endTime.getTime() - startTime.getTime()) / 1000)
+    checkActiveEgress()
+  }, [meetId])
 
-      const blob = new Blob(chunks, { type: 'video/webm' })
-      
-      // Upload to backend if meetId is available
-      if (meetId) {
-        setIsUploading(true)
-        try {
-          const formData = new FormData()
-          formData.append('recording', blob, `meet-recording-${Date.now()}.webm`)
-          formData.append('meetId', meetId)
-          formData.append('duration', duration.toString())
-          formData.append('startTime', startTime.toISOString())
-          formData.append('endTime', endTime.toISOString())
+  /**
+   * Start server-side recording via LiveKit Egress
+   * Recording streams directly to S3 - no browser RAM usage
+   */
+  const startRecording = useCallback(async () => {
+    if (!meetId) {
+      setError('No meeting ID available')
+      return
+    }
 
-          await axiosInstance.post(UPLOAD_MEET_RECORDING(), formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          })
-        } catch (error) {
-          console.error('Failed to upload recording:', error)
-          // Fallback to download if upload fails
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `meet-recording-${Date.now()}.webm`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
-        } finally {
-          setIsUploading(false)
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await axiosInstance.post<EgressResponse>(START_MEET_EGRESS(meetId))
+
+      if (response.data.success) {
+        egressIdRef.current = response.data.data.egressId
+        setIsRecording(true)
+        useMeetStore.getState().setRecording(true)
+      } else {
+        throw new Error('Failed to start recording')
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start recording'
+      setError(message)
+      console.error('[Egress] Failed to start recording:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [meetId])
+
+  /**
+   * Stop server-side recording
+   * The recording file is already in S3
+   */
+  const stopRecording = useCallback(async () => {
+    const egressId = egressIdRef.current
+    if (!egressId) {
+      setError('No active recording to stop')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await axiosInstance.post<EgressResponse>(
+        STOP_MEET_EGRESS(egressId),
+        { roomName: meetId }
+      )
+
+      if (response.data.success) {
+        egressIdRef.current = null
+        setIsRecording(false)
+        useMeetStore.getState().setRecording(false)
+
+        // Recording URL is available in response.data.data.recordingUrl
+        if (response.data.data.recordingUrl) {
+          console.log('[Egress] Recording saved to:', response.data.data.recordingUrl)
         }
       } else {
-        // Fallback to download if no meetId
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `meet-recording-${Date.now()}.webm`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+        throw new Error('Failed to stop recording')
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to stop recording'
+      setError(message)
+      console.error('[Egress] Failed to stop recording:', err)
+    } finally {
+      setIsLoading(false)
     }
-
-    recorder.start()
-    setMediaRecorder(recorder)
-    setIsRecording(true)
-    useMeetStore.getState().setRecording(true)
-  }, [stream, meetId])
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop()
-      setIsRecording(false)
-      useMeetStore.getState().setRecording(false)
-      setMediaRecorder(null)
-    }
-  }, [mediaRecorder])
+  }, [meetId])
 
   return {
     isRecording,
-    isUploading,
+    isUploading: isLoading, // Keep same interface for backward compatibility
+    error,
     startRecording,
     stopRecording,
   }

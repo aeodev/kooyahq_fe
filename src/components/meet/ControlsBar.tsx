@@ -9,6 +9,8 @@ interface ControlsBarProps {
   isScreenSharing: boolean
   isRecording: boolean
   isMirrored: boolean
+  isPiPActive?: boolean
+  isPiPSupported?: boolean
   isChatOpen?: boolean
   isMobile?: boolean
   onToggleVideo: () => void
@@ -16,6 +18,7 @@ interface ControlsBarProps {
   onToggleScreenShare: () => void
   onToggleChat: () => void
   onToggleMirror: () => void
+  onTogglePiP?: () => void
   onFlipCamera?: () => void
   onStartRecording: () => void
   onStopRecording: () => void
@@ -32,6 +35,8 @@ export function ControlsBar({
   isScreenSharing,
   isRecording,
   isMirrored,
+  isPiPActive = false,
+  isPiPSupported = false,
   isChatOpen = false,
   isMobile = false,
   onToggleVideo,
@@ -39,6 +44,7 @@ export function ControlsBar({
   onToggleScreenShare,
   onToggleChat,
   onToggleMirror,
+  onTogglePiP,
   onFlipCamera,
   onStartRecording,
   onStopRecording,
@@ -66,8 +72,11 @@ export function ControlsBar({
         <MoreMenu
           meetId={meetId}
           isRecording={isRecording}
+          isPiPActive={isPiPActive}
+          isPiPSupported={isPiPSupported}
           onStartRecording={onStartRecording}
           onStopRecording={onStopRecording}
+          onTogglePiP={onTogglePiP}
           onVideoDeviceChange={onVideoDeviceChange}
           onAudioInputChange={onAudioInputChange}
           onAudioOutputChange={onAudioOutputChange}

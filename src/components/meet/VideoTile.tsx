@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Participant } from '@/stores/meet.store'
 import { cn } from '@/utils/cn'
@@ -11,11 +11,23 @@ interface VideoTileProps {
   className?: string
 }
 
-export function VideoTile({ participant, stream, isLocal = false, isMirrored = false, className }: VideoTileProps) {
+export interface VideoTileRef {
+  getVideoElement: () => HTMLVideoElement | null
+}
+
+export const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function VideoTile(
+  { participant, stream, isLocal = false, isMirrored = false, className },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const user = useAuthStore((state) => state.user)
+
+  // Expose video element to parent via ref
+  useImperativeHandle(ref, () => ({
+    getVideoElement: () => videoRef.current,
+  }), [])
 
   const [scale, setScale] = useState(1)
   const [translateX, setTranslateX] = useState(0)
@@ -288,4 +300,4 @@ export function VideoTile({ participant, stream, isLocal = false, isMirrored = f
       </div>
     </div>
   )
-}
+})
