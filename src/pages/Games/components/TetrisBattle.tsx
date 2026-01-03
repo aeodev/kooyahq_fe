@@ -972,9 +972,14 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   useEffect(() => {
     if (!socket?.connected) return
     
-    socket.on('tetris:lobby-state', (data: { status: LobbyStatus; players: Player[]; seed: number }) => {
+    socket.on('tetris:lobby-state', (data: { status: LobbyStatus; players: { odactuserId: string; name: string; ready: boolean }[]; seed: number }) => {
       setLobbyStatus(data.status)
-      setLobbyPlayers(data.players)
+      setLobbyPlayers(data.players.map(player => ({
+        ...player,
+        alive: true,
+        score: 0,
+        koCount: 0,
+      })))
       setSeed(data.seed)
     })
     
@@ -1005,12 +1010,16 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
       }, 1000)
     })
     
-    socket.on('tetris:game-start', (data: { seed: number; duration: number; players: Player[] }) => {
+    socket.on('tetris:game-start', (data: { seed: number; duration: number; players: { odactuserId: string; name: string }[] }) => {
       setGameView('game')
       setLobbyStatus('in-progress')
       setSeed(data.seed)
       setGameTime(Math.ceil(data.duration / 1000))
-      setOpponents(data.players.filter(p => p.odactuserId !== user?.id))
+      setOpponents(
+        data.players
+          .filter(p => p.odactuserId !== user?.id)
+          .map(player => ({ ...player, alive: true, score: 0, koCount: 0 }))
+      )
       startGame(data.seed)
     })
     
@@ -1022,6 +1031,10 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     
     socket.on('tetris:player-died', (data: { odactuserId: string; finalScore: number }) => {
       setOpponents(prev => prev.map(p => p.odactuserId === data.odactuserId ? { ...p, alive: false, score: data.finalScore } : p))
+    })
+
+    socket.on('tetris:player-disconnected', (data: { odactuserId: string }) => {
+      setOpponents(prev => prev.map(p => p.odactuserId === data.odactuserId ? { ...p, alive: false } : p))
     })
     
     socket.on('tetris:game-end', () => {
@@ -1045,6 +1058,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
       socket.off('tetris:game-start')
       socket.off('tetris:receive-attack')
       socket.off('tetris:player-died')
+      socket.off('tetris:player-disconnected')
       socket.off('tetris:game-end')
       socket.off('tetris:lobby-reset')
     }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { RotateCcw } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import {
@@ -9,6 +9,7 @@ import {
   type RockPaperScissorsChoice,
 } from '@/hooks/game-constants'
 import { useGameMatch } from '@/composables/game/useGameMatch'
+import { GameLayout } from './GameLayout'
 
 type Choice = RockPaperScissorsChoice
 type RoundResult = 'win' | 'loss' | 'draw' | null
@@ -171,23 +172,13 @@ export function RockPaperScissors({ onClose, opponentId }: RockPaperScissorsProp
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle>Rock Paper Scissors</CardTitle>
-            {isAI && (
-              <span className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded">
-                AI Mode
-              </span>
-            )}
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            ×
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <GameLayout
+      title="Rock Paper Scissors"
+      badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
+      onClose={onClose}
+      contentClassName="w-full max-w-md"
+    >
+      <div className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
         <div className="text-center space-y-2">
           <p className="text-sm text-muted-foreground">Best of 3 rounds</p>
           <div className="flex justify-center gap-6 text-2xl font-bold">
@@ -265,17 +256,11 @@ export function RockPaperScissors({ onClose, opponentId }: RockPaperScissorsProp
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button onClick={resetGame} variant="outline" className="flex-1" disabled={loading}>
-            <RotateCcw className="w-4 h-4 mr-2" />
-            New Game
-          </Button>
-          <Button onClick={onClose} variant="outline" className="flex-1">
-            Close
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <Button onClick={resetGame} variant="outline" className="w-full" disabled={loading}>
+          <RotateCcw className="w-4 h-4 mr-2" />
+          New Game
+        </Button>
+      </div>
+    </GameLayout>
   )
 }
-

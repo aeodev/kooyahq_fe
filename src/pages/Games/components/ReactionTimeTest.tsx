@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { RotateCcw, X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { RotateCcw } from 'lucide-react'
 import axiosInstance from '@/utils/axios.instance'
 import { CREATE_MATCH, UPDATE_MATCH } from '@/utils/api.routes'
 import { useAuthStore } from '@/stores/auth.store'
 import type { GameMatch } from '@/types/game'
+import { GameLayout } from './GameLayout'
 
 interface ReactionTimeTestProps {
   onClose: () => void
@@ -281,31 +283,20 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      {/* Header bar */}
-      <div className="flex items-center justify-between p-4 bg-card border-b border-border">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Reaction Time Test</h1>
-          {isAI && (
-            <span className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded">
-              AI Mode
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {reactionTimes.length > 0 && reactionTimes.length < 5 && (
-            <div className="text-sm text-muted-foreground mr-2">
-              Round {reactionTimes.length}/5
-            </div>
-          )}
-          <Button variant="ghost" size="icon" onClick={handleClose}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
+  const roundLabel =
+    reactionTimes.length > 0 && reactionTimes.length < 5 ? (
+      <span className="text-sm text-muted-foreground">Round {reactionTimes.length}/5</span>
+    ) : null
 
-      {/* Full screen clickable area */}
+  return (
+    <GameLayout
+      title="Reaction Time Test"
+      badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
+      onClose={handleClose}
+      headerRight={roundLabel}
+      bodyClassName="flex-1 flex flex-col"
+      contentClassName="flex-1 flex flex-col w-full max-w-none"
+    >
       <div
         className={`flex-1 flex flex-col items-center justify-center transition-colors duration-300 cursor-pointer ${getBackgroundColor()}`}
         onClick={handleScreenClick}
@@ -362,7 +353,6 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
         )}
       </div>
 
-      {/* Bottom stats bar */}
       {reactionTimes.length > 0 && gameState !== 'finished' && (
         <div className="p-4 bg-card border-t border-border">
           <div className="flex items-center justify-between max-w-4xl mx-auto">
@@ -390,18 +380,14 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
         </div>
       )}
 
-      {/* Control buttons */}
       <div className="p-4 bg-card border-t border-border">
         <div className="flex items-center justify-center gap-2 max-w-4xl mx-auto">
           <Button onClick={resetGame} variant="outline" size="sm">
             <RotateCcw className="w-4 h-4 mr-2" />
             Reset
           </Button>
-          <Button onClick={handleClose} variant="outline" size="sm">
-            Close
-          </Button>
         </div>
       </div>
-    </div>
+    </GameLayout>
   )
 }

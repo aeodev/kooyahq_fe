@@ -29,6 +29,12 @@ export function LeaderboardView({
   }, [currentGameType, fetchLeaderboard])
 
   useEffect(() => {
+    if (!currentGameType && gameTypes.length > 0) {
+      setCurrentGameType(gameTypes[0].type)
+    }
+  }, [currentGameType, gameTypes])
+
+  useEffect(() => {
     if (selectedGameType) {
       setCurrentGameType(selectedGameType)
       onGameTypeSelect(null)
@@ -144,4 +150,3 @@ export function LeaderboardView({
     </div>
   )
 }
-

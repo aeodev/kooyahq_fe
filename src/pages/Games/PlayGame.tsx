@@ -25,7 +25,7 @@ export function PlayGame() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] p-4">
+    <div className="min-h-[calc(100vh-8rem)] w-full">
       {gameType === 'tic-tac-toe' && <TicTacToe onClose={handleClose} opponentId={opponentId} />}
       {gameType === 'reaction-test' && <ReactionTimeTest onClose={handleClose} opponentId={opponentId} />}
       {gameType === 'rock-paper-scissors' && <RockPaperScissors onClose={handleClose} opponentId={opponentId} />}
@@ -42,4 +42,3 @@ export function PlayGame() {
     </div>
   )
 }
-

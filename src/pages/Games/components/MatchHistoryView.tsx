@@ -11,6 +11,10 @@ interface MatchHistoryViewProps {
 }
 
 export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryViewProps) {
+  const completedCount = matches.filter((m) => m.status === 'completed').length
+  const inProgressCount = matches.filter((m) => m.status === 'in-progress' || m.status === 'waiting').length
+  const abandonedCount = matches.filter((m) => m.status === 'abandoned').length
+
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
     const now = new Date()
@@ -42,10 +46,10 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
         <div>
           <h2 className="text-xl font-semibold">Match History</h2>
           <p className="text-sm text-muted-foreground">
-            {matches.filter((m) => m.status === 'completed').length} completed{' '}
-            {matches.filter((m) => m.status !== 'completed').length > 0 && (
+            {matches.length} total - {completedCount} completed
+            {(inProgressCount > 0 || abandonedCount > 0) && (
               <span className="text-muted-foreground/70">
-                ({matches.filter((m) => m.status !== 'completed').length} in progress/abandoned)
+                {` - ${inProgressCount} in progress - ${abandonedCount} abandoned`}
               </span>
             )}
           </p>
@@ -70,9 +74,7 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
         </Card>
       ) : (
         <div className="space-y-3">
-          {matches
-            .filter((match) => match.status === 'completed')
-            .map((match) => (
+          {matches.map((match) => (
             <Card key={match.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
@@ -96,7 +98,7 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
                     ) : (
                       <>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>Players: {match.playerNames.join(', ')}</span>
+                          <span>Players: {(match.playerNames?.length ? match.playerNames : match.players).join(', ')}</span>
                         </div>
                         {match.winner && (
                           <p className="text-sm">
@@ -133,4 +135,3 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
     </div>
   )
 }
-

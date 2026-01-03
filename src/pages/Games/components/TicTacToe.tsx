@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { X, Circle, RotateCcw } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { TIC_TAC_TOE_WINNING_LINES, TIC_TAC_TOE_BOARD_SIZE, createEmptyTicTacToeBoard } from '@/hooks/game-constants'
 import { useGameMatch } from '@/composables/game/useGameMatch'
 import { useMultiplayerGame } from '@/composables/game/useMultiplayerGame'
+import { GameLayout } from './GameLayout'
 
 type Player = 'X' | 'O' | null
 type Board = Player[]
@@ -318,23 +319,13 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle>Tic Tac Toe</CardTitle>
-            {isAI && (
-              <span className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded">
-                AI Mode
-              </span>
-            )}
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            ×
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <GameLayout
+      title="Tic Tac Toe"
+      badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
+      onClose={onClose}
+      contentClassName="w-full max-w-md"
+    >
+      <div className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
         {winner && (
           <div className="text-center p-4 rounded-lg bg-muted">
             {winner === 'draw' ? (
@@ -391,17 +382,11 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
           {Array.from({ length: TIC_TAC_TOE_BOARD_SIZE }).map((_, index) => renderCell(index))}
         </div>
 
-        <div className="flex gap-2">
-          <Button onClick={resetGame} variant="outline" className="flex-1">
-            <RotateCcw className="w-4 h-4 mr-2" />
-            New Game
-          </Button>
-          <Button onClick={onClose} variant="outline" className="flex-1">
-            Close
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <Button onClick={resetGame} variant="outline" className="w-full">
+          <RotateCcw className="w-4 h-4 mr-2" />
+          New Game
+        </Button>
+      </div>
+    </GameLayout>
   )
 }
-

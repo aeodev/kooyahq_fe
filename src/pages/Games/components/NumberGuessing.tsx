@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { RotateCcw } from 'lucide-react'
 import axiosInstance from '@/utils/axios.instance'
 import { CREATE_MATCH, UPDATE_MATCH } from '@/utils/api.routes'
 import { useAuthStore } from '@/stores/auth.store'
 import type { GameMatch } from '@/types/game'
+import { GameLayout } from './GameLayout'
 
 interface NumberGuessingProps {
   onClose: () => void
@@ -162,23 +163,13 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle>Number Guessing</CardTitle>
-            {isAI && (
-              <span className="px-2 py-1 text-xs font-medium bg-secondary text-secondary-foreground rounded">
-                AI Mode
-              </span>
-            )}
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            ×
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <GameLayout
+      title="Number Guessing"
+      badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
+      onClose={onClose}
+      contentClassName="w-full max-w-md"
+    >
+      <div className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
         <div className="text-center space-y-2">
           <p className="text-sm text-muted-foreground">Guess the number between 1 and 100</p>
           {!gameFinished && targetNumber && (
@@ -233,20 +224,14 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button onClick={resetGame} variant="outline" className="flex-1" disabled={loading}>
-            <RotateCcw className="w-4 h-4 mr-2" />
-            New Game
-          </Button>
-          <Button onClick={onClose} variant="outline" className="flex-1">
-            Close
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <Button onClick={resetGame} variant="outline" className="w-full" disabled={loading}>
+          <RotateCcw className="w-4 h-4 mr-2" />
+          New Game
+        </Button>
+      </div>
+    </GameLayout>
   )
 }
-
 
 
 

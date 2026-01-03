@@ -130,13 +130,6 @@ export function Games() {
                           Play vs AI
                         </Button>
                       )}
-                      <Button
-                        onClick={() => setSelectedGameType(gameType.type)}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        View Leaderboard
-                      </Button>
                     </CardContent>
                   </Card>
                 ))}
@@ -179,4 +172,3 @@ export function Games() {
     </div>
   )
 }
-

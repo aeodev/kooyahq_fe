@@ -159,6 +159,16 @@ export function Workspace() {
     [getBoardRole, hasBoardFullAccess],
   )
 
+  const canSeeBoard = useCallback(
+    (board: ApiBoard) => {
+      if (hasBoardFullAccess) return true
+      if (!user?.id) return false
+      if (board.createdBy === user.id) return true
+      return board.members.some((member) => member.userId === user.id)
+    },
+    [hasBoardFullAccess, user?.id],
+  )
+
   // Socket connection for real-time updates
   const socket = useSocketStore((state) => state.socket)
   const connected = useSocketStore((state) => state.connected)
@@ -186,10 +196,16 @@ export function Workspace() {
     if (!socket || !connected) return
 
     const handleBoardCreated = (data: { board: ApiBoard; userId: string; timestamp: string }) => {
+      if (!canSeeBoard(data.board)) return
       addBoardToCache(data.board)
     }
 
     const handleBoardUpdated = (data: { board: ApiBoard; userId: string; timestamp: string }) => {
+      if (!canSeeBoard(data.board)) {
+        removeBoardFromCache(data.board.id)
+        return
+      }
+      addBoardToCache(data.board)
       updateBoardInCache(data.board.id, () => data.board)
     }
 
@@ -213,7 +229,7 @@ export function Workspace() {
       socket.off(BoardSocketEvents.DELETED, handleBoardDeleted)
       socket.off(BoardSocketEvents.FAVORITE_TOGGLED, handleBoardFavoriteToggled)
     }
-  }, [socket, connected, addBoardToCache, updateBoardInCache, removeBoardFromCache])
+  }, [socket, connected, addBoardToCache, updateBoardInCache, removeBoardFromCache, canSeeBoard])
 
   // Convert backend boards to display format
   const displayBoards = useMemo(() => {
