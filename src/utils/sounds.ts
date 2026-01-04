@@ -4,11 +4,12 @@
  */
 
 let audioContext: AudioContext | null = null
+let audioContextReady = false
 
 /**
  * Initialize audio context (lazy initialization)
  */
-function getAudioContext(): AudioContext | null {
+async function getAudioContext(): Promise<AudioContext | null> {
   if (typeof window === 'undefined') return null
   
   if (!audioContext) {
@@ -22,9 +23,15 @@ function getAudioContext(): AudioContext | null {
   
   // Resume audio context if suspended (required for user interaction)
   if (audioContext.state === 'suspended') {
-    audioContext.resume().catch(() => {
-      // Ignore errors - will fallback to HTML5 Audio
-    })
+    try {
+      await audioContext.resume()
+      audioContextReady = true
+    } catch (error) {
+      console.warn('[Sounds] Failed to resume audio context:', error)
+      return null
+    }
+  } else if (audioContext.state === 'running') {
+    audioContextReady = true
   }
   
   return audioContext
@@ -33,9 +40,9 @@ function getAudioContext(): AudioContext | null {
 /**
  * Play a tone using Web Audio API
  */
-function playTone(frequency: number, duration: number, volume: number = 0.3): void {
-  const ctx = getAudioContext()
-  if (!ctx) {
+async function playTone(frequency: number, duration: number, volume: number = 0.3): Promise<void> {
+  const ctx = await getAudioContext()
+  if (!ctx || !audioContextReady) {
     // Fallback to HTML5 Audio
     playToneFallback(frequency, duration, volume)
     return
@@ -105,5 +112,16 @@ export function playLeaveSound(): void {
   } catch (error) {
     console.warn('[Sounds] Failed to play leave sound:', error)
   }
+}
+
+/**
+ * Initialize audio context on user interaction
+ * Call this when user clicks to join meeting
+ */
+export function initializeAudioContext(): void {
+  if (typeof window === 'undefined') return
+  getAudioContext().catch(() => {
+    // Silently fail - sounds are optional
+  })
 }
 

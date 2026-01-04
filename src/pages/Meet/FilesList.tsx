@@ -1,10 +1,12 @@
-import { Clock, FileVideo, CheckCircle2, Loader2, XCircle } from 'lucide-react'
+import { Clock, FileVideo, CheckCircle2, Loader2, XCircle, RefreshCw } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import type { MeetRecording } from '@/hooks/queries/meet.queries'
+import { Button } from '@/components/ui/button'
 
 interface FilesListProps {
   recordings: MeetRecording[]
   onSelectRecording: (id: string) => void
+  onRefresh?: () => void
 }
 
 const statusConfig = {
@@ -14,7 +16,7 @@ const statusConfig = {
   failed: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', label: 'Failed' },
 }
 
-export function FilesList({ recordings, onSelectRecording }: FilesListProps) {
+export function FilesList({ recordings, onSelectRecording, onRefresh }: FilesListProps) {
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -40,9 +42,17 @@ export function FilesList({ recordings, onSelectRecording }: FilesListProps) {
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Meet Files</h1>
-        <p className="text-muted-foreground">View your meeting recordings and analysis</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Meet Files</h1>
+          <p className="text-muted-foreground">View your meeting recordings and analysis</p>
+        </div>
+        {onRefresh && (
+          <Button variant="outline" onClick={onRefresh} className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        )}
       </div>
 
       <div className="space-y-3">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useMeetStore } from '@/stores/meet.store'
 import axiosInstance from '@/utils/axios.instance'
 import { START_MEET_EGRESS, STOP_MEET_EGRESS, GET_ACTIVE_EGRESS } from '@/utils/api.routes'
@@ -23,6 +24,7 @@ export function useRecording(_stream: MediaStream | null, meetId: string | null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const egressIdRef = useRef<string | null>(null)
+  const queryClient = useQueryClient()
 
   // Check for active egress when joining a room
   useEffect(() => {
@@ -105,6 +107,9 @@ export function useRecording(_stream: MediaStream | null, meetId: string | null)
         if (response.data.data.recordingUrl) {
           console.log('[Egress] Recording saved to:', response.data.data.recordingUrl)
         }
+
+        // Invalidate recordings query to refresh the list
+        queryClient.invalidateQueries({ queryKey: ['meet-recordings'] })
       } else {
         throw new Error('Failed to stop recording')
       }
@@ -115,7 +120,7 @@ export function useRecording(_stream: MediaStream | null, meetId: string | null)
     } finally {
       setIsLoading(false)
     }
-  }, [meetId])
+  }, [meetId, queryClient])
 
   return {
     isRecording,

@@ -13,7 +13,8 @@ import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
 import { InvitationModal } from '@/components/meet/InvitationModal'
 import { cn } from '@/utils/cn'
-import { playJoinSound, playLeaveSound } from '@/utils/sounds'
+import { playJoinSound, playLeaveSound, initializeAudioContext } from '@/utils/sounds'
+import { toast } from 'sonner'
 
 export function Meet() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -105,6 +106,7 @@ export function Meet() {
       setMeetId(meetId)
       if (socket?.connected) {
         socket.emit('meet:join', meetId)
+        initializeAudioContext()
       }
     }
 
@@ -125,31 +127,47 @@ export function Meet() {
   }, [socket?.connected])
 
   // Play sounds when participants join/leave (only for remote participants, not self)
+  const hasJoinedRef = useRef(false)
   useEffect(() => {
     if (!socket?.connected || !meetId || !user) return
 
     const handleParticipantJoined = (data: { userId: string; userName: string }) => {
-      // Only play sound for remote participants
+      // Only play sound and show toast for remote participants
       if (data.userId !== user.id) {
         playJoinSound()
+        toast.info(`${data.userName || 'Someone'} joined the meeting`, {
+          id: `join-${data.userId}`,
+        })
       }
     }
 
-    const handleParticipantLeft = (data: { userId: string }) => {
-      // Only play sound for remote participants
-      if (data.userId !== user.id) {
+    const handleParticipantLeft = (data: { userId: string; userName?: string }) => {
+      // Only play sound and show toast for remote participants
+      // Also skip if we haven't fully joined yet (prevents false leave notifications during initial join)
+      if (data.userId !== user.id && hasJoinedRef.current) {
         playLeaveSound()
+        const userName = data.userName || participants.get(data.userId)?.userName || 'Someone'
+        toast.info(`${userName} left the meeting`, {
+          id: `leave-${data.userId}`,
+        })
       }
     }
 
     socket.on('meet:participant-joined', handleParticipantJoined)
     socket.on('meet:participant-left', handleParticipantLeft)
 
+    // Mark as joined after a short delay to allow initial setup to complete
+    const timeoutId = setTimeout(() => {
+      hasJoinedRef.current = true
+    }, 1000)
+
     return () => {
+      clearTimeout(timeoutId)
       socket.off('meet:participant-joined', handleParticipantJoined)
       socket.off('meet:participant-left', handleParticipantLeft)
+      hasJoinedRef.current = false
     }
-  }, [socket, meetId, user])
+  }, [socket, meetId, user, participants])
 
   const handleLeave = () => {
     cleanup()

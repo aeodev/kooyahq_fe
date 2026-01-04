@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useMeetRecordings } from '@/hooks/queries/meet.queries'
 import { FilesList } from './FilesList'
 import { FilesDetail } from './FilesDetail'
@@ -6,7 +7,13 @@ import { Loader2 } from 'lucide-react'
 
 export function MeetFiles() {
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null)
-  const { data: recordings, isLoading, error } = useMeetRecordings()
+  const { data: recordings, isLoading, error, refetch } = useMeetRecordings()
+  const queryClient = useQueryClient()
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['meet-recordings'] })
+    refetch()
+  }
 
   if (isLoading) {
     return (
@@ -42,6 +49,7 @@ export function MeetFiles() {
     <FilesList
       recordings={recordings || []}
       onSelectRecording={setSelectedRecordingId}
+      onRefresh={handleRefresh}
     />
   )
 }
