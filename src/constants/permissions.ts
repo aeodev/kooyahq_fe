@@ -16,6 +16,7 @@ export const PERMISSIONS = {
 
   BOARD_FULL_ACCESS: 'board:fullAccess',
   BOARD_VIEW: 'board:view',
+  BOARD_VIEW_ALL: 'board:viewAll',
   BOARD_CREATE: 'board:create',
   BOARD_UPDATE: 'board:update',
   BOARD_DELETE: 'board:delete',
@@ -112,6 +113,7 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   // Workspaces & Boards
   { value: PERMISSIONS.BOARD_FULL_ACCESS, label: 'Board Full Access' },
   { value: PERMISSIONS.BOARD_VIEW, label: 'View Boards' },
+  { value: PERMISSIONS.BOARD_VIEW_ALL, label: 'View All Boards' },
   { value: PERMISSIONS.BOARD_CREATE, label: 'Create Boards' },
   { value: PERMISSIONS.BOARD_UPDATE, label: 'Update Boards' },
   { value: PERMISSIONS.BOARD_DELETE, label: 'Delete Boards' },

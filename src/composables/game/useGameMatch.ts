@@ -7,12 +7,12 @@ import type { GameMatch, GameType } from '@/types/game'
 interface CreateMatchOptions {
   gameType: GameType
   players: string[]
-  status?: 'waiting' | 'in-progress'
+  status?: 'in-progress'
   metadata?: Record<string, unknown>
 }
 
 interface UpdateMatchOptions {
-  status?: 'waiting' | 'in-progress' | 'completed' | 'abandoned'
+  status?: 'in-progress' | 'completed'
   winner?: string
   scores?: Record<string, number>
   metadata?: Record<string, unknown>
@@ -49,23 +49,13 @@ export function useGameMatch() {
               matchPlayers.length === sortedPlayers.length &&
               matchPlayers.every((p, i) => p === sortedPlayers[i]) &&
               m.gameType === gameType &&
-              (m.status === 'waiting' || m.status === 'in-progress')
+              m.status === 'in-progress'
             )
           })
 
           if (existingMatch) {
             // Found existing match - join it
             setMatch(existingMatch)
-
-            // If match is still waiting, update to in-progress
-            if (existingMatch.status === 'waiting') {
-              const updatedMatch = await axiosInstance.patch(UPDATE_MATCH(existingMatch.id), {
-                status: 'in-progress',
-                startedAt: new Date().toISOString(),
-              })
-              setMatch(updatedMatch.data.data)
-              return updatedMatch.data.data
-            }
 
             return existingMatch
           }
@@ -158,16 +148,6 @@ export function useGameMatch() {
     [updateMatch]
   )
 
-  const abandonMatch = useCallback(
-    async (matchId: string): Promise<GameMatch | null> => {
-      return updateMatch(matchId, {
-        status: 'abandoned',
-        endedAt: new Date().toISOString(),
-      })
-    },
-    [updateMatch]
-  )
-
   const clearMatch = useCallback(() => {
     setMatch(null)
   }, [])
@@ -192,14 +172,11 @@ export function useGameMatch() {
     createMatch,
     updateMatch,
     completeMatch,
-    abandonMatch,
     clearMatch,
     setMatch,
     refreshCurrentMatch,
   }
 }
-
-
 
 
 

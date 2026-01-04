@@ -15,6 +15,8 @@ export function useBoardsQuery(type?: 'kanban' | 'sprint') {
       const response = await axiosInstance.get<{ success: boolean; data: Board[] }>(GET_BOARDS(type))
       return response.data.data
     },
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -54,4 +56,3 @@ export function useBoardsQueryActions() {
     removeBoardFromCache,
   }
 }
-

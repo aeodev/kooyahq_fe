@@ -31,7 +31,7 @@ export function RockPaperScissors({ onClose, opponentId }: RockPaperScissorsProp
   const [gameFinished, setGameFinished] = useState(false)
   const isAI = opponentId === 'AI'
 
-  const { match, loading, createMatch, completeMatch, abandonMatch, setMatch } = useGameMatch()
+  const { match, loading, createMatch, completeMatch, setMatch } = useGameMatch()
 
   useEffect(() => {
     initializeGame()
@@ -39,28 +39,26 @@ export function RockPaperScissors({ onClose, opponentId }: RockPaperScissorsProp
   }, [])
 
   useEffect(() => {
-    if (gameFinished && match && !isAI && opponentId) {
+    if (gameFinished && match && match.status !== 'completed') {
       completeMatchGame()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameFinished, match, isAI, opponentId])
+  }, [gameFinished, match])
 
   const initializeGame = async () => {
     if (!user) return
 
-    if (isAI || !opponentId) {
-      return
-    }
-
     try {
+      const players = opponentId && !isAI ? [user.id, opponentId] : [user.id]
       const gameMatch = await createMatch({
         gameType: 'rock-paper-scissors',
-        players: [user.id, opponentId],
+        players,
         status: 'in-progress',
         metadata: {
           rounds: [],
           playerScore: 0,
           opponentScore: 0,
+          opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
         },
       })
 
@@ -74,17 +72,27 @@ export function RockPaperScissors({ onClose, opponentId }: RockPaperScissorsProp
   }
 
   const completeMatchGame = async () => {
-    if (!match || !user || isAI || !opponentId) return
+    if (!match || !user) return
 
-    const winnerId = playerScore > opponentScore ? user.id : opponentId
+    let winnerId: string | undefined
+    if (playerScore === opponentScore) {
+      winnerId = undefined
+    } else if (playerScore > opponentScore) {
+      winnerId = user.id
+    } else if (opponentId) {
+      winnerId = isAI ? 'AI' : opponentId
+    }
     const scores: Record<string, number> = {}
     scores[user.id] = playerScore
-    scores[opponentId] = opponentScore
+    if (opponentId) {
+      scores[opponentId] = opponentScore
+    }
 
     await completeMatch(match.id, winnerId, scores, {
       rounds,
       playerScore,
       opponentScore,
+      opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
     })
   }
 
@@ -143,8 +151,8 @@ export function RockPaperScissors({ onClose, opponentId }: RockPaperScissorsProp
   }
 
   const resetGame = () => {
-    if (match && !isAI && !gameFinished) {
-      abandonMatch(match.id)
+    if (match && match.status !== 'completed') {
+      completeMatchGame()
     }
 
     setPlayerScore(0)
@@ -171,14 +179,23 @@ export function RockPaperScissors({ onClose, opponentId }: RockPaperScissorsProp
     return emojis[choice]
   }
 
+  const handleClose = () => {
+    if (match && match.status !== 'completed') {
+      completeMatchGame().finally(() => {
+        onClose()
+      })
+      return
+    }
+    onClose()
+  }
+
   return (
     <GameLayout
       title="Rock Paper Scissors"
       badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
-      onClose={onClose}
-      contentClassName="w-full max-w-md"
+      onClose={handleClose}
     >
-      <div className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
+      <div className="w-full space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
         <div className="text-center space-y-2">
           <p className="text-sm text-muted-foreground">Best of 3 rounds</p>
           <div className="flex justify-center gap-6 text-2xl font-bold">

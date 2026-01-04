@@ -251,7 +251,7 @@ export function CreateBoardModal({ open, onClose, onCreate, existingKeys = [] }:
 
   return (
     <Modal open={open} onClose={handleClose} maxWidth="md">
-      <div className="p-6">
+      <div className="p-6 max-h-[80vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-foreground">Create new board</h2>

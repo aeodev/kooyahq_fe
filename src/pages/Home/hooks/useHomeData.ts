@@ -23,7 +23,7 @@ export function useHomeData() {
     canReadNotifications: can(PERMISSIONS.NOTIFICATION_READ) || can(PERMISSIONS.NOTIFICATION_FULL_ACCESS) || can(PERMISSIONS.NOTIFICATION_COUNT),
     canReadPosts: can(PERMISSIONS.POST_READ) || can(PERMISSIONS.POST_FULL_ACCESS),
     canReadGames: can(PERMISSIONS.GAME_READ) || can(PERMISSIONS.GAME_FULL_ACCESS),
-    canReadBoards: can(PERMISSIONS.BOARD_VIEW) || can(PERMISSIONS.BOARD_FULL_ACCESS),
+    canReadBoards: can(PERMISSIONS.BOARD_VIEW) || can(PERMISSIONS.BOARD_VIEW_ALL) || can(PERMISSIONS.BOARD_FULL_ACCESS),
     hasAnyPermission: Array.isArray(user?.permissions) && user.permissions.length > 0
   }), [can, user])
 

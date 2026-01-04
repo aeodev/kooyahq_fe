@@ -28,6 +28,7 @@ const PRODUCTIVITY_ITEMS: NavItem[] = [
     icon: LayoutGrid,
     requiredPermissions: [
       PERMISSIONS.BOARD_VIEW,
+      PERMISSIONS.BOARD_VIEW_ALL,
       PERMISSIONS.BOARD_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],

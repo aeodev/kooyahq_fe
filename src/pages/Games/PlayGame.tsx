@@ -25,9 +25,17 @@ export function PlayGame() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] w-full">
-      {gameType === 'tic-tac-toe' && <TicTacToe onClose={handleClose} opponentId={opponentId} />}
-      {gameType === 'reaction-test' && <ReactionTimeTest onClose={handleClose} opponentId={opponentId} />}
+    <div className="flex h-full min-h-full w-full flex-col">
+      {gameType === 'tic-tac-toe' && (
+        <div className="flex-1 -m-4 md:-m-6">
+          <TicTacToe onClose={handleClose} opponentId={opponentId} />
+        </div>
+      )}
+      {gameType === 'reaction-test' && (
+        <div className="flex-1 -m-4 md:-m-6">
+          <ReactionTimeTest onClose={handleClose} opponentId={opponentId} />
+        </div>
+      )}
       {gameType === 'rock-paper-scissors' && <RockPaperScissors onClose={handleClose} opponentId={opponentId} />}
       {gameType === 'number-guessing' && <NumberGuessing onClose={handleClose} opponentId={opponentId} />}
       {gameType === 'tetris-battle' && <TetrisBattle onClose={handleClose} opponentId={opponentId} />}

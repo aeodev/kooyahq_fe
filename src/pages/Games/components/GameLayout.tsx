@@ -21,11 +21,11 @@ export function GameLayout({
   contentClassName,
   children,
 }: GameLayoutProps) {
-  const bodyClasses = bodyClassName ?? 'flex-1 flex items-center justify-center p-4'
-  const contentClasses = contentClassName ?? 'w-full max-w-2xl'
+  const bodyClasses = bodyClassName ?? 'flex-1 flex w-full p-4'
+  const contentClasses = contentClassName ?? 'w-full max-w-4xl mx-auto'
 
   return (
-    <div className="min-h-[85vh] flex flex-col">
+    <div className="h-full min-h-full w-full flex flex-col">
       <div className="flex items-center justify-between p-4 border-b bg-card/50">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold">{title}</h1>

@@ -27,21 +27,15 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
   const maxDelayRef = useRef<number>(5000)
   const isAI = opponentId === 'AI'
 
-  // Complete or abandon match when closing
+  // Complete any started match before closing
   const handleClose = () => {
-    if (match && !isAI) {
-      if (gameState === 'finished' && reactionTimes.length === 5) {
-        // Already completed by the round 5 handler, just close
+    if (match && match.status !== 'completed' && reactionTimes.length > 0) {
+      finalizeMatch().finally(() => {
         onClose()
-      } else {
-        // Abandon if not finished
-        abandonMatch().finally(() => {
-          onClose()
-        })
-      }
-    } else {
-      onClose()
+      })
+      return
     }
+    onClose()
   }
 
   useEffect(() => {
@@ -54,46 +48,57 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
       if (countdownTimeoutRef.current) {
         clearTimeout(countdownTimeoutRef.current)
       }
-      // Abandon match on unmount if not completed
-      if (match && !isAI && reactionTimes.length < 5) {
-        abandonMatch()
+      // Complete match on unmount if it was started
+      if (match && match.status !== 'completed' && reactionTimes.length > 0) {
+        finalizeMatch()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const initializeGame = async () => {
-    if (!user) return
+  const initializeGame = () => {
+    setGameState('waiting')
+    setReactionTimes([])
+    setCurrentReaction(null)
+  }
 
-    // Don't create matches for AI games
-    // Reaction test can be played solo and should record scores
-    if (isAI) {
-      return
-    }
+  const ensureMatch = async (): Promise<GameMatch | null> => {
+    if (!user) return null
+    if (match) return match
 
     try {
-      const players = opponentId ? [user.id, opponentId] : [user.id]
+      const players = opponentId && !isAI ? [user.id, opponentId] : [user.id]
       const response = await axiosInstance.post(CREATE_MATCH(), {
         gameType: 'reaction-test',
         players,
         status: 'in-progress',
         metadata: {
           rounds: [],
+          opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
         },
         startedAt: new Date().toISOString(),
       })
-      setMatch(response.data.data)
+      const createdMatch = response.data.data
+      setMatch(createdMatch)
+      return createdMatch
     } catch (error) {
       console.error('Failed to create match:', error)
       alert('Failed to start game')
+      return null
     }
   }
 
-  const completeMatch = async (finalReactionTimes: number[], avgTime: number, bestTime: number) => {
-    if (!match || !user || isAI) return
+  const completeMatch = async (
+    finalReactionTimes: number[],
+    avgTime: number,
+    bestTime: number,
+    matchOverride?: GameMatch | null
+  ) => {
+    const activeMatch = matchOverride ?? match
+    if (!activeMatch || !user) return
 
     try {
-      const response = await axiosInstance.patch(UPDATE_MATCH(match.id), {
+      const response = await axiosInstance.patch(UPDATE_MATCH(activeMatch.id), {
         status: 'completed',
         winner: user.id,
         scores: {
@@ -103,19 +108,20 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
           reactionTimes: finalReactionTimes,
           averageTime: avgTime,
           bestTime,
+          opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
         },
         endedAt: new Date().toISOString(),
       })
 
       // Verify the match was actually completed
       if (response.data?.data?.status === 'completed') {
-        setMatch({ ...match, status: 'completed' })
+        setMatch({ ...activeMatch, status: 'completed' })
         console.log('Match completed successfully')
       } else {
         console.error('Match update did not return completed status:', response.data)
         // Retry once
         setTimeout(() => {
-          completeMatch(finalReactionTimes, avgTime, bestTime)
+          completeMatch(finalReactionTimes, avgTime, bestTime, activeMatch)
         }, 1000)
       }
     } catch (error: any) {
@@ -126,7 +132,7 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
       // Retry once after a short delay
       setTimeout(async () => {
         try {
-          const retryResponse = await axiosInstance.patch(UPDATE_MATCH(match.id), {
+          const retryResponse = await axiosInstance.patch(UPDATE_MATCH(activeMatch.id), {
             status: 'completed',
             winner: user.id,
             scores: {
@@ -136,12 +142,13 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
               reactionTimes: finalReactionTimes,
               averageTime: avgTime,
               bestTime,
+              opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
             },
             endedAt: new Date().toISOString(),
           })
           
           if (retryResponse.data?.data?.status === 'completed') {
-            setMatch({ ...match, status: 'completed' })
+            setMatch({ ...activeMatch, status: 'completed' })
             console.log('Match completed on retry')
           }
         } catch (retryError) {
@@ -151,18 +158,12 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
     }
   }
 
-  const abandonMatch = async () => {
-    // Don't abandon AI games
-    if (isAI || !match || !user) return
-
-    try {
-      await axiosInstance.patch(UPDATE_MATCH(match.id), {
-        status: 'abandoned',
-        endedAt: new Date().toISOString(),
-      })
-    } catch (error) {
-      console.error('Failed to abandon match:', error)
-    }
+  const finalizeMatch = async () => {
+    if (!match || match.status === 'completed') return
+    if (reactionTimes.length === 0) return
+    const avgTime = Math.round(reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length)
+    const bestTime = Math.min(...reactionTimes)
+    await completeMatch(reactionTimes, avgTime, bestTime)
   }
 
   const startRound = () => {
@@ -178,7 +179,7 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
     }, delay)
   }
 
-  const handleScreenClick = () => {
+  const handleScreenClick = async () => {
     if (gameState === 'waiting' || gameState === 'finished') {
       startRound()
       return
@@ -197,6 +198,7 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
     }
 
     if (gameState === 'go') {
+      const activeMatch = await ensureMatch()
       const reactionTime = Date.now() - startTimeRef.current
       const newReactionTimes = [...reactionTimes, reactionTime]
       setCurrentReaction(reactionTime)
@@ -206,13 +208,13 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
         // Round 5 completed - mark as finished immediately
         setGameState('finished')
         // Complete the match immediately when round 5 finishes
-        if (match && !isAI) {
+        if (activeMatch) {
           // Update match with final results
           const avgTime = Math.round(newReactionTimes.reduce((a, b) => a + b, 0) / newReactionTimes.length)
           const bestTime = Math.min(...newReactionTimes)
           
           // Complete match with proper async handling
-          completeMatch(newReactionTimes, avgTime, bestTime)
+          completeMatch(newReactionTimes, avgTime, bestTime, activeMatch)
         }
       } else {
         // Allow immediate clicking - no delay, user can click right away to continue
@@ -227,9 +229,8 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
   }
 
   const resetGame = () => {
-    // Abandon current match if not completed
-    if (match && !isAI && reactionTimes.length < 5) {
-      abandonMatch()
+    if (match && match.status !== 'completed' && reactionTimes.length > 0) {
+      finalizeMatch()
     }
     
     setReactionTimes([])
@@ -294,11 +295,11 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
       badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
       onClose={handleClose}
       headerRight={roundLabel}
-      bodyClassName="flex-1 flex flex-col"
-      contentClassName="flex-1 flex flex-col w-full max-w-none"
+      bodyClassName="flex-1 flex w-full flex-col p-0 min-h-0"
+      contentClassName="flex-1 flex flex-col w-full max-w-none min-h-0"
     >
       <div
-        className={`flex-1 flex flex-col items-center justify-center transition-colors duration-300 cursor-pointer ${getBackgroundColor()}`}
+        className={`flex-1 w-full flex flex-col items-center justify-center transition-colors duration-300 cursor-pointer ${getBackgroundColor()}`}
         onClick={handleScreenClick}
       >
         {gameState === 'waiting' && (
@@ -355,7 +356,7 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
 
       {reactionTimes.length > 0 && gameState !== 'finished' && (
         <div className="p-4 bg-card border-t border-border">
-          <div className="flex items-center justify-between max-w-4xl mx-auto">
+        <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-6">
               <div className="text-sm">
                 <span className="text-muted-foreground">Average: </span>
@@ -381,7 +382,7 @@ export function ReactionTimeTest({ onClose, opponentId }: ReactionTimeTestProps)
       )}
 
       <div className="p-4 bg-card border-t border-border">
-        <div className="flex items-center justify-center gap-2 max-w-4xl mx-auto">
+        <div className="flex items-center justify-center gap-2 w-full">
           <Button onClick={resetGame} variant="outline" size="sm">
             <RotateCcw className="w-4 h-4 mr-2" />
             Reset

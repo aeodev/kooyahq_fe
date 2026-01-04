@@ -42,6 +42,19 @@ export function LeaderboardView({
   }, [selectedGameType, onGameTypeSelect])
 
   const currentGame = gameTypes.find((gt) => gt.type === currentGameType)
+  const scoreUnit = currentGameType === 'reaction-test'
+    ? ' ms'
+    : currentGameType === 'tetris-battle'
+      ? ' pts'
+      : ''
+  const bestLabel = currentGameType === 'tetris-battle' ? 'High Score' : 'Best'
+  const avgLabel = currentGameType === 'tetris-battle' ? 'Avg Score' : 'Average'
+  const formatScore = (value: number) => {
+    if (currentGameType === 'tetris-battle') {
+      return value.toLocaleString()
+    }
+    return Math.round(value).toString()
+  }
 
   return (
     <div className="space-y-4">
@@ -81,7 +94,9 @@ export function LeaderboardView({
             <CardDescription>
               {currentGameType === 'reaction-test'
                 ? 'Top players ranked by best reaction time'
-                : 'Top players ranked by wins'}
+                : currentGameType === 'tetris-battle'
+                  ? 'Top players ranked by high score'
+                  : 'Top players ranked by wins'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -106,35 +121,38 @@ export function LeaderboardView({
                     <p className="text-sm text-muted-foreground">{entry.userEmail}</p>
                   </div>
                   <div className="text-right space-y-1">
-                    {currentGameType === 'reaction-test' ? (
+                    <div className="flex items-center gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Wins:</span>
+                        <span className="ml-2 font-semibold text-green-600">{entry.wins}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Losses:</span>
+                        <span className="ml-2 font-semibold text-red-600">{entry.losses}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Win Rate:</span>
+                        <span className="ml-2 font-semibold">{entry.winRate}%</span>
+                      </div>
+                    </div>
+                    {(entry.bestScore !== undefined || entry.avgScore !== undefined) && (
                       <div className="flex items-center gap-4 text-sm">
                         {entry.bestScore !== undefined && (
                           <div>
-                            <span className="text-muted-foreground">Best:</span>
-                            <span className="ml-2 font-semibold text-primary">{entry.bestScore}ms</span>
+                            <span className="text-muted-foreground">{bestLabel}:</span>
+                            <span className="ml-2 font-semibold text-primary">
+                              {formatScore(entry.bestScore)}{scoreUnit}
+                            </span>
                           </div>
                         )}
                         {entry.avgScore !== undefined && (
                           <div>
-                            <span className="text-muted-foreground">Average:</span>
-                            <span className="ml-2 font-semibold">{entry.avgScore}ms</span>
+                            <span className="text-muted-foreground">{avgLabel}:</span>
+                            <span className="ml-2 font-semibold">
+                              {formatScore(entry.avgScore)}{scoreUnit}
+                            </span>
                           </div>
                         )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Wins:</span>
-                          <span className="ml-2 font-semibold text-green-600">{entry.wins}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Losses:</span>
-                          <span className="ml-2 font-semibold text-red-600">{entry.losses}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Win Rate:</span>
-                          <span className="ml-2 font-semibold">{entry.winRate}%</span>
-                        </div>
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">

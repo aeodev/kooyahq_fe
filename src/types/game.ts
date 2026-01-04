@@ -1,6 +1,6 @@
 export type GameType = 'tic-tac-toe' | 'rock-paper-scissors' | 'number-guessing' | 'reaction-test' | 'tetris-battle'
 
-export type GameStatus = 'waiting' | 'in-progress' | 'completed' | 'abandoned'
+export type GameStatus = 'in-progress' | 'completed'
 
 export interface GameMatch {
   id: string
@@ -43,4 +43,3 @@ export interface ActiveUser {
   email: string
   profilePic?: string
 }
-

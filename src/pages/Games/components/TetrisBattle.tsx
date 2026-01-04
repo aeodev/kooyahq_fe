@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocketStore } from '@/stores/socket.store'
+import { useGameMatch } from '@/composables/game/useGameMatch'
 import {
   TETRIS_COLS,
   TETRIS_ROWS,
@@ -28,6 +29,9 @@ import {
   ATTACK_TABLE,
   NEXT_QUEUE_SIZE,
   LOCK_DELAY,
+  DAS_DELAY,
+  DAS_INTERVAL,
+  SOFT_DROP_INTERVAL,
   GRAVITY_LEVELS,
   createEmptyTetrisGrid,
   create7BagRandomizer,
@@ -257,6 +261,17 @@ const ANIMATION_STYLES = `
   }
 }
 
+@keyframes lineOverlay {
+  0% { opacity: 0; transform: scaleX(0.6); }
+  40% { opacity: 0.9; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+
+@keyframes bombOverlay {
+  0% { opacity: 0.9; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
 @keyframes debrisFall {
   0% {
     transform: translate(0, 0) rotate(0deg);
@@ -280,7 +295,7 @@ const ANIMATION_STYLES = `
 .block-3d {
   position: relative;
   border-radius: 2px;
-  transition: all 0.1s ease;
+  transition: background-color 0.1s ease;
 }
 
 .block-3d::before {
@@ -388,6 +403,22 @@ const ANIMATION_STYLES = `
   transform-origin: center;
 }
 
+.line-clear-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.35);
+  animation: lineOverlay 0.2s ease-out forwards;
+  transform-origin: center;
+}
+
+.bomb-clear-overlay {
+  position: absolute;
+  background: radial-gradient(circle, rgba(255, 220, 160, 0.9) 0%, rgba(255, 120, 80, 0.6) 50%, transparent 100%);
+  border-radius: 50%;
+  animation: bombOverlay 0.25s ease-out forwards;
+}
+
 .debris {
   position: absolute;
   animation: debrisFall 0.6s ease-out forwards;
@@ -414,6 +445,7 @@ function getWallKicks(type: TetrominoType, fromRotation: number, toRotation: num
 export function TetrisBattle({ onClose }: TetrisBattleProps) {
   const user = useAuthStore((state) => state.user)
   const socket = useSocketStore((state) => state.socket)
+  const { match: tetrisMatch, createMatch, completeMatch, clearMatch } = useGameMatch()
   
   // View state
   const [gameView, setGameView] = useState<GameView>('menu')
@@ -450,10 +482,9 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   const [garbageBuffer, setGarbageBuffer] = useState<GarbageLine[]>([])
   
   // Animation state
-  const [clearingLines, setClearingLines] = useState<number[]>([])
   const [lastLockedCells, setLastLockedCells] = useState<{x: number, y: number}[]>([])
-  const [explosions, setExplosions] = useState<{x: number, y: number, type: 'line' | 'bomb', id: number}[]>([])
-  const explosionIdRef = useRef(0)
+  const [clearOverlays, setClearOverlays] = useState<number[]>([])
+  const [bombOverlays, setBombOverlays] = useState<{ x: number; y: number }[]>([])
   
   // Stats
   const [stats, setStats] = useState({
@@ -468,7 +499,16 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const gameLoopRef = useRef<number | null>(null)
   const keysPressed = useRef<Set<string>>(new Set())
-  const dasTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const softDropActive = useRef(false)
+  const dasTimeouts = useRef<{ left: ReturnType<typeof setTimeout> | null; right: ReturnType<typeof setTimeout> | null }>({
+    left: null,
+    right: null,
+  })
+  const dasIntervals = useRef<{ left: ReturnType<typeof setInterval> | null; right: ReturnType<typeof setInterval> | null }>({
+    left: null,
+    right: null,
+  })
+  const lastAttackFrom = useRef<string | null>(null)
   const startTime = useRef<number>(0)
 
   // =====================================
@@ -521,6 +561,25 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     return { x: piece.position.x, y: ghostY }
   }, [isValidPosition])
 
+  const getStackHeight = useCallback((gridState: BlockType[][]): number => {
+    for (let y = TETRIS_HIDDEN_ROWS; y < gridState.length; y++) {
+      if (gridState[y].some(cell => cell !== null)) {
+        return gridState.length - y
+      }
+    }
+    return 0
+  }, [])
+
+  const emitPlayerUpdate = useCallback((gridState: BlockType[][], nextScore: number, nextKoCount: number, alive: boolean) => {
+    if (!isMultiplayer || !socket?.connected) return
+    socket.emit('tetris:player-update', {
+      score: nextScore,
+      stackHeight: getStackHeight(gridState),
+      koCount: nextKoCount,
+      alive,
+    })
+  }, [getStackHeight, isMultiplayer, socket])
+
   const spawnNextPiece = useCallback((currentGrid?: BlockType[][]) => {
     if (!randomizer.current) return
     
@@ -551,8 +610,12 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   const lockPiece = useCallback((pieceToLock?: Piece) => {
     const piece = pieceToLock || currentPiece
     if (!piece) return
+    if (lockTimer.current) {
+      clearTimeout(lockTimer.current)
+      lockTimer.current = null
+    }
 
-    const newGrid = grid.map(row => [...row])
+    let newGrid = grid.map(row => [...row])
     const shape = getPieceShape(piece.type, piece.rotation)
     
     // Track locked cells for animation
@@ -576,91 +639,47 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     setTimeout(() => setLastLockedCells([]), 150)
 
     const clearedLines: number[] = []
-    for (let y = TETRIS_ROWS + TETRIS_HIDDEN_ROWS - 1; y >= 0; y--) {
-      if (newGrid[y].every(cell => cell !== null)) {
-        clearedLines.push(y - TETRIS_HIDDEN_ROWS) // Store visible row index
-      }
-    }
-
     let bombExplosions = 0
-    const bombPositions: {x: number, y: number}[] = []
-    for (const lineY of clearedLines) {
-      const actualY = lineY + TETRIS_HIDDEN_ROWS
-      for (let x = 0; x < TETRIS_COLS; x++) {
-        if (newGrid[actualY][x] === 'bomb') {
-          bombExplosions++
-          bombPositions.push({ x, y: lineY })
+    const bombPositions: { x: number; y: number }[] = []
+
+    const findFullRows = () => {
+      const fullRows: number[] = []
+      for (let y = TETRIS_ROWS + TETRIS_HIDDEN_ROWS - 1; y >= TETRIS_HIDDEN_ROWS; y--) {
+        if (newGrid[y].every(cell => cell != null)) {
+          fullRows.push(y)
         }
       }
+      return fullRows
     }
 
-    // Trigger line clear animation before removing lines
-    if (clearedLines.length > 0) {
-      setClearingLines(clearedLines)
-      
-      // Create line explosions at center of each cleared line
-      const lineExplosions = clearedLines.map(lineY => ({
-        x: Math.floor(TETRIS_COLS / 2),
-        y: lineY,
-        type: 'line' as const,
-        id: explosionIdRef.current++
-      }))
-      
-      // Create bomb explosions
-      const bombExplosionEffects = bombPositions.map(pos => ({
-        x: pos.x,
-        y: pos.y,
-        type: 'bomb' as const,
-        id: explosionIdRef.current++
-      }))
-      
-      // Add extra explosions for Tetris (4 lines) - make it epic!
-      const tetrisExplosions: typeof lineExplosions = []
-      if (clearedLines.length === 4) {
-        // Add extra corner explosions for Tetris
-        tetrisExplosions.push(
-          { x: 2, y: clearedLines[1], type: 'line' as const, id: explosionIdRef.current++ },
-          { x: TETRIS_COLS - 3, y: clearedLines[2], type: 'line' as const, id: explosionIdRef.current++ }
-        )
-      }
-      
-      setExplosions(prev => [...prev, ...lineExplosions, ...bombExplosionEffects, ...tetrisExplosions])
-      
-      // Clean up explosions after animation
-      setTimeout(() => {
-        const idsToRemove = [...lineExplosions, ...bombExplosionEffects, ...tetrisExplosions].map(e => e.id)
-        setExplosions(prev => prev.filter(e => !idsToRemove.includes(e.id)))
-      }, 800)
-      
-      // Delay grid update for animation
-      setTimeout(() => {
-        const animatedGrid = grid.map(row => [...row])
-        
-        // Place piece first
-        for (let y = 0; y < shape.length; y++) {
-          for (let x = 0; x < shape[y].length; x++) {
-            if (shape[y][x]) {
-              const gridY = piece.position.y + y
-              const gridX = piece.position.x + x
-              if (gridY >= 0 && gridY < TETRIS_ROWS + TETRIS_HIDDEN_ROWS) {
-                animatedGrid[gridY][gridX] = piece.type
-              }
-            }
+    let fullRows = findFullRows()
+    while (fullRows.length > 0) {
+      for (const rowY of fullRows) {
+        const visibleY = rowY - TETRIS_HIDDEN_ROWS
+        clearedLines.push(visibleY)
+        for (let x = 0; x < TETRIS_COLS; x++) {
+          if (newGrid[rowY][x] === 'bomb') {
+            bombExplosions++
+            bombPositions.push({ x, y: visibleY })
           }
         }
-        
-        // Remove cleared lines
-        for (const lineY of clearedLines.map(l => l + TETRIS_HIDDEN_ROWS).sort((a, b) => b - a)) {
-          animatedGrid.splice(lineY, 1)
-          animatedGrid.unshift(Array(TETRIS_COLS).fill(null))
-        }
-        
-        setGrid(animatedGrid)
-        setClearingLines([])
-      }, 300)
-    } else {
-      // No lines cleared - update grid immediately
-      setGrid(newGrid)
+      }
+
+      for (const rowY of [...fullRows].sort((a, b) => b - a)) {
+        newGrid.splice(rowY, 1)
+        newGrid.unshift(Array(TETRIS_COLS).fill(null))
+      }
+
+      fullRows = findFullRows()
+    }
+
+    if (clearedLines.length > 0) {
+      setClearOverlays(clearedLines)
+      setBombOverlays(bombPositions)
+      setTimeout(() => {
+        setClearOverlays([])
+        setBombOverlays([])
+      }, 200)
     }
 
     let attack = 0
@@ -674,6 +693,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     }
     attack += bombExplosions * 2
 
+    let nextGarbageBuffer = garbageBuffer
     if (attack > 0 && garbageBuffer.length > 0) {
       const newGarbageBuffer = [...garbageBuffer]
       while (attack > 0 && newGarbageBuffer.length > 0) {
@@ -685,6 +705,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
           attack = 0
         }
       }
+      nextGarbageBuffer = newGarbageBuffer
       setGarbageBuffer(newGarbageBuffer)
     }
 
@@ -699,23 +720,17 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
       return newLines
     })
     setCombo(clearedLines.length > 0 ? combo + 1 : 0)
-    setScore(prev => prev + (clearedLines.length * 100 * level) + (bombExplosions * 200))
+    const scoreDelta = (clearedLines.length * 100 * level) + (bombExplosions * 200)
+    const nextScore = score + scoreDelta
+    setScore(prev => prev + scoreDelta)
     setStats(prev => ({
       ...prev,
       piecesPlaced: prev.piecesPlaced + 1,
       tetrises: prev.tetrises + (clearedLines.length === 4 ? 1 : 0),
     }))
 
-    if (piece.position.y < TETRIS_HIDDEN_ROWS) {
-      setIsGameOver(true)
-      if (isMultiplayer && socket?.connected) {
-        socket.emit('tetris:top-out')
-      }
-      return
-    }
-
-    if (clearedLines.length === 0 && garbageBuffer.length > 0) {
-      const totalGarbage = garbageBuffer.reduce((sum, g) => sum + g.lines, 0)
+    if (clearedLines.length === 0 && nextGarbageBuffer.length > 0) {
+      const totalGarbage = nextGarbageBuffer.reduce((sum, g) => sum + g.lines, 0)
       const gridWithGarbage = newGrid.map(row => [...row])
       for (let i = 0; i < totalGarbage; i++) {
         gridWithGarbage.shift()
@@ -723,13 +738,26 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
         garbageLine[Math.floor(Math.random() * TETRIS_COLS)] = 'bomb'
         gridWithGarbage.push(garbageLine)
       }
-      setGrid(gridWithGarbage)
+      newGrid.splice(0, newGrid.length, ...gridWithGarbage)
       setGarbageBuffer([])
     }
 
+    setGrid(newGrid)
+
+    if (piece.position.y < TETRIS_HIDDEN_ROWS) {
+      setIsGameOver(true)
+      if (isMultiplayer && socket?.connected) {
+        socket.emit('tetris:top-out', { killedBy: lastAttackFrom.current })
+      }
+      emitPlayerUpdate(newGrid, nextScore, koCount, false)
+      return
+    }
+
+    emitPlayerUpdate(newGrid, nextScore, koCount, true)
+
     spawnNextPiece(newGrid)
     setCanHold(true)
-  }, [currentPiece, grid, combo, level, garbageBuffer, isMultiplayer, socket, spawnNextPiece])
+  }, [currentPiece, grid, combo, level, garbageBuffer, isMultiplayer, socket, spawnNextPiece, emitPlayerUpdate, koCount, score])
 
   const movePiece = useCallback((dx: number, dy: number): boolean => {
     if (!currentPiece || isPaused || isGameOver) return false
@@ -818,7 +846,8 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     if (isPaused || isGameOver || !currentPiece) return
     
     const now = Date.now()
-    const dropInterval = GRAVITY_LEVELS[Math.min(level - 1, GRAVITY_LEVELS.length - 1)]
+    const baseInterval = GRAVITY_LEVELS[Math.min(level - 1, GRAVITY_LEVELS.length - 1)]
+    const dropInterval = softDropActive.current ? SOFT_DROP_INTERVAL : baseInterval
     
     if (now - lastDropTime.current >= dropInterval) {
       const moved = movePiece(0, 1)
@@ -839,6 +868,33 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   useEffect(() => {
     if (gameView !== 'game' || isPaused || isGameOver) return
     
+    const clearDas = (direction: 'left' | 'right') => {
+      if (dasTimeouts.current[direction]) {
+        clearTimeout(dasTimeouts.current[direction])
+        dasTimeouts.current[direction] = null
+      }
+      if (dasIntervals.current[direction]) {
+        clearInterval(dasIntervals.current[direction])
+        dasIntervals.current[direction] = null
+      }
+    }
+
+    const startDas = (direction: 'left' | 'right', code: string) => {
+      const dx = direction === 'left' ? -1 : 1
+      clearDas(direction)
+      movePiece(dx, 0)
+      dasTimeouts.current[direction] = setTimeout(() => {
+        if (!keysPressed.current.has(code)) return
+        dasIntervals.current[direction] = setInterval(() => {
+          if (!keysPressed.current.has(code)) {
+            clearDas(direction)
+            return
+          }
+          movePiece(dx, 0)
+        }, DAS_INTERVAL)
+      }, DAS_DELAY)
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (keysPressed.current.has(e.code)) return
       keysPressed.current.add(e.code)
@@ -846,32 +902,15 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
       switch (e.code) {
         case 'ArrowLeft':
         case 'KeyA':
-          movePiece(-1, 0)
-          dasTimer.current = setTimeout(() => {
-            const repeatMove = () => {
-              if (keysPressed.current.has(e.code)) {
-                movePiece(-1, 0)
-                dasTimer.current = setTimeout(repeatMove, 30)
-              }
-            }
-            repeatMove()
-          }, 150)
+          startDas('left', e.code)
           break
         case 'ArrowRight':
         case 'KeyD':
-          movePiece(1, 0)
-          dasTimer.current = setTimeout(() => {
-            const repeatMove = () => {
-              if (keysPressed.current.has(e.code)) {
-                movePiece(1, 0)
-                dasTimer.current = setTimeout(repeatMove, 30)
-              }
-            }
-            repeatMove()
-          }, 150)
+          startDas('right', e.code)
           break
         case 'ArrowDown':
         case 'KeyS':
+          softDropActive.current = true
           movePiece(0, 1)
           break
         case 'ArrowUp':
@@ -911,9 +950,14 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     
     const handleKeyUp = (e: KeyboardEvent) => {
       keysPressed.current.delete(e.code)
-      if (dasTimer.current) {
-        clearTimeout(dasTimer.current)
-        dasTimer.current = null
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+        clearDas('left')
+      }
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+        clearDas('right')
+      }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+        softDropActive.current = false
       }
     }
     
@@ -923,6 +967,10 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      keysPressed.current.clear()
+      softDropActive.current = false
+      clearDas('left')
+      clearDas('right')
     }
   }, [gameView, isPaused, isGameOver, showHelp, movePiece, rotatePiece, hardDrop, holdPiece, toggleFullscreen])
 
@@ -974,6 +1022,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     
     socket.on('tetris:lobby-state', (data: { status: LobbyStatus; players: { odactuserId: string; name: string; ready: boolean }[]; seed: number }) => {
       setLobbyStatus(data.status)
+      if (data.status !== 'countdown') setCountdown(null)
       setLobbyPlayers(data.players.map(player => ({
         ...player,
         alive: true,
@@ -1024,9 +1073,23 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     })
     
     socket.on('tetris:receive-attack', (data: { fromUserId: string; lines: number; timestamp: number }) => {
-      if (data.fromUserId !== user?.id) {
-        setGarbageBuffer(prev => [...prev, { lines: data.lines, fromUserId: data.fromUserId, timestamp: data.timestamp }])
+      if (data.fromUserId === user?.id) return
+      lastAttackFrom.current = data.fromUserId
+      setGarbageBuffer(prev => [...prev, { lines: data.lines, fromUserId: data.fromUserId, timestamp: data.timestamp }])
+    })
+
+    socket.on('tetris:player-update', (data: { odactuserId: string; score: number; stackHeight: number; koCount: number; alive: boolean }) => {
+      if (data.odactuserId === user?.id) {
+        setKoCount(data.koCount)
+        return
       }
+      setOpponents(prev => prev.map(p => p.odactuserId === data.odactuserId ? {
+        ...p,
+        score: data.score,
+        stackHeight: data.stackHeight,
+        koCount: data.koCount,
+        alive: data.alive,
+      } : p))
     })
     
     socket.on('tetris:player-died', (data: { odactuserId: string; finalScore: number }) => {
@@ -1057,6 +1120,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
       socket.off('tetris:countdown-start')
       socket.off('tetris:game-start')
       socket.off('tetris:receive-attack')
+      socket.off('tetris:player-update')
       socket.off('tetris:player-died')
       socket.off('tetris:player-disconnected')
       socket.off('tetris:game-end')
@@ -1068,8 +1132,44 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   // GAME ACTIONS
   // =====================================
 
+  const startMatch = useCallback(async () => {
+    if (!user?.id) return
+    await createMatch({
+      gameType: 'tetris-battle',
+      players: [user.id],
+      status: 'in-progress',
+      metadata: {
+        mode: isMultiplayer ? 'multiplayer' : 'solo',
+      },
+    })
+  }, [createMatch, isMultiplayer, user?.id])
+
+  const finalizeMatch = useCallback(async () => {
+    if (!tetrisMatch || tetrisMatch.status === 'completed' || !user?.id) return
+    const durationMs = startTime.current ? Date.now() - startTime.current : undefined
+    await completeMatch(
+      tetrisMatch.id,
+      isMultiplayer ? undefined : user.id,
+      { [user.id]: score },
+      {
+        score,
+        linesCleared,
+        level,
+        koCount,
+        stats,
+        mode: isMultiplayer ? 'multiplayer' : 'solo',
+        durationMs,
+      },
+    )
+  }, [completeMatch, isMultiplayer, koCount, level, linesCleared, score, stats, tetrisMatch, user?.id])
+
   const startGame = useCallback((gameSeed: number) => {
+    void startMatch()
     randomizer.current = create7BagRandomizer(gameSeed)
+    lastAttackFrom.current = null
+    softDropActive.current = false
+    setClearOverlays([])
+    setBombOverlays([])
     setGrid(createEmptyTetrisGrid())
     setHeldPiece(null)
     setCanHold(true)
@@ -1084,9 +1184,16 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     setStats({ linesPerMinute: 0, piecesPlaced: 0, tetrises: 0 })
     startTime.current = Date.now()
     spawnNextPiece(createEmptyTetrisGrid())
-  }, [spawnNextPiece])
+  }, [spawnNextPiece, startMatch])
 
   const resetGame = () => {
+    if (tetrisMatch && tetrisMatch.status !== 'completed') {
+      void finalizeMatch()
+    }
+    lastAttackFrom.current = null
+    softDropActive.current = false
+    setClearOverlays([])
+    setBombOverlays([])
     setGrid(createEmptyTetrisGrid())
     setCurrentPiece(null)
     setGhostPosition(null)
@@ -1102,7 +1209,13 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     setIsGameOver(false)
     setGameTime(180)
     setGarbageBuffer([])
+    clearMatch()
   }
+
+  useEffect(() => {
+    if (!isGameOver) return
+    void finalizeMatch()
+  }, [isGameOver, finalizeMatch])
 
   const handleStartSinglePlayer = () => {
     setIsMultiplayer(false)
@@ -1129,6 +1242,16 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
     resetGame()
   }
 
+  const handleClose = () => {
+    if (tetrisMatch && tetrisMatch.status !== 'completed') {
+      finalizeMatch().finally(() => {
+        onClose()
+      })
+      return
+    }
+    onClose()
+  }
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -1152,12 +1275,9 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
               className={`w-3 h-3 rounded-[1px] transition-all ${cell ? 'block-3d' : 'opacity-0'}`} 
               style={cell ? { 
                 backgroundColor: color,
-                boxShadow: `
-                  inset 2px 2px 3px rgba(255,255,255,0.4),
-                  inset -2px -2px 3px rgba(0,0,0,0.3),
-                  0 0 ${isNext ? '4px' : '2px'} ${color}60
-                `,
-                border: `1px solid ${color}`,
+                boxShadow: 'inset 1px 1px 2px rgba(255,255,255,0.2), inset -1px -1px 2px rgba(0,0,0,0.15)',
+                border: '1px solid rgba(0,0,0,0.25)',
+                opacity: isNext ? 1 : 0.9,
               } : {}} 
             />
           )))}
@@ -1200,16 +1320,16 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
         }
       }
     }
-    
-    // Calculate cell size for explosion positioning
-    const cellSize = 24 // Approximate size matching sm:w-6 sm:h-6
-    
+
+    const rowHeight = 100 / TETRIS_ROWS
+    const colWidth = 100 / TETRIS_COLS
+
     return (
       <>
         {/* Inject animation styles */}
         <style>{ANIMATION_STYLES}</style>
         
-        <div className={`relative border-2 border-primary/30 bg-gradient-to-b from-background/80 to-muted/50 p-0.5 rounded-lg shadow-lg ${clearingLines.length > 0 ? 'animate-grid-pulse' : ''}`}
+        <div className="relative border-2 border-primary/30 bg-gradient-to-b from-background/80 to-muted/50 p-0.5 rounded-lg shadow-lg"
           style={{ 
             boxShadow: `
               0 0 20px rgba(var(--primary-rgb, 100, 100, 255), 0.1),
@@ -1217,324 +1337,81 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
             `
           }}
         >
-          <div className="grid gap-[1px] bg-border/20 p-[1px] rounded" style={{ gridTemplateColumns: `repeat(${TETRIS_COLS}, 1fr)` }}>
-            {displayGrid.slice(TETRIS_HIDDEN_ROWS).map((row, y) =>
-              row.map((cell, x) => {
-                let classes = 'w-5 h-5 sm:w-6 sm:h-6 rounded-[2px] transition-all duration-75'
-                let style: React.CSSProperties = {}
+          <div className="relative">
+            <div className="grid gap-[1px] bg-border/20 p-[1px] rounded" style={{ gridTemplateColumns: `repeat(${TETRIS_COLS}, 1fr)` }}>
+              {displayGrid.slice(TETRIS_HIDDEN_ROWS).map((row, y) =>
+                row.map((cell, x) => {
+                  let classes = 'w-5 h-5 sm:w-6 sm:h-6 rounded-[2px] transition-colors duration-75'
+                  let style: React.CSSProperties = {}
+                  
+                  // Check if this cell was just locked
+                  const isJustLocked = lastLockedCells.some(c => c.x === x && c.y === y)
+                  
+                  if (!cell) {
+                    // Empty cell
+                    classes += ' bg-background/30'
+                  } else if (cell === 'ghost') {
+                    // Ghost piece - subtle outline
+                    const ghostColor = currentPiece ? TETROMINO_COLORS[currentPiece.type] : '#888888'
+                    style.backgroundColor = `${ghostColor}22`
+                    style.border = `1px solid ${ghostColor}`
+                  } else if (cell === 'bomb') {
+                    // Bomb - simple highlight
+                    style.backgroundColor = '#cc4444'
+                    style.border = '1px solid #b23a3a'
+                  } else if (cell === 'garbage') {
+                    // Garbage - simple dark block
+                    style.backgroundColor = '#5f5f5f'
+                    style.border = '1px solid #4a4a4a'
+                  } else {
+                    // Regular block - muted 3D
+                    const color = TETROMINO_COLORS[cell as TetrominoType]
+                    classes += ' block-3d'
+                    style.backgroundColor = color
+                    style.border = '1px solid rgba(0,0,0,0.25)'
+                    style.boxShadow = 'inset 1px 1px 2px rgba(255,255,255,0.25), inset -1px -1px 2px rgba(0,0,0,0.2)'
+                  }
+                  
+                  // Apply animations
+                  if (isJustLocked && cell && cell !== 'ghost') {
+                    classes += ' animate-block-lock'
+                  }
                 
-                // Check if this line is being cleared
-                const isClearing = clearingLines.includes(y)
-                // Check if this cell was just locked
-                const isJustLocked = lastLockedCells.some(c => c.x === x && c.y === y)
-                
-                if (!cell) {
-                  // Empty cell
-                  classes += ' bg-background/30'
-                  style.boxShadow = 'inset 1px 1px 2px rgba(0,0,0,0.1)'
-                } else if (cell === 'ghost') {
-                  // Ghost piece - visible semi-transparent with solid border
-                  const ghostColor = currentPiece ? TETROMINO_COLORS[currentPiece.type] : '#888'
-                  classes += ' animate-ghost-pulse'
-                  style.backgroundColor = `${ghostColor}40` // 25% opacity fill
-                  style.border = `2px solid ${ghostColor}`
-                  style.boxShadow = `
-                    0 0 10px ${ghostColor}80,
-                    0 0 20px ${ghostColor}40,
-                    inset 0 0 8px ${ghostColor}60
-                  `
-                } else if (cell === 'bomb') {
-                  // Bomb - glowing red with pulse
-                  classes += ' animate-bomb-pulse'
-                  style.backgroundColor = '#ff2222'
-                  style.background = 'radial-gradient(circle at 30% 30%, #ff6644 0%, #ff2222 50%, #aa0000 100%)'
-                } else if (cell === 'garbage') {
-                  // Garbage - dark with texture
-                  classes += ' animate-garbage-shake'
-                  style.backgroundColor = '#444'
-                  style.background = 'linear-gradient(135deg, #555 25%, #444 25%, #444 50%, #555 50%, #555 75%, #444 75%)'
-                  style.backgroundSize = '4px 4px'
-                  style.boxShadow = 'inset 1px 1px 2px rgba(255,255,255,0.1), inset -1px -1px 2px rgba(0,0,0,0.3)'
-                } else {
-                  // Regular block - 3D effect with glow
-                  const color = TETROMINO_COLORS[cell as TetrominoType]
-                  classes += ' block-3d'
-                  style.backgroundColor = color
-                  style.boxShadow = `
-                    inset 3px 3px 6px rgba(255,255,255,0.4),
-                    inset -3px -3px 6px rgba(0,0,0,0.4),
-                    0 0 ${isJustLocked ? '15px' : '5px'} ${color}80
-                  `
-                  style.border = `1px solid ${color}`
-                  ;(style as React.CSSProperties & Record<string, string>)['--block-color'] = color
-                }
-                
-                // Apply animations
-                if (isClearing) {
-                  classes += ' animate-line-clear'
-                } else if (isJustLocked && cell && cell !== 'ghost') {
-                  classes += ' animate-block-lock'
-                }
-                
-                return (
-                  <div key={`${x}-${y}`} className={classes} style={style} />
-                )
-              })
+                  return (
+                    <div key={`${x}-${y}`} className={classes} style={style} />
+                  )
+                })
+              )}
+            </div>
+
+            {(clearOverlays.length > 0 || bombOverlays.length > 0) && (
+              <div className="absolute inset-0 pointer-events-none">
+                {clearOverlays.map(lineY => (
+                  <div
+                    key={`line-clear-${lineY}`}
+                    className="line-clear-overlay"
+                    style={{
+                      top: `${lineY * rowHeight}%`,
+                      height: `${rowHeight}%`,
+                    }}
+                  />
+                ))}
+                {bombOverlays.map((pos, idx) => (
+                  <div
+                    key={`bomb-clear-${pos.x}-${pos.y}-${idx}`}
+                    className="bomb-clear-overlay"
+                    style={{
+                      top: `${pos.y * rowHeight}%`,
+                      left: `${pos.x * colWidth}%`,
+                      width: `${colWidth}%`,
+                      height: `${rowHeight}%`,
+                    }}
+                  />
+                ))}
+              </div>
             )}
           </div>
           
-          {/* Explosion effects overlay */}
-          {explosions.map(explosion => {
-            const posX = explosion.x * cellSize + cellSize / 2
-            const posY = explosion.y * cellSize + cellSize / 2
-            
-            if (explosion.type === 'line') {
-              // Line clear explosion - horizontal burst effect with debris
-              return (
-                <div key={explosion.id} className="explosion-container" style={{ left: posX, top: posY }}>
-                  {/* Central burst */}
-                  <div className="explosion-burst" style={{
-                    width: 50,
-                    height: 50,
-                    left: -25,
-                    top: -25,
-                    background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(100,200,255,0.8) 30%, rgba(50,100,255,0.5) 60%, transparent 100%)'
-                  }} />
-                  
-                  {/* Expanding rings */}
-                  <div className="explosion-ring" style={{
-                    width: 30,
-                    height: 30,
-                    left: -15,
-                    top: -15,
-                    borderColor: 'rgba(100,200,255,0.8)'
-                  }} />
-                  <div className="explosion-ring" style={{
-                    width: 40,
-                    height: 40,
-                    left: -20,
-                    top: -20,
-                    borderColor: 'rgba(255,255,255,0.6)',
-                    animationDelay: '50ms'
-                  }} />
-                  
-                  {/* Horizontal line flash across entire row */}
-                  <div className="line-flash" style={{
-                    width: TETRIS_COLS * cellSize + 20,
-                    height: cellSize,
-                    left: -posX - 10,
-                    top: -cellSize / 2,
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 20%, rgba(100,200,255,1) 50%, rgba(255,255,255,0.8) 80%, transparent 100%)',
-                    boxShadow: '0 0 30px rgba(100,200,255,1), 0 0 60px rgba(100,200,255,0.6)'
-                  }} />
-                  
-                  {/* Sparkles along the line */}
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={`sparkle-${i}`} className="sparkle" style={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: '50%',
-                      left: (i - 4) * cellSize * 1.2,
-                      top: (Math.random() - 0.5) * 10,
-                      backgroundColor: '#ffffff',
-                      boxShadow: '0 0 8px #66ccff, 0 0 15px #ffffff',
-                      animationDelay: `${i * 30}ms`
-                    }} />
-                  ))}
-                  
-                  {/* Block debris flying out */}
-                  {Array.from({ length: 16 }).map((_, i) => {
-                    const angle = (i / 16) * Math.PI * 2
-                    const distance = 60 + Math.random() * 40
-                    const rotation = (Math.random() - 0.5) * 720
-                    const colors = ['#00ffff', '#66ccff', '#ffffff', '#88ddff']
-                    return (
-                      <div key={`debris-${i}`} className="debris" style={{
-                        width: 6 + Math.random() * 4,
-                        height: 6 + Math.random() * 4,
-                        left: -4,
-                        top: -4,
-                        backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-                        borderRadius: '1px',
-                        boxShadow: `0 0 6px ${colors[Math.floor(Math.random() * colors.length)]}`,
-                        // @ts-ignore CSS custom property
-                        '--tx': `${Math.cos(angle) * distance}px`,
-                        '--ty': `${Math.sin(angle) * distance}px`,
-                        '--rot': `${rotation}deg`,
-                        animationDelay: `${Math.random() * 100}ms`
-                      }} />
-                    )
-                  })}
-                  
-                  {/* Particles scattered horizontally */}
-                  {Array.from({ length: 12 }).map((_, i) => {
-                    const angle = (i / 12) * Math.PI * 2
-                    const distance = 40 + Math.random() * 30
-                    return (
-                      <div key={i} className="explosion-particle" style={{
-                        left: -3,
-                        top: -3,
-                        backgroundColor: i % 2 === 0 ? '#ffffff' : '#66ccff',
-                        boxShadow: '0 0 8px currentColor',
-                        // @ts-ignore CSS custom property
-                        '--tx': `${Math.cos(angle) * distance}px`,
-                        '--ty': `${Math.sin(angle) * distance * 0.3}px`,
-                        animationDelay: `${i * 20}ms`
-                      }} />
-                    )
-                  })}
-                </div>
-              )
-            } else {
-              // Bomb explosion - intense radial burst with fire and destruction
-              return (
-                <div key={explosion.id} className="explosion-container" style={{ left: posX, top: posY }}>
-                  {/* Screen flash */}
-                  <div className="explosion-flash" style={{
-                    background: 'radial-gradient(circle at center, rgba(255,100,50,0.5) 0%, rgba(255,50,0,0.2) 40%, transparent 70%)'
-                  }} />
-                  
-                  {/* Core white-hot center */}
-                  <div className="explosion-burst" style={{
-                    width: 30,
-                    height: 30,
-                    left: -15,
-                    top: -15,
-                    background: 'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,200,0.8) 50%, transparent 100%)',
-                    animationDuration: '0.3s'
-                  }} />
-                  
-                  {/* Main explosion fireball */}
-                  <div className="explosion-burst bomb-explosion" style={{
-                    width: 80,
-                    height: 80,
-                    left: -40,
-                    top: -40,
-                    background: 'radial-gradient(circle, rgba(255,255,200,1) 0%, rgba(255,200,50,1) 15%, rgba(255,100,30,0.9) 35%, rgba(200,50,0,0.7) 55%, rgba(100,20,0,0.4) 75%, transparent 90%)'
-                  }} />
-                  
-                  {/* Secondary explosion layer */}
-                  <div className="explosion-burst" style={{
-                    width: 60,
-                    height: 60,
-                    left: -30,
-                    top: -30,
-                    background: 'radial-gradient(circle, rgba(255,150,50,0.9) 0%, rgba(255,80,20,0.6) 50%, transparent 100%)',
-                    animationDelay: '100ms',
-                    animationDuration: '0.5s'
-                  }} />
-                  
-                  {/* Multiple shockwave rings */}
-                  <div className="shockwave" style={{
-                    width: 50,
-                    height: 50,
-                    left: -25,
-                    top: -25,
-                    borderColor: 'rgba(255,200,100,0.9)',
-                    borderWidth: '6px'
-                  }} />
-                  <div className="shockwave" style={{
-                    width: 50,
-                    height: 50,
-                    left: -25,
-                    top: -25,
-                    borderColor: 'rgba(255,100,50,0.7)',
-                    animationDelay: '80ms'
-                  }} />
-                  <div className="shockwave" style={{
-                    width: 50,
-                    height: 50,
-                    left: -25,
-                    top: -25,
-                    borderColor: 'rgba(255,50,0,0.5)',
-                    animationDelay: '160ms'
-                  }} />
-                  
-                  {/* Fire particles - more and varied */}
-                  {Array.from({ length: 28 }).map((_, i) => {
-                    const angle = (i / 28) * Math.PI * 2 + (Math.random() - 0.5) * 0.3
-                    const distance = 60 + Math.random() * 60
-                    const colors = ['#ffffff', '#ffff00', '#ffcc00', '#ff8800', '#ff4400', '#ff0000']
-                    const size = 6 + Math.random() * 8
-                    return (
-                      <div key={i} className="explosion-particle" style={{
-                        left: -size / 2,
-                        top: -size / 2,
-                        width: size,
-                        height: size,
-                        backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-                        boxShadow: `0 0 ${size}px ${colors[Math.floor(Math.random() * colors.length)]}, 0 0 ${size * 2}px ${colors[Math.floor(Math.random() * colors.length)]}`,
-                        borderRadius: '50%',
-                        // @ts-ignore CSS custom property
-                        '--tx': `${Math.cos(angle) * distance}px`,
-                        '--ty': `${Math.sin(angle) * distance}px`,
-                        animationDelay: `${Math.random() * 150}ms`,
-                        animationDuration: `${350 + Math.random() * 300}ms`
-                      }} />
-                    )
-                  })}
-                  
-                  {/* Flying debris */}
-                  {Array.from({ length: 12 }).map((_, i) => {
-                    const angle = (i / 12) * Math.PI * 2
-                    const distance = 70 + Math.random() * 50
-                    const rotation = (Math.random() - 0.5) * 1080
-                    return (
-                      <div key={`bomb-debris-${i}`} className="debris" style={{
-                        width: 8 + Math.random() * 6,
-                        height: 8 + Math.random() * 6,
-                        left: -5,
-                        top: -5,
-                        backgroundColor: '#333',
-                        borderRadius: '2px',
-                        boxShadow: '0 0 4px #ff4400',
-                        // @ts-ignore CSS custom property
-                        '--tx': `${Math.cos(angle) * distance}px`,
-                        '--ty': `${Math.sin(angle) * distance}px`,
-                        '--rot': `${rotation}deg`,
-                        animationDelay: `${50 + Math.random() * 100}ms`,
-                        animationDuration: '0.7s'
-                      }} />
-                    )
-                  })}
-                  
-                  {/* Smoke particles rising */}
-                  {Array.from({ length: 10 }).map((_, i) => {
-                    const offsetX = (Math.random() - 0.5) * 60
-                    const offsetY = Math.random() * 20
-                    return (
-                      <div key={`smoke-${i}`} className="smoke-particle" style={{
-                        width: 25 + Math.random() * 15,
-                        height: 25 + Math.random() * 15,
-                        left: offsetX - 15,
-                        top: -offsetY - 15,
-                        background: `radial-gradient(circle, rgba(80,80,80,${0.4 + Math.random() * 0.2}) 0%, transparent 70%)`,
-                        // @ts-ignore CSS custom property
-                        '--tx': `${offsetX * 0.5}px`,
-                        '--ty': `${-30 - Math.random() * 30}px`,
-                        animationDelay: `${150 + i * 40}ms`,
-                        animationDuration: `${600 + Math.random() * 300}ms`
-                      }} />
-                    )
-                  })}
-                  
-                  {/* Ember sparkles */}
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={`ember-${i}`} className="sparkle" style={{
-                      width: 3,
-                      height: 3,
-                      borderRadius: '50%',
-                      left: (Math.random() - 0.5) * 50,
-                      top: (Math.random() - 0.5) * 50,
-                      backgroundColor: i % 2 === 0 ? '#ffcc00' : '#ff6600',
-                      boxShadow: `0 0 4px ${i % 2 === 0 ? '#ffcc00' : '#ff6600'}`,
-                      animationDelay: `${i * 50}ms`
-                    }} />
-                  ))}
-                </div>
-              )
-            }
-          })}
         </div>
       </>
     )
@@ -1547,8 +1424,8 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   // Menu View
   if (gameView === 'menu') {
     return (
-      <div ref={containerRef} className="min-h-[80vh] flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-8">
+      <div ref={containerRef} className="min-h-full w-full flex flex-col items-stretch justify-center p-6">
+        <div className="w-full max-w-3xl mx-auto space-y-8">
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-4xl font-bold tracking-tight">Tetris Battle</h1>
@@ -1583,7 +1460,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
               <HelpCircle className="w-4 h-4 mr-2" />
               How to Play
             </Button>
-            <Button variant="ghost" className="w-full" onClick={onClose}>
+            <Button variant="ghost" className="w-full" onClick={handleClose}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Games
             </Button>
@@ -1604,8 +1481,8 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   // Lobby View
   if (gameView === 'lobby') {
     return (
-      <div ref={containerRef} className="min-h-[80vh] flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-lg space-y-6">
+      <div ref={containerRef} className="min-h-full w-full flex flex-col items-stretch justify-center p-6">
+        <div className="w-full max-w-3xl mx-auto space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1666,7 +1543,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
   return (
     <div 
       ref={containerRef} 
-      className={`min-h-[85vh] flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''}`}
+      className={`min-h-full w-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''}`}
     >
       {/* Header Bar */}
       <div className="flex items-center justify-between p-4 border-b bg-card/50">
@@ -1689,7 +1566,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
           <Button variant="ghost" size="icon" onClick={() => setIsPaused(p => !p)}>
             {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={handleClose}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -1697,7 +1574,7 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
       
       {/* Game Area */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="flex gap-6 justify-center items-start">
+        <div className="flex gap-6 justify-center items-start w-full max-w-6xl mx-auto">
             {/* Hold */}
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground text-center font-semibold tracking-wider">HOLD</p>
@@ -1723,10 +1600,10 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
               {garbageBuffer.length > 0 && (
                 <div className="absolute -left-3 top-0 bottom-0 w-3 flex flex-col-reverse overflow-hidden rounded-l">
                   <div 
-                    className="bg-gradient-to-t from-red-600 via-red-500 to-orange-400 rounded-l transition-all animate-pulse"
+                    className="bg-gradient-to-t from-red-600 via-red-500 to-orange-400 rounded-l transition-all"
                     style={{ 
                       height: `${Math.min(garbageBuffer.reduce((s, g) => s + g.lines, 0) * 5, 100)}%`,
-                      boxShadow: '0 0 15px #ff0000, inset 0 0 10px rgba(255,255,255,0.3)',
+                      boxShadow: 'inset 0 0 6px rgba(255,255,255,0.2)',
                     }} 
                   />
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/20" />
@@ -1744,10 +1621,10 @@ export function TetrisBattle({ onClose }: TetrisBattleProps) {
                 <div className="absolute top-2 right-2 z-10">
                   <Badge 
                     variant="default" 
-                    className="animate-combo-glow text-lg font-bold px-3 py-1"
+                    className="text-lg font-bold px-3 py-1"
                     style={{
                       background: `linear-gradient(135deg, hsl(${Math.min(combo * 30, 360)}, 80%, 50%), hsl(${Math.min(combo * 30 + 30, 360)}, 80%, 40%))`,
-                      boxShadow: `0 0 20px hsl(${Math.min(combo * 30, 360)}, 80%, 50%)`,
+                      boxShadow: `0 0 8px hsl(${Math.min(combo * 30, 360)}, 80%, 50%)`,
                     }}
                   >
                     🔥 x{combo}

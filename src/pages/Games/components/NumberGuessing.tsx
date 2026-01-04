@@ -24,7 +24,6 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
   const [loading, setLoading] = useState(false)
   const [gameFinished, setGameFinished] = useState(false)
   const [startTime, setStartTime] = useState<number>(0)
-  const [endTime, setEndTime] = useState<number>(0)
   const isAI = opponentId === 'AI'
 
   useEffect(() => {
@@ -33,7 +32,7 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
   }, [])
 
   useEffect(() => {
-    if (gameFinished && match && !isAI) {
+    if (gameFinished && match && match.status !== 'completed') {
       completeMatch()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -42,19 +41,9 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
   const initializeGame = async () => {
     if (!user) return
 
-    // Don't create matches for AI or single player
-    if (isAI || !opponentId) {
-      setLoading(false)
-      // Still allow playing
-      const number = Math.floor(Math.random() * 100) + 1
-      setTargetNumber(number)
-      setStartTime(Date.now())
-      return
-    }
-
     try {
       setLoading(true)
-      const players = [user.id, opponentId]
+      const players = opponentId && !isAI ? [user.id, opponentId] : [user.id]
       const number = Math.floor(Math.random() * 100) + 1
       setTargetNumber(number)
       setStartTime(Date.now())
@@ -66,6 +55,7 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
         metadata: {
           targetNumber: number,
           guesses: [],
+          opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
         },
         startedAt: new Date().toISOString(),
       })
@@ -78,15 +68,15 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
     }
   }
 
-  const completeMatch = async () => {
-    if (!match || !user || isAI) return
+  const completeMatch = async (timeTakenOverride?: number) => {
+    if (!match || !user) return
 
     try {
-      const timeTaken = endTime - startTime
+      const timeTaken = timeTakenOverride ?? Math.max(0, Date.now() - startTime)
       const scores: Record<string, number> = {}
       scores[user.id] = timeTaken
 
-      await axiosInstance.patch(UPDATE_MATCH(match.id), {
+      const response = await axiosInstance.patch(UPDATE_MATCH(match.id), {
         status: 'completed',
         winner: user.id,
         scores,
@@ -94,11 +84,40 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
           targetNumber,
           guesses,
           timeTaken,
+          opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
         },
         endedAt: new Date().toISOString(),
       })
+      if (response.data?.data?.status === 'completed') {
+        setMatch({ ...match, status: 'completed' })
+      }
     } catch (error) {
       console.error('Failed to complete match:', error)
+    }
+  }
+
+  const abandonMatch = async () => {
+    if (!match || !user) return
+
+    try {
+      const timeTaken = startTime ? Math.max(0, Date.now() - startTime) : 0
+      const response = await axiosInstance.patch(UPDATE_MATCH(match.id), {
+        status: 'completed',
+        scores: {},
+        metadata: {
+          targetNumber,
+          guesses,
+          timeTaken,
+          opponentType: isAI ? 'ai' : opponentId ? 'user' : 'solo',
+          outcome: 'abandoned',
+        },
+        endedAt: new Date().toISOString(),
+      })
+      if (response.data?.data?.status === 'completed') {
+        setMatch({ ...match, status: 'completed' })
+      }
+    } catch (error) {
+      console.error('Failed to abandon match:', error)
     }
   }
 
@@ -116,7 +135,6 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
     setGuess('')
 
     if (numGuess === targetNumber) {
-      setEndTime(Date.now())
       setGameFinished(true)
       const timeTaken = Date.now() - startTime
       setMessage(`Correct! You guessed it in ${guesses.length + 1} tries in ${Math.round(timeTaken / 1000)}s!`)
@@ -128,8 +146,12 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
   }
 
   const resetGame = () => {
-    if (match && !isAI && !gameFinished) {
-      abandonMatch()
+    if (match && match.status !== 'completed') {
+      if (gameFinished) {
+        completeMatch()
+      } else {
+        abandonMatch()
+      }
     }
 
     setTargetNumber(null)
@@ -138,22 +160,8 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
     setMessage('')
     setGameFinished(false)
     setStartTime(0)
-    setEndTime(0)
     setMatch(null)
     initializeGame()
-  }
-
-  const abandonMatch = async () => {
-    if (!match || !user || isAI) return
-
-    try {
-      await axiosInstance.patch(UPDATE_MATCH(match.id), {
-        status: 'abandoned',
-        endedAt: new Date().toISOString(),
-      })
-    } catch (error) {
-      console.error('Failed to abandon match:', error)
-    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -162,14 +170,24 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
     }
   }
 
+  const handleClose = () => {
+    if (match && match.status !== 'completed') {
+      const finalize = gameFinished ? completeMatch() : abandonMatch()
+      Promise.resolve(finalize).finally(() => {
+        onClose()
+      })
+      return
+    }
+    onClose()
+  }
+
   return (
     <GameLayout
       title="Number Guessing"
       badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
-      onClose={onClose}
-      contentClassName="w-full max-w-md"
+      onClose={handleClose}
     >
-      <div className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
+      <div className="w-full space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
         <div className="text-center space-y-2">
           <p className="text-sm text-muted-foreground">Guess the number between 1 and 100</p>
           {!gameFinished && targetNumber && (
@@ -186,7 +204,7 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex gap-2">
+            <div className="flex gap-2 max-w-sm mx-auto w-full">
               <Input
                 type="number"
                 min="1"
@@ -196,7 +214,7 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
                 onKeyPress={handleKeyPress}
                 placeholder="Enter your guess (1-100)"
                 disabled={loading || !targetNumber}
-                className="flex-1"
+                className="flex-1 min-w-0"
               />
               <Button onClick={handleGuess} disabled={loading || !targetNumber || !guess}>
                 Guess
@@ -232,7 +250,3 @@ export function NumberGuessing({ onClose, opponentId }: NumberGuessingProps) {
     </GameLayout>
   )
 }
-
-
-
-

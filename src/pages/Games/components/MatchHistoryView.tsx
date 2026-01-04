@@ -11,9 +11,14 @@ interface MatchHistoryViewProps {
 }
 
 export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryViewProps) {
-  const completedCount = matches.filter((m) => m.status === 'completed').length
-  const inProgressCount = matches.filter((m) => m.status === 'in-progress' || m.status === 'waiting').length
-  const abandonedCount = matches.filter((m) => m.status === 'abandoned').length
+  const completedMatches = [...matches]
+    .filter((match) => match.status === 'completed')
+    .sort((a, b) => {
+      const aTime = new Date(a.endedAt || a.createdAt).getTime()
+      const bTime = new Date(b.endedAt || b.createdAt).getTime()
+      return bTime - aTime
+    })
+  const completedCount = completedMatches.length
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
@@ -30,28 +35,13 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
     return date.toLocaleDateString()
   }
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
-      completed: 'default',
-      'in-progress': 'secondary',
-      waiting: 'outline',
-      abandoned: 'outline',
-    }
-    return variants[status] || 'outline'
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Match History</h2>
           <p className="text-sm text-muted-foreground">
-            {matches.length} total - {completedCount} completed
-            {(inProgressCount > 0 || abandonedCount > 0) && (
-              <span className="text-muted-foreground/70">
-                {` - ${inProgressCount} in progress - ${abandonedCount} abandoned`}
-              </span>
-            )}
+            {completedCount} total
           </p>
         </div>
         <Button onClick={onRefresh} variant="outline" size="sm" disabled={loading}>
@@ -64,7 +54,7 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : matches.length === 0 ? (
+      ) : completedMatches.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -74,14 +64,14 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
         </Card>
       ) : (
         <div className="space-y-3">
-          {matches.map((match) => (
+          {completedMatches.map((match) => (
             <Card key={match.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold capitalize">{match.gameType.replace('-', ' ')}</h3>
-                      <Badge variant={getStatusBadge(match.status)}>{match.status}</Badge>
+                      <Badge variant="default">completed</Badge>
                     </div>
                     {match.gameType === 'reaction-test' ? (
                       <>
@@ -123,7 +113,7 @@ export function MatchHistoryView({ matches, loading, onRefresh }: MatchHistoryVi
                       </>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {formatDate(match.createdAt)}
+                      {formatDate(match.endedAt || match.createdAt)}
                     </p>
                   </div>
                 </div>

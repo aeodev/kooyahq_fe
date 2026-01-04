@@ -94,13 +94,13 @@ export const TETROMINOES: Record<TetrominoType, number[][][]> = {
 
 // Tetromino colors
 export const TETROMINO_COLORS: Record<TetrominoType, string> = {
-  I: '#00f0f0', // Cyan
-  O: '#f0f000', // Yellow
-  T: '#a000f0', // Purple
-  S: '#00f000', // Green
-  Z: '#f00000', // Red
-  J: '#0000f0', // Blue
-  L: '#f0a000', // Orange
+  I: '#6ba4c8', // Muted cyan
+  O: '#cbb96b', // Muted yellow
+  T: '#9c7fae', // Muted purple
+  S: '#7fae8a', // Muted green
+  Z: '#c07a7a', // Muted red
+  J: '#6f7fae', // Muted blue
+  L: '#c2936a', // Muted orange
 }
 
 // SRS wall kick data for J, L, S, T, Z pieces
@@ -165,8 +165,8 @@ export const GRAVITY_LEVELS = [
 export type BlockType = TetrominoType | 'garbage' | 'bomb' | null
 
 // Bomb color
-export const BOMB_COLOR = '#ff3333'
-export const GARBAGE_COLOR = '#666666'
+export const BOMB_COLOR = '#cc4444'
+export const GARBAGE_COLOR = '#5f5f5f'
 
 // Create empty Tetris grid
 export function createEmptyTetrisGrid(): BlockType[][] {
@@ -238,7 +238,6 @@ export function create7BagRandomizer(seed: number) {
 
   return { next, peek }
 }
-
 
 
 

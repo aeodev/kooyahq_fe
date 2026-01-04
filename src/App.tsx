@@ -71,6 +71,7 @@ function App() {
                 <PermissionGate
                   anyOf={[
                     PERMISSIONS.BOARD_VIEW,
+                    PERMISSIONS.BOARD_VIEW_ALL,
                     PERMISSIONS.BOARD_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
                   ]}
@@ -89,6 +90,7 @@ function App() {
                 <PermissionGate
                   anyOf={[
                     PERMISSIONS.BOARD_VIEW,
+                    PERMISSIONS.BOARD_VIEW_ALL,
                     PERMISSIONS.BOARD_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
                   ]}
@@ -107,6 +109,7 @@ function App() {
                 <PermissionGate
                   anyOf={[
                     PERMISSIONS.BOARD_VIEW,
+                    PERMISSIONS.BOARD_VIEW_ALL,
                     PERMISSIONS.BOARD_FULL_ACCESS,
                     PERMISSIONS.SYSTEM_FULL_ACCESS,
                   ]}

@@ -48,7 +48,9 @@ type BoardDisplay = {
 // Helper to convert backend Board to display format
 function convertBoardToDisplay(board: ApiBoard, allUsers: User[]): BoardDisplay {
   // Use the board creator as the lead/owner
-  const leadUser = board.createdBy ? allUsers.find((u) => u.id === board.createdBy) : null
+  const leadUser =
+    board.createdByUser ??
+    (board.createdBy ? allUsers.find((u) => u.id === board.createdBy) : null)
   
   const initials = leadUser?.name
     ?.split(' ')
@@ -109,11 +111,12 @@ export function Workspace() {
   const user = useAuthStore((state) => state.user)
   const can = useAuthStore((state) => state.can)
   const hasBoardFullAccess = can(PERMISSIONS.BOARD_FULL_ACCESS)
+  const canViewAllBoards = hasBoardFullAccess || can(PERMISSIONS.BOARD_VIEW_ALL)
   const canCreateBoard = hasBoardFullAccess || can(PERMISSIONS.BOARD_CREATE)
   
   // Fetch boards using TanStack Query (cached across navigation)
   const { data: boards = [], isLoading } = useBoardsQuery()
-  const { updateBoardInCache, addBoardToCache, removeBoardFromCache } = useBoardsQueryActions()
+  const { updateBoardInCache, addBoardToCache, removeBoardFromCache, invalidateBoards } = useBoardsQueryActions()
   
   // Only show loading skeleton if we have NO data (first load)
   // If we have cached data, show it immediately even if refetching
@@ -138,9 +141,9 @@ export function Workspace() {
   const canUpdateBoard = useCallback(
     (boardId: string) => {
       const role = getBoardRole(boardId)
-      return hasBoardFullAccess || role === 'owner' || role === 'admin'
+      return hasBoardFullAccess || (can(PERMISSIONS.BOARD_UPDATE) && (role === 'owner' || role === 'admin'))
     },
-    [getBoardRole, hasBoardFullAccess],
+    [can, getBoardRole, hasBoardFullAccess],
   )
 
   const canDeleteBoard = useCallback(
@@ -154,19 +157,19 @@ export function Workspace() {
   const canFavoriteBoard = useCallback(
     (boardId: string) => {
       const role = getBoardRole(boardId)
-      return hasBoardFullAccess || role !== 'none'
+      return canViewAllBoards || role !== 'none'
     },
-    [getBoardRole, hasBoardFullAccess],
+    [canViewAllBoards, getBoardRole],
   )
 
   const canSeeBoard = useCallback(
     (board: ApiBoard) => {
-      if (hasBoardFullAccess) return true
+      if (canViewAllBoards) return true
       if (!user?.id) return false
       if (board.createdBy === user.id) return true
       return board.members.some((member) => member.userId === user.id)
     },
-    [hasBoardFullAccess, user?.id],
+    [canViewAllBoards, user?.id],
   )
 
   // Socket connection for real-time updates
@@ -321,6 +324,7 @@ export function Workspace() {
   const handleCreateBoard = () => {
     // Socket will handle the update via handleBoardCreated
     setCreateModalOpen(false)
+    invalidateBoards()
   }
 
   // Handle edit board
@@ -334,6 +338,7 @@ export function Workspace() {
     // Update cache with the updated board
     if (updatedBoard) {
       updateBoardInCache(updatedBoard.id, () => updatedBoard)
+      invalidateBoards()
     }
     setEditModalOpen(false)
     setSelectedBoard(null)
@@ -349,6 +354,7 @@ export function Workspace() {
   const handleConfirmDelete = (boardId: string) => {
     // Remove from cache
     removeBoardFromCache(boardId)
+    invalidateBoards()
     setDeleteModalOpen(false)
     setSelectedBoard(null)
   }

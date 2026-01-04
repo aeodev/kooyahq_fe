@@ -29,6 +29,7 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
     match,
     loading,
     findOrCreateMatch,
+    createMatch,
     updateMatch,
     completeMatch,
     clearMatch,
@@ -74,11 +75,11 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
 
   // Update match result when winner is determined
   useEffect(() => {
-    if (winner && match && isMultiplayer) {
+    if (winner && match && match.status !== 'completed') {
       updateMatchResult()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [winner, match, isMultiplayer])
+  }, [winner, match])
 
   // Sync local state from match metadata whenever it changes (e.g., from poll or initial load)
   useEffect(() => {
@@ -114,12 +115,7 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
   }, [isMultiplayer, match, winner, loading, refreshCurrentMatch])
 
   const initializeGame = async () => {
-    if (!user) return
-
-    // Don't create matches for AI games or single-player games
-    if (isAI || !opponentId) {
-      return
-    }
+    if (!user || !isMultiplayer || !opponentId) return
 
     try {
       // Sort player IDs to ensure consistent match lookup
@@ -160,17 +156,66 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
     }
   }
 
+  const ensureSoloMatch = async () => {
+    if (!user || isMultiplayer || match) return
+
+    await createMatch({
+      gameType: 'tic-tac-toe',
+      players: [user.id],
+      status: 'in-progress',
+      metadata: {
+        board,
+        currentPlayer,
+        opponentType: isAI ? 'ai' : 'solo',
+      },
+    })
+  }
+
   const updateMatchResult = async () => {
     if (!match || !user) return
 
-    const winnerId = winner === 'draw' ? undefined : winner === 'X' ? match.players[0] : match.players[1]
+    const isSoloMatch = match.players.length === 1
+    const isAiMatch = isSoloMatch && isAI
+    let winnerId: string | undefined
     const scores: Record<string, number> = {}
-    if (winner === 'X') scores[match.players[0]] = 1
-    else if (winner === 'O') scores[match.players[1] || match.players[0]] = 1
+
+    if (winner === 'draw') {
+      winnerId = undefined
+    } else if (isAiMatch) {
+      if (winner === 'X') {
+        winnerId = user.id
+        scores[user.id] = 1
+      } else if (winner === 'O') {
+        winnerId = 'AI'
+        scores['AI'] = 1
+      }
+    } else if (isSoloMatch) {
+      winnerId = user.id
+      scores[user.id] = 1
+    } else if (winner === 'X') {
+      winnerId = match.players[0]
+      scores[match.players[0]] = 1
+    } else if (winner === 'O') {
+      winnerId = match.players[1]
+      if (match.players[1]) scores[match.players[1]] = 1
+    }
 
     await completeMatch(match.id, winnerId, scores, {
       board,
       finalResult: winner,
+    })
+  }
+
+  const finalizeMatch = async () => {
+    if (!match || match.status === 'completed') return
+    if (winner) {
+      await updateMatchResult()
+      return
+    }
+    await completeMatch(match.id, undefined, undefined, {
+      board,
+      finalResult: 'incomplete',
+      currentPlayer,
     })
   }
 
@@ -255,6 +300,8 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
     // In AI mode, only allow move if it's X's turn (player's turn)
     if (isAI && currentPlayer !== 'X') return
 
+    await ensureSoloMatch()
+
     const newBoard = [...board]
     newBoard[index] = currentPlayer
     setBoard(newBoard)
@@ -296,6 +343,9 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
   }
 
   const resetGame = () => {
+    if (match && match.status !== 'completed') {
+      void finalizeMatch()
+    }
     setBoard(createEmptyTicTacToeBoard())
     setCurrentPlayer('X')
     setWinner(null)
@@ -310,7 +360,7 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
         key={index}
         onClick={() => handleCellClick(index)}
         disabled={!!value || !!winner || loading}
-        className="w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center border-2 border-border rounded-xl bg-card hover:bg-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        className="aspect-square w-full flex items-center justify-center border-2 border-border rounded-xl bg-card hover:bg-accent transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {value === 'X' && <X className="w-12 h-12 sm:w-14 sm:h-14 text-primary" strokeWidth={3} />}
         {value === 'O' && <Circle className="w-12 h-12 sm:w-14 sm:h-14 text-secondary" strokeWidth={3} />}
@@ -318,14 +368,25 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
     )
   }
 
+  const handleClose = () => {
+    if (match && match.status !== 'completed') {
+      finalizeMatch().finally(() => {
+        onClose()
+      })
+      return
+    }
+    onClose()
+  }
+
   return (
     <GameLayout
       title="Tic Tac Toe"
       badge={isAI ? <Badge variant="secondary">AI Mode</Badge> : null}
-      onClose={onClose}
-      contentClassName="w-full max-w-md"
+      onClose={handleClose}
+      bodyClassName="flex-1 flex w-full p-0"
+      contentClassName="flex-1 w-full max-w-none"
     >
-      <div className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">
+      <div className="flex-1 w-full flex flex-col gap-6 p-6">
         {winner && (
           <div className="text-center p-4 rounded-lg bg-muted">
             {winner === 'draw' ? (
@@ -357,7 +418,7 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
         )}
 
         {!winner && (
-          <div className="text-center p-2">
+          <div className="text-center">
             <p className="text-sm text-muted-foreground">
               {isAI
                 ? currentPlayer === 'X'
@@ -378,11 +439,11 @@ export function TicTacToe({ onClose, opponentId }: TicTacToeProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2 justify-items-center">
+        <div className="grid grid-cols-3 gap-1 w-full max-w-[clamp(260px,45vw,420px)] mx-auto">
           {Array.from({ length: TIC_TAC_TOE_BOARD_SIZE }).map((_, index) => renderCell(index))}
         </div>
 
-        <Button onClick={resetGame} variant="outline" className="w-full">
+        <Button onClick={resetGame} variant="outline" className="w-full max-w-sm mx-auto">
           <RotateCcw className="w-4 h-4 mr-2" />
           New Game
         </Button>

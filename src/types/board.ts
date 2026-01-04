@@ -45,6 +45,17 @@ export type Board = {
     joinedAt: string
   }>
   createdBy: string
+  createdByUser?: {
+    id: string
+    name: string
+    profilePic?: string
+  }
+  memberUsers?: Array<{
+    id: string
+    name: string
+    email?: string
+    profilePic?: string
+  }>
   deletedAt?: string
   createdAt: string
   updatedAt: string

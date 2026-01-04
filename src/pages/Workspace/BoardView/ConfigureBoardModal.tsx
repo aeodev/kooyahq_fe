@@ -81,6 +81,13 @@ type FieldConfig = {
   order: number
 }
 
+type MemberUserInfo = {
+  id: string
+  name: string
+  email?: string
+  profilePic?: string
+}
+
 export function ConfigureBoardModal({
   open,
   onClose,
@@ -109,6 +116,7 @@ export function ConfigureBoardModal({
   const [availableUsers, setAvailableUsers] = useState<User[]>([])
   const [memberSearch, setMemberSearch] = useState('')
   const [loadingUsers, setLoadingUsers] = useState(false)
+  const [usersLoadError, setUsersLoadError] = useState<string | null>(null)
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
   const colorButtonRef = useRef<HTMLButtonElement>(null)
@@ -184,6 +192,7 @@ export function ConfigureBoardModal({
     if (!open) {
       prevBoardIdRef.current = null
       setMemberSearch('')
+      setUsersLoadError(null)
     }
   }, [open, board?.id]) // Only depend on open state and board ID
 
@@ -192,6 +201,7 @@ export function ConfigureBoardModal({
     if (!open || activeSection !== 'members') return
     const loadUsers = async () => {
       setLoadingUsers(true)
+      setUsersLoadError(null)
       try {
         const response = await axiosInstance.get<{ status: string; data: User[] }>(GET_USERS())
         if (response.data?.data) {
@@ -199,6 +209,8 @@ export function ConfigureBoardModal({
         }
       } catch (error) {
         console.error('Failed to load users for board members', error)
+        setAvailableUsers([])
+        setUsersLoadError('Unable to load users list for invites.')
       } finally {
         setLoadingUsers(false)
       }
@@ -347,6 +359,19 @@ export function ConfigureBoardModal({
     })
   }, [availableUsers, memberList, memberSearch, currentUserId])
 
+  const memberUserLookup = useMemo(() => {
+    const map = new Map<string, MemberUserInfo>()
+    board?.memberUsers?.forEach((user) => {
+      map.set(user.id, user)
+    })
+    availableUsers.forEach((user) => {
+      if (!map.has(user.id)) {
+        map.set(user.id, { id: user.id, name: user.name, email: user.email, profilePic: user.profilePic })
+      }
+    })
+    return map
+  }, [board?.memberUsers, availableUsers])
+
   const handleAddMember = (user: User) => {
     if (user.id === currentUserId) return
     setMemberList((prev) => {
@@ -483,7 +508,7 @@ export function ConfigureBoardModal({
 
   return (
     <Modal open={open} onClose={onClose} maxWidth="4xl">
-      <div className="flex h-[600px]">
+      <div className="flex h-[600px] max-h-[80vh] w-full">
         {/* Jira-style Sidebar Navigation */}
         <div className="w-16 sm:w-64 border-r border-border bg-muted/30 flex-shrink-0">
           <div className="p-4 border-b border-border flex items-center justify-center sm:justify-start">
@@ -744,12 +769,12 @@ export function ConfigureBoardModal({
               <div className="space-y-6 max-w-3xl">
                 <div className="space-y-2">
                   <Label>Current members</Label>
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                     {memberList.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No members yet.</p>
                     ) : (
                       memberList.map((member) => {
-                        const user = availableUsers.find((u) => u.id === member.userId)
+                        const user = memberUserLookup.get(member.userId)
                         const isCreator = board.createdBy === member.userId
                         const joined = member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : undefined
                         return (
@@ -800,7 +825,9 @@ export function ConfigureBoardModal({
                     onChange={(e) => setMemberSearch(e.target.value)}
                   />
                   <div className="rounded-lg border border-border/70 max-h-60 overflow-y-auto divide-y divide-border/70 bg-muted/40">
-                    {loadingUsers ? (
+                    {usersLoadError ? (
+                      <div className="p-3 text-sm text-muted-foreground">{usersLoadError}</div>
+                    ) : loadingUsers ? (
                       <div className="p-3 text-sm text-muted-foreground">Loading people…</div>
                     ) : filteredUsers.length === 0 ? (
                       <div className="p-3 text-sm text-muted-foreground">No people found</div>
