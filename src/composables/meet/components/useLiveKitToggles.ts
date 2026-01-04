@@ -55,20 +55,18 @@ export function useLiveKitToggles({
     const next = !prev
 
     try {
-      await room.localParticipant.setCameraEnabled(next)
-      setIsVideoEnabled(next)
-
-      getStore().updateParticipant(user.id, { isVideoEnabled: next })
-
       if (next) {
+        await room.localParticipant.setCameraEnabled(true)
+        setIsVideoEnabled(true)
+        getStore().updateParticipant(user.id, { isVideoEnabled: true })
+
         const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
         if (camPub?.track) {
           refs.localVideoTrack.current = camPub.track as LocalVideoTrack
           setLocalStream((prevStream) => {
-            const s = new MediaStream(prevStream?.getTracks() || [])
-            s.getVideoTracks().forEach((t) => {
-              s.removeTrack(t)
-            })
+            const s = new MediaStream()
+            // Only keep audio tracks, replace video with camera
+            prevStream?.getAudioTracks().forEach((t) => s.addTrack(t))
             s.addTrack(camPub.track!.mediaStreamTrack)
             return s
           })
@@ -82,16 +80,23 @@ export function useLiveKitToggles({
           }
         }
       } else {
+        // Manually unpublish only camera track (preserves screen share)
+        const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+        if (camPub?.track) {
+          await room.localParticipant.unpublishTrack(camPub.track, false)
+        }
+        setIsVideoEnabled(false)
+        getStore().updateParticipant(user.id, { isVideoEnabled: false })
+
         if (isMirroredForRemote) {
           cleanupMirror()
         }
         refs.localVideoTrack.current = null
         setLocalStream((prevStream) => {
           if (!prevStream) return null
-          const s = new MediaStream(prevStream.getTracks())
-          s.getVideoTracks().forEach((t) => {
-            s.removeTrack(t)
-          })
+          const s = new MediaStream()
+          // Only keep audio tracks when camera is off
+          prevStream.getAudioTracks().forEach((t) => s.addTrack(t))
           return s.getTracks().length ? s : null
         })
       }

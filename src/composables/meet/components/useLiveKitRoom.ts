@@ -11,6 +11,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useMeetStore } from '@/stores/meet.store'
 import { useSocketStore } from '@/stores/socket.store'
 import { fetchLiveKitToken } from '@/utils/livekit'
+import axiosInstance from '@/utils/axios.instance'
+import { GET_USER_BY_ID } from '@/utils/api.routes'
 import type { LiveKitRefs } from './useLiveKitState'
 import { getParticipantState } from './useLiveKitParticipant'
 
@@ -27,8 +29,19 @@ interface UseLiveKitRoomParams {
   setIsVideoEnabled: React.Dispatch<React.SetStateAction<boolean>>
   setIsAudioEnabled: React.Dispatch<React.SetStateAction<boolean>>
   setIsScreenSharing: React.Dispatch<React.SetStateAction<boolean>>
-  setIsMirroredForRemote: React.Dispatch<React.SetStateAction<boolean>>
   cleanupRoom: () => void
+}
+
+interface ParticipantJoinedData {
+  userId: string
+  userName: string
+  profilePic?: string
+  liveKitIdentity?: string
+}
+
+interface LiveKitIdentityData {
+  userId: string
+  liveKitIdentity: string
 }
 
 export function useLiveKitRoom({
@@ -44,12 +57,30 @@ export function useLiveKitRoom({
   setIsVideoEnabled,
   setIsAudioEnabled,
   setIsScreenSharing,
-  setIsMirroredForRemote,
   cleanupRoom,
 }: UseLiveKitRoomParams) {
   const user = useAuthStore((state) => state.user)
   const socket = useSocketStore((state) => state.socket)
   const getStore = useCallback(() => useMeetStore.getState(), [])
+
+  const fetchParticipantProfilePic = useCallback(
+    async (userId: string, mounted: boolean, attempt: number) => {
+      if (!userId || userId === user?.id) return
+
+      try {
+        const response = await axiosInstance.get(GET_USER_BY_ID(userId))
+        if (!mounted || attempt !== refs.connectAttempt.current) return
+
+        const profilePic = response.data.data?.profilePic
+        if (profilePic) {
+          getStore().updateParticipant(userId, { profilePic })
+        }
+      } catch (error) {
+        console.debug('[LiveKit] Failed to fetch profilePic for participant:', error)
+      }
+    },
+    [user?.id, refs.connectAttempt, getStore]
+  )
 
   useEffect(() => {
     if (!meetId || !user) {
@@ -75,7 +106,6 @@ export function useLiveKitRoom({
         const room = new Room()
         refs.room.current = room
 
-        // Track subscribed
         room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
 
@@ -93,18 +123,17 @@ export function useLiveKitRoom({
             stream.addTrack(track.mediaStreamTrack)
             forceUpdate()
 
+            const databaseId = getDatabaseId(participant.identity)
+
             if (isScreenShare) {
-              const databaseId = getDatabaseId(participant.identity)
               getStore().updateParticipant(databaseId, {
                 isScreenSharing: !publication.isMuted,
               })
             } else if (track.kind === Track.Kind.Video) {
-              const databaseId = getDatabaseId(participant.identity)
               getStore().updateParticipant(databaseId, {
                 isVideoEnabled: !publication.isMuted,
               })
             } else if (track.kind === Track.Kind.Audio) {
-              const databaseId = getDatabaseId(participant.identity)
               getStore().updateParticipant(databaseId, {
                 isAudioEnabled: !publication.isMuted,
               })
@@ -112,7 +141,6 @@ export function useLiveKitRoom({
           }
         })
 
-        // Track unsubscribed
         room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
 
@@ -131,7 +159,6 @@ export function useLiveKitRoom({
           forceUpdate()
         })
 
-        // Track muted
         room.on(RoomEvent.TrackMuted, (publication, participant) => {
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
           const localIdentity = room.localParticipant?.identity
@@ -164,7 +191,6 @@ export function useLiveKitRoom({
           }
         })
 
-        // Participant connected
         room.on(RoomEvent.ParticipantConnected, (participant) => {
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
           const localIdentity = room.localParticipant?.identity
@@ -177,9 +203,10 @@ export function useLiveKitRoom({
             userName: participant.name || undefined,
             ...state,
           })
+
+          fetchParticipantProfilePic(databaseId, mounted, currentAttempt)
         })
 
-        // Participant disconnected
         room.on(RoomEvent.ParticipantDisconnected, (participant) => {
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
           refs.remoteStreams.current.delete(participant.identity)
@@ -189,7 +216,6 @@ export function useLiveKitRoom({
           forceUpdate()
         })
 
-        // Screen share tracking
         room.on(RoomEvent.TrackPublished, (publication, participant) => {
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
           if (publication.source === Track.Source.ScreenShare) {
@@ -208,6 +234,13 @@ export function useLiveKitRoom({
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
           if (publication.source === Track.Source.ScreenShare) {
             const localIdentity = room.localParticipant?.identity
+            
+            // For local participant, verify screen share actually stopped
+            if (participant.identity === localIdentity) {
+              const screenPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare)
+              if (screenPub && !screenPub.isMuted) return // Still active, ignore
+            }
+            
             const databaseId = getDatabaseId(participant.identity)
             getStore().updateParticipant(databaseId, {
               isScreenSharing: false,
@@ -218,7 +251,6 @@ export function useLiveKitRoom({
           }
         })
 
-        // Connection state handlers
         room.on(RoomEvent.ConnectionStateChanged, (state) => {
           if (!mounted || currentAttempt !== refs.connectAttempt.current) return
           setConnectionState(state)
@@ -241,7 +273,6 @@ export function useLiveKitRoom({
           console.log('[LiveKit] Reconnected')
         })
 
-        // Connect to room
         await room.connect(url, token)
 
         if (currentAttempt !== refs.connectAttempt.current || !mounted) {
@@ -249,7 +280,6 @@ export function useLiveKitRoom({
           return
         }
 
-        // Create and publish local tracks
         const tracks: MediaStreamTrack[] = []
 
         if (initialVideoEnabled) {
@@ -283,11 +313,9 @@ export function useLiveKitRoom({
           setLocalStream(stream)
         }
 
-        // Set up identity mapping
         const localIdentity = room.localParticipant.identity
         setIdentityMapping(localIdentity, user.id)
 
-        // Broadcast LiveKit identity mapping
         if (socket?.connected && meetId) {
           socket.emit('meet:livekit-identity', {
             meetId,
@@ -296,7 +324,6 @@ export function useLiveKitRoom({
           })
         }
 
-        // Add self as participant
         getStore().addParticipant({
           userId: user.id,
           userName: user.name,
@@ -306,7 +333,6 @@ export function useLiveKitRoom({
           isScreenSharing: false,
         })
 
-        // Add existing remote participants
         room.remoteParticipants.forEach((participant) => {
           const databaseId = getDatabaseId(participant.identity)
           const state = getParticipantState(participant)
@@ -315,15 +341,12 @@ export function useLiveKitRoom({
             userName: participant.name || undefined,
             ...state,
           })
+
+          fetchParticipantProfilePic(databaseId, mounted, currentAttempt)
         })
 
-        // Set up socket event handlers
         if (socket?.connected) {
-          const handleParticipantJoined = (data: {
-            userId: string
-            userName: string
-            liveKitIdentity?: string
-          }) => {
+          const handleParticipantJoined = (data: ParticipantJoinedData) => {
             if (!mounted || currentAttempt !== refs.connectAttempt.current) return
 
             if (data.liveKitIdentity) {
@@ -335,10 +358,13 @@ export function useLiveKitRoom({
               getStore().addParticipant({
                 userId: data.userId,
                 userName: data.userName,
+                profilePic: data.profilePic,
                 isVideoEnabled: true,
                 isAudioEnabled: true,
                 isScreenSharing: false,
               })
+            } else if (data.profilePic && !existing.profilePic) {
+              getStore().updateParticipant(data.userId, { profilePic: data.profilePic })
             }
           }
 
@@ -347,10 +373,7 @@ export function useLiveKitRoom({
             getStore().removeParticipant(data.userId)
           }
 
-          const handleLiveKitIdentity = (data: {
-            userId: string
-            liveKitIdentity: string
-          }) => {
+          const handleLiveKitIdentity = (data: LiveKitIdentityData) => {
             if (!mounted || currentAttempt !== refs.connectAttempt.current) return
             setIdentityMapping(data.liveKitIdentity, data.userId)
             const existing = getStore().participants.get(data.userId)
@@ -379,25 +402,12 @@ export function useLiveKitRoom({
     return () => {
       mounted = false
       cleanupSocket?.()
-      cleanupRoom()
+      const room = refs.room.current
+      if (room) {
+        room.removeAllListeners()
+        room.disconnect()
+        refs.room.current = null
+      }
     }
-  }, [
-    meetId,
-    user,
-    initialVideoEnabled,
-    initialAudioEnabled,
-    refs,
-    getDatabaseId,
-    setIdentityMapping,
-    forceUpdate,
-    setLocalStream,
-    setConnectionState,
-    setIsVideoEnabled,
-    setIsAudioEnabled,
-    setIsScreenSharing,
-    setIsMirroredForRemote,
-    cleanupRoom,
-    getStore,
-  ])
+  }, [meetId, user?.id])
 }
-

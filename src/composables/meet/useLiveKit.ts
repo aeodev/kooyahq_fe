@@ -36,7 +36,7 @@ export function useLiveKit(
     user?.id || null
   )
 
-  // Cleanup function
+  // Cleanup function - stable reference (refs are stable, setters are stable React dispatchers)
   const cleanupRoom = useCallback(() => {
     refs.connectAttempt.current += 1
 
@@ -57,17 +57,18 @@ export function useLiveKit(
     refs.remoteStreams.current.clear()
     refs.remoteScreenShares.current.clear()
     refs.identityMap.current.clear()
-    setters.setLocalStream(null)
-    setters.setConnectionState(ConnectionState.Disconnected)
-
-    setters.setIsVideoEnabled(refs.initialVideo.current)
-    setters.setIsAudioEnabled(refs.initialAudio.current)
-    setters.setIsScreenSharing(false)
-    setters.setIsMirroredForRemote(false)
+    
+    // Use functional updates to avoid dependency on setters
+    setters.setLocalStream(() => null)
+    setters.setConnectionState(() => ConnectionState.Disconnected)
+    setters.setIsVideoEnabled(() => refs.initialVideo.current)
+    setters.setIsAudioEnabled(() => refs.initialAudio.current)
+    setters.setIsScreenSharing(() => false)
+    setters.setIsMirroredForRemote(() => false)
 
     // Reset the meet store
     getStore().reset()
-  }, [refs, setters, cleanupMirror, getStore])
+  }, [cleanupMirror, getStore]) // cleanupMirror and getStore are stable callbacks
 
   // Room connection and event handlers
   useLiveKitRoom({
@@ -83,7 +84,6 @@ export function useLiveKit(
     setIsVideoEnabled: setters.setIsVideoEnabled,
     setIsAudioEnabled: setters.setIsAudioEnabled,
     setIsScreenSharing: setters.setIsScreenSharing,
-    setIsMirroredForRemote: setters.setIsMirroredForRemote,
     cleanupRoom,
   })
 
