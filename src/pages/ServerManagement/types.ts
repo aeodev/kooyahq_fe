@@ -1,9 +1,17 @@
+export type ActionRisk = 'normal' | 'warning' | 'dangerous'
+
 export type Action = {
   id: string
   name: string
   description: string
   command: string
-  dangerous?: boolean
+  risk: ActionRisk
+}
+
+export type Service = {
+  name: string
+  serviceName: string
+  actions: Action[]
 }
 
 export type Server = {
@@ -15,7 +23,7 @@ export type Server = {
   user?: string
   statusCommand?: string
   appDirectory?: string
-  actions: Action[]
+  services: Service[]
 }
 
 export type Project = {

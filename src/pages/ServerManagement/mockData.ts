@@ -16,25 +16,33 @@ export const initialProjects: Project[] = [
         user: 'deploy',
         statusCommand: './instancectl status gateway',
         appDirectory: '/opt/kooya',
-        actions: [
+        services: [
           {
-            id: 'act-deploy-gateway',
-            name: 'Deploy',
-            description: 'Build and deploy the latest release artifact.',
-            command: './instancectl deploy gateway',
-          },
-          {
-            id: 'act-restart-gateway',
-            name: 'Restart Service',
-            description: 'Restart the gateway service on all nodes.',
-            command: './instancectl restart gateway',
-          },
-          {
-            id: 'act-reset-gateway-cache',
-            name: 'Purge Cache',
-            description: 'Flush cache across all edge nodes.',
-            command: './instancectl purge-cache gateway',
-            dangerous: true,
+            name: 'Gateway',
+            serviceName: 'gateway',
+            actions: [
+              {
+                id: 'act-deploy-gateway',
+                name: 'Deploy',
+                description: 'Build and deploy the latest release artifact.',
+                command: './instancectl deploy gateway',
+                risk: 'normal',
+              },
+              {
+                id: 'act-restart-gateway',
+                name: 'Restart Service',
+                description: 'Restart the gateway service on all nodes.',
+                command: './instancectl restart gateway',
+                risk: 'normal',
+              },
+              {
+                id: 'act-reset-gateway-cache',
+                name: 'Purge Cache',
+                description: 'Flush cache across all edge nodes.',
+                command: './instancectl purge-cache gateway',
+                risk: 'dangerous',
+              },
+            ],
           },
         ],
       },
@@ -47,19 +55,26 @@ export const initialProjects: Project[] = [
         user: 'ops',
         statusCommand: './instancectl status workers',
         appDirectory: '/opt/kooya',
-        actions: [
+        services: [
           {
-            id: 'act-scale-workers',
-            name: 'Scale Up',
-            description: 'Increase worker task count for peak load.',
-            command: './instancectl scale workers --up',
-          },
-          {
-            id: 'act-drain-workers',
-            name: 'Drain Queue',
-            description: 'Pause new jobs and drain active queues.',
-            command: './instancectl drain workers',
-            dangerous: true,
+            name: 'Workers',
+            serviceName: 'workers',
+            actions: [
+              {
+                id: 'act-scale-workers',
+                name: 'Scale Up',
+                description: 'Increase worker task count for peak load.',
+                command: './instancectl scale workers --up',
+                risk: 'normal',
+              },
+              {
+                id: 'act-drain-workers',
+                name: 'Drain Queue',
+                description: 'Pause new jobs and drain active queues.',
+                command: './instancectl drain workers',
+                risk: 'dangerous',
+              },
+            ],
           },
         ],
       },
@@ -80,19 +95,26 @@ export const initialProjects: Project[] = [
         user: 'deploy',
         statusCommand: './instancectl status analytics',
         appDirectory: '/opt/analytics',
-        actions: [
+        services: [
           {
-            id: 'act-analytics-deploy',
-            name: 'Deploy',
-            description: 'Deploy the analytics API bundle.',
-            command: './instancectl deploy analytics',
-          },
-          {
-            id: 'act-analytics-migrate',
-            name: 'Run Migrations',
-            description: 'Apply database migrations.',
-            command: './instancectl migrate analytics',
-            dangerous: true,
+            name: 'Analytics API',
+            serviceName: 'analytics',
+            actions: [
+              {
+                id: 'act-analytics-deploy',
+                name: 'Deploy',
+                description: 'Deploy the analytics API bundle.',
+                command: './instancectl deploy analytics',
+                risk: 'normal',
+              },
+              {
+                id: 'act-analytics-migrate',
+                name: 'Run Migrations',
+                description: 'Apply database migrations.',
+                command: './instancectl migrate analytics',
+                risk: 'dangerous',
+              },
+            ],
           },
         ],
       },
@@ -104,19 +126,26 @@ export const initialProjects: Project[] = [
         user: 'etl',
         statusCommand: './instancectl status etl',
         appDirectory: '/opt/analytics',
-        actions: [
+        services: [
           {
-            id: 'act-etl-run',
-            name: 'Run Batch',
-            description: 'Trigger an immediate batch run.',
-            command: './instancectl run etl',
-          },
-          {
-            id: 'act-etl-reset',
-            name: 'Reset Pipeline',
-            description: 'Reset state and restart the pipeline.',
-            command: './instancectl reset etl',
-            dangerous: true,
+            name: 'ETL',
+            serviceName: 'etl',
+            actions: [
+              {
+                id: 'act-etl-run',
+                name: 'Run Batch',
+                description: 'Trigger an immediate batch run.',
+                command: './instancectl run etl',
+                risk: 'normal',
+              },
+              {
+                id: 'act-etl-reset',
+                name: 'Reset Pipeline',
+                description: 'Reset state and restart the pipeline.',
+                command: './instancectl reset etl',
+                risk: 'dangerous',
+              },
+            ],
           },
         ],
       },
