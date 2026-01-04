@@ -68,7 +68,7 @@ function playTone(frequency: number, duration: number, volume: number = 0.3): vo
  * Note: Web Audio API should be available in all modern browsers
  * This is a minimal fallback that silently fails if Web Audio API is unavailable
  */
-function playToneFallback(frequency: number, duration: number, volume: number): void {
+function playToneFallback(_frequency: number, _duration: number, _volume: number): void {
   // Web Audio API should be available in modern browsers
   // If we reach here, it means Web Audio API failed, so we silently skip
   // Playing sounds is a nice-to-have feature, not critical
