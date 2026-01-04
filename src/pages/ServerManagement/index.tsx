@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import AnsiToHtml from 'ansi-to-html'
-import { Activity, AlertTriangle, ChevronLeft, Pencil, Play, Plus, Trash2, X } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, Pencil, Play, Plus, Trash2, X } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
-import { Switch } from '@/components/ui/switch'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { PERMISSIONS } from '@/constants/permissions'
 import { useAuthStore } from '@/stores/auth.store'
@@ -26,7 +26,7 @@ import {
   UPDATE_SERVER_MANAGEMENT_SERVER,
 } from '@/utils/api.routes'
 import { cn } from '@/utils/cn'
-import type { Action, Project, Server } from './types'
+import type { Action, ActionRisk, Project, Server, Service } from './types'
 
 type ProjectFormState = {
   emoji: string
@@ -42,11 +42,23 @@ type ActionErrors = {
   command?: string
 }
 
+type ServiceFormErrors = {
+  name?: string
+  actions?: Record<string, ActionErrors>
+}
+
 type ServerFormErrors = {
   name?: string
   summary?: string
   host?: string
-  actions?: Record<string, ActionErrors>
+  services?: Record<string, ServiceFormErrors>
+}
+
+type ServiceFormState = {
+  id: string
+  name: string
+  serviceName: string
+  actions: Action[]
 }
 
 type ServerFormState = {
@@ -58,7 +70,7 @@ type ServerFormState = {
   sshKey: string
   statusCommand: string
   appDirectory: string
-  actions: Action[]
+  services: ServiceFormState[]
 }
 
 type RunOutputStatus = 'running' | 'success' | 'failure' | 'error'
@@ -129,8 +141,9 @@ type StatusBlock = {
 type DockerContainerStatus = {
   container_id?: string
   name?: string
-  cpu_percent?: number
+  cpu_percent?: number | string
   cpu_raw?: string
+  cpu?: number | string
   mem?: StatusUsage
   net?: StatusTransfer
   block?: StatusBlock
@@ -184,7 +197,7 @@ const emptyServerForm: ServerFormState = {
   sshKey: '',
   statusCommand: '',
   appDirectory: '',
-  actions: [],
+  services: [],
 }
 
 const EMOJI_CATEGORIES = {
@@ -208,8 +221,43 @@ const createAction = (): Action => ({
   name: '',
   description: '',
   command: '',
-  dangerous: false,
+  risk: 'normal',
 })
+
+const createService = (): ServiceFormState => ({
+  id: createId('service'),
+  name: '',
+  serviceName: '',
+  actions: [createAction()],
+})
+
+const ACTION_RISK_LABELS: Record<ActionRisk, string> = {
+  normal: 'Normal',
+  warning: 'Warning',
+  dangerous: 'Dangerous',
+}
+
+const ACTION_RISK_BADGE_CLASS: Record<ActionRisk, string> = {
+  normal: '',
+  warning: 'border-amber-500/40 bg-amber-500/10 text-amber-700',
+  dangerous: '',
+}
+
+const ACTION_RISK_BUTTON_CLASS: Record<ActionRisk, string> = {
+  normal: '',
+  warning: 'text-amber-700 border-amber-500/40',
+  dangerous: 'text-destructive border-destructive/50',
+}
+
+const getActionRisk = (action: { risk?: ActionRisk; dangerous?: boolean }): ActionRisk => {
+  if (action.risk === 'normal' || action.risk === 'warning' || action.risk === 'dangerous') {
+    return action.risk
+  }
+  if (action.dangerous) return 'dangerous'
+  return 'normal'
+}
+
+const requiresConfirm = (risk: ActionRisk) => risk === 'dangerous'
 
 const formatBytes = (value?: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
@@ -253,27 +301,90 @@ const formatContainerMem = (mem?: StatusUsage) => {
   return '—'
 }
 
-const formatContainerTransfer = (net?: StatusTransfer) => {
+const clampPercent = (value?: number) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return Math.min(100, Math.max(0, value))
+}
+
+const formatContainerCpu = (container: DockerContainerStatus) => {
+  if (typeof container.cpu_raw === 'string' && container.cpu_raw.trim()) return container.cpu_raw.trim()
+  if (typeof container.cpu_percent === 'number') return formatPercent(container.cpu_percent)
+  if (typeof container.cpu_percent === 'string' && container.cpu_percent.trim()) return container.cpu_percent.trim()
+  if (typeof container.cpu === 'number') return formatPercent(container.cpu)
+  if (typeof container.cpu === 'string' && container.cpu.trim()) return container.cpu.trim()
+  return '—'
+}
+
+const parseCpuPercent = (value?: number | string) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+const getContainerCpuPercent = (container: DockerContainerStatus) => {
+  const percent =
+    parseCpuPercent(container.cpu_percent) ??
+    parseCpuPercent(container.cpu) ??
+    parseCpuPercent(container.cpu_raw)
+  return clampPercent(percent ?? undefined)
+}
+
+const normalizeContainerKey = (value?: string) => (value ?? '').trim().toLowerCase()
+const normalizeContainerMatch = (value?: string) => normalizeContainerKey(value).replace(/[^a-z0-9]+/g, '')
+
+const getContainerForService = (
+  service: Service,
+  containers?: Record<string, DockerContainerStatus>
+): DockerContainerStatus | undefined => {
+  if (!containers) return undefined
+
+  const candidates = [service.serviceName, service.name]
+  for (const candidate of candidates) {
+    const normalized = normalizeContainerKey(candidate)
+    if (!normalized) continue
+    const matchKey = Object.keys(containers).find((key) => key.toLowerCase() === normalized)
+    if (matchKey) {
+      return containers[matchKey]
+    }
+    const normalizedMatch = normalizeContainerMatch(candidate)
+    if (normalizedMatch) {
+      const relaxedKey = Object.keys(containers).find(
+        (key) => normalizeContainerMatch(key) === normalizedMatch
+      )
+      if (relaxedKey) {
+        return containers[relaxedKey]
+      }
+      const relaxedContainer = Object.values(containers).find(
+        (container) => normalizeContainerMatch(container.name) === normalizedMatch
+      )
+      if (relaxedContainer) {
+        return relaxedContainer
+      }
+    }
+  }
+
+  return undefined
+}
+
+const formatContainerNet = (net?: StatusTransfer) => {
   if (!net) return '—'
   if (net.raw) return net.raw
-  return `${formatBytes(net.rx_bytes)} / ${formatBytes(net.tx_bytes)}`
+  if (typeof net.rx_bytes === 'number' && typeof net.tx_bytes === 'number') {
+    return `${formatBytes(net.rx_bytes)} / ${formatBytes(net.tx_bytes)}`
+  }
+  return '—'
 }
 
 const formatContainerBlock = (block?: StatusBlock) => {
   if (!block) return '—'
   if (block.raw) return block.raw
-  return `${formatBytes(block.read_bytes)} / ${formatBytes(block.write_bytes)}`
-}
-
-const formatContainerCpu = (container: DockerContainerStatus) => {
-  if (container.cpu_raw) return container.cpu_raw
-  if (typeof container.cpu_percent === 'number') return formatPercent(container.cpu_percent)
+  if (typeof block.read_bytes === 'number' && typeof block.write_bytes === 'number') {
+    return `${formatBytes(block.read_bytes)} / ${formatBytes(block.write_bytes)}`
+  }
   return '—'
-}
-
-const clampPercent = (value?: number) => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  return Math.min(100, Math.max(0, value))
 }
 
 const getUsagePercent = (used?: number, total?: number) => {
@@ -299,27 +410,49 @@ const renderPercentBar = (percent: number | null, toneClass: string) => {
   )
 }
 
-const formatStatusValue = (value: unknown) => {
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
+const renderMiniBar = (percent: number | null, toneClass: string) => {
+  if (percent === null) return null
+  return (
+    <div className="h-1.5 w-full rounded-full bg-muted/60">
+      <div className={cn('h-full rounded-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
+    </div>
+  )
 }
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+const getLoadBarPercent = (value?: number, max?: number) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  if (typeof max !== 'number' || !Number.isFinite(max) || max <= 0) return null
+  return clampPercent((value / max) * 100)
+}
 
-const isStatusInstance = (
-  value: StatusPayload['instance'] | undefined
-): value is NonNullable<StatusPayload['instance']> => isPlainObject(value)
+type NetworkSummary = {
+  totalRx: number
+  totalTx: number
+  interfaceCount: number
+}
 
-const isStatusDocker = (
-  value: StatusPayload['docker'] | undefined
-): value is NonNullable<StatusPayload['docker']> => isPlainObject(value)
+const summarizeNetwork = (network?: Record<string, StatusTransfer>): NetworkSummary | null => {
+  if (!network) return null
+  let totalRx = 0
+  let totalTx = 0
+  let interfaceCount = 0
+  Object.values(network).forEach((stats) => {
+    interfaceCount += 1
+    totalRx += typeof stats?.rx_bytes === 'number' ? stats.rx_bytes : 0
+    totalTx += typeof stats?.tx_bytes === 'number' ? stats.tx_bytes : 0
+  })
+  return { totalRx, totalTx, interfaceCount }
+}
+
+const getTrafficSplit = (summary: NetworkSummary | null) => {
+  if (!summary) return null
+  const total = summary.totalRx + summary.totalTx
+  if (!Number.isFinite(total) || total <= 0) return null
+  return {
+    rxPercent: clampPercent((summary.totalRx / total) * 100),
+    txPercent: clampPercent((summary.totalTx / total) * 100),
+  }
+}
 
 type NetworkGroup = {
   label: string
@@ -395,6 +528,32 @@ const groupNetworkInterfaces = (network?: Record<string, StatusTransfer>): Netwo
     .filter((group): group is NetworkGroup => Boolean(group))
 }
 
+const formatStatusValue = (value: unknown) => {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === '[object Object]') return ''
+    return value
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
+}
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const isStatusInstance = (
+  value: StatusPayload['instance'] | undefined
+): value is NonNullable<StatusPayload['instance']> => isPlainObject(value)
+
+const isStatusDocker = (
+  value: StatusPayload['docker'] | undefined
+): value is NonNullable<StatusPayload['docker']> => isPlainObject(value)
+
 const cardClassName = 'rounded-2xl border border-border/60 bg-background/90 p-5 shadow-sm'
 
 const fieldErrorClass = 'border-destructive/60 focus-visible:ring-destructive'
@@ -450,18 +609,15 @@ export function ServerManagement() {
   const [removalError, setRemovalError] = useState<string | null>(null)
   const [removalLoading, setRemovalLoading] = useState(false)
 
-  const [pendingAction, setPendingAction] = useState<{ action: Action; server: Server } | null>(null)
+  const [pendingAction, setPendingAction] = useState<{ action: Action; server: Server; service: Service } | null>(null)
   const [confirmInput, setConfirmInput] = useState('')
   const [actionRunError, setActionRunError] = useState<string | null>(null)
   const [actionRunPendingId, setActionRunPendingId] = useState<string | null>(null)
   const [cliOutput, setCliOutput] = useState<CliOutput | null>(null)
-  const [statusModalOpen, setStatusModalOpen] = useState(false)
   const [statusLoading, setStatusLoading] = useState(false)
   const [statusRefreshing, setStatusRefreshing] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [statusData, setStatusData] = useState<Record<string, string>>({})
-  const [statusServerId, setStatusServerId] = useState<string | null>(null)
-  const [statusServerName, setStatusServerName] = useState('')
   const [statusPayload, setStatusPayload] = useState<StatusPayload | null>(null)
   const cliOutputRef = useRef<HTMLPreElement | null>(null)
   const cliAutoScrollRef = useRef(true)
@@ -491,6 +647,12 @@ export function ServerManagement() {
   const canManage = can(PERMISSIONS.SERVER_MANAGEMENT_MANAGE)
   const canElevatedUse = canManage || can(PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE)
   const canUse = canElevatedUse || can(PERMISSIONS.SERVER_MANAGEMENT_USE)
+  const canActionNormal = can(PERMISSIONS.SERVER_MANAGEMENT_ACTION_NORMAL)
+  const canActionWarning = can(PERMISSIONS.SERVER_MANAGEMENT_ACTION_WARNING)
+  const canActionDangerous = can(PERMISSIONS.SERVER_MANAGEMENT_ACTION_DANGEROUS)
+  const canRunDangerous = canManage || canElevatedUse || canActionDangerous
+  const canRunWarning = canRunDangerous || canActionWarning
+  const canRunNormal = canRunWarning || canActionNormal || canUse
 
   const socket = useSocketStore((state) => state.socket)
   const socketConnected = useSocketStore((state) => state.connected)
@@ -511,12 +673,30 @@ export function ServerManagement() {
   )
   const instanceStatus = isStatusInstance(statusPayload?.instance) ? statusPayload?.instance : undefined
   const dockerStatus = isStatusDocker(statusPayload?.docker) ? statusPayload?.docker : undefined
-  const statusHasStructured = Boolean(instanceStatus || dockerStatus)
   const networkGroups = useMemo(
     () => groupNetworkInterfaces(instanceStatus?.network),
     [instanceStatus?.network]
   )
-  const containerEntries = Object.entries(dockerStatus?.containers ?? {})
+  const networkSummary = useMemo(
+    () => summarizeNetwork(instanceStatus?.network),
+    [instanceStatus?.network]
+  )
+  const networkTrafficSplit = useMemo(
+    () => getTrafficSplit(networkSummary),
+    [networkSummary]
+  )
+  const loadSeries = useMemo(() => {
+    const values = [
+      { label: '1m', value: instanceStatus?.cpu?.loadavg_1m },
+      { label: '5m', value: instanceStatus?.cpu?.loadavg_5m },
+      { label: '15m', value: instanceStatus?.cpu?.loadavg_15m },
+    ]
+    const max = Math.max(
+      0,
+      ...values.map((entry) => (typeof entry.value === 'number' && Number.isFinite(entry.value) ? entry.value : 0))
+    )
+    return { values, max }
+  }, [instanceStatus?.cpu?.loadavg_1m, instanceStatus?.cpu?.loadavg_5m, instanceStatus?.cpu?.loadavg_15m])
 
   useEffect(() => {
     if (!routeProjectId) return
@@ -799,7 +979,7 @@ export function ServerManagement() {
     if (!selectedProject || !canManage) return
     setServerModalMode('create')
     setEditingServerId(null)
-    setServerForm({ ...emptyServerForm, actions: [createAction()] })
+    setServerForm({ ...emptyServerForm, services: [createService()] })
     setServerFormErrors({})
     setServerFormError(null)
     setServerModalOpen(true)
@@ -818,9 +998,17 @@ export function ServerManagement() {
       sshKey: '',
       statusCommand: server.statusCommand ?? '',
       appDirectory: server.appDirectory ?? '',
-      actions: server.actions.map((action) => ({
-        ...action,
-        dangerous: action.dangerous ?? false,
+      services: server.services.map((service) => ({
+        id: createId('service'),
+        name: service.name,
+        serviceName: service.serviceName,
+        actions: service.actions.map((action) => ({
+          id: action.id,
+          name: action.name,
+          description: action.description,
+          command: action.command,
+          risk: getActionRisk(action as { risk?: ActionRisk; dangerous?: boolean }),
+        })),
       })),
     })
     setServerFormErrors({})
@@ -828,19 +1016,64 @@ export function ServerManagement() {
     setServerModalOpen(true)
   }
 
-  const updateServerAction = (actionId: string, updates: Partial<Action>) => {
+  const addService = () => {
     setServerForm((prev) => ({
       ...prev,
-      actions: prev.actions.map((action) =>
-        action.id === actionId ? { ...action, ...updates } : action
+      services: [...prev.services, createService()],
+    }))
+  }
+
+  const removeService = (serviceId: string) => {
+    setServerForm((prev) => ({
+      ...prev,
+      services: prev.services.filter((service) => service.id !== serviceId),
+    }))
+  }
+
+  const updateService = (serviceId: string, updates: Partial<ServiceFormState>) => {
+    setServerForm((prev) => ({
+      ...prev,
+      services: prev.services.map((service) =>
+        service.id === serviceId ? { ...service, ...updates } : service
       ),
     }))
   }
 
-  const removeServerAction = (actionId: string) => {
+  const addServiceAction = (serviceId: string) => {
     setServerForm((prev) => ({
       ...prev,
-      actions: prev.actions.filter((action) => action.id !== actionId),
+      services: prev.services.map((service) =>
+        service.id === serviceId
+          ? { ...service, actions: [...service.actions, createAction()] }
+          : service
+      ),
+    }))
+  }
+
+  const updateServiceAction = (serviceId: string, actionId: string, updates: Partial<Action>) => {
+    setServerForm((prev) => ({
+      ...prev,
+      services: prev.services.map((service) =>
+        service.id === serviceId
+          ? {
+              ...service,
+              actions: service.actions.map((action) =>
+                action.id === actionId ? { ...action, ...updates } : action
+              ),
+            }
+          : service
+      ),
+    }))
+  }
+
+  const removeServiceAction = (serviceId: string, actionId: string) => {
+    setServerForm((prev) => ({
+      ...prev,
+      services: prev.services.map((service) =>
+        service.id === serviceId
+          ? { ...service, actions: service.actions.filter((action) => action.id !== actionId) }
+          : service
+      ),
     }))
   }
 
@@ -864,30 +1097,46 @@ export function ServerManagement() {
       host: trimmed.host ? undefined : 'Required',
     }
 
-    const actionErrors: Record<string, ActionErrors> = {}
-    serverForm.actions.forEach((action) => {
-      const actionTrimmed = {
-        name: action.name.trim(),
-        description: action.description.trim(),
-        command: action.command.trim(),
+    const serviceErrors: Record<string, ServiceFormErrors> = {}
+    serverForm.services.forEach((service) => {
+      const serviceName = service.name.trim()
+      const currentServiceErrors: ServiceFormErrors = {
+        name: serviceName ? undefined : 'Required',
       }
 
-      const currentErrors: ActionErrors = {
-        name: actionTrimmed.name ? undefined : 'Required',
-        description: actionTrimmed.description ? undefined : 'Required',
-        command: actionTrimmed.command ? undefined : 'Required',
+      const actionErrors: Record<string, ActionErrors> = {}
+      service.actions.forEach((action) => {
+        const actionTrimmed = {
+          name: action.name.trim(),
+          description: action.description.trim(),
+          command: action.command.trim(),
+        }
+
+        const currentErrors: ActionErrors = {
+          name: actionTrimmed.name ? undefined : 'Required',
+          description: actionTrimmed.description ? undefined : 'Required',
+          command: actionTrimmed.command ? undefined : 'Required',
+        }
+
+        if (Object.values(currentErrors).some(Boolean)) {
+          actionErrors[action.id] = currentErrors
+        }
+      })
+
+      if (Object.keys(actionErrors).length > 0) {
+        currentServiceErrors.actions = actionErrors
       }
 
-      if (Object.values(currentErrors).some(Boolean)) {
-        actionErrors[action.id] = currentErrors
+      if (Object.values(currentServiceErrors).some(Boolean)) {
+        serviceErrors[service.id] = currentServiceErrors
       }
     })
 
-    if (Object.keys(actionErrors).length > 0) {
-      errors.actions = actionErrors
+    if (Object.keys(serviceErrors).length > 0) {
+      errors.services = serviceErrors
     }
 
-    if (errors.name || errors.summary || errors.host || errors.actions) {
+    if (errors.name || errors.summary || errors.host || errors.services) {
       setServerFormErrors(errors)
       setServerFormError(null)
       return
@@ -897,12 +1146,16 @@ export function ServerManagement() {
     setServerFormError(null)
     setServerSaving(true)
 
-    const cleanedActions = serverForm.actions.map((action) => ({
-      ...action,
-      name: action.name.trim(),
-      description: action.description.trim(),
-      command: action.command.trim(),
-      dangerous: action.dangerous ?? false,
+    const cleanedServices = serverForm.services.map((service) => ({
+      name: service.name.trim(),
+      serviceName: service.serviceName.trim(),
+      actions: service.actions.map((action) => ({
+        id: action.id,
+        risk: getActionRisk(action),
+        name: action.name.trim(),
+        description: action.description.trim(),
+        command: action.command.trim(),
+      })),
     }))
 
     const payload = {
@@ -913,7 +1166,7 @@ export function ServerManagement() {
       user: trimmed.user || undefined,
       statusCommand: trimmed.statusCommand || undefined,
       appDirectory: trimmed.appDirectory || undefined,
-      actions: cleanedActions,
+      services: cleanedServices,
       ...(trimmed.sshKey ? { sshKey: trimmed.sshKey } : {}),
     }
 
@@ -975,7 +1228,12 @@ export function ServerManagement() {
     }
   }
 
-  const isActionRunnable = (action: Action) => (action.dangerous ? canElevatedUse : canUse)
+  const isActionRunnable = (action: Action) => {
+    const risk = getActionRisk(action)
+    if (risk === 'dangerous') return canRunDangerous
+    if (risk === 'warning') return canRunWarning
+    return canRunNormal
+  }
 
   const openRemoveProject = (project: Project) => {
     if (!canManage) return
@@ -1014,17 +1272,6 @@ export function ServerManagement() {
     } finally {
       setRemovalLoading(false)
     }
-  }
-
-  const closeStatusModal = () => {
-    setStatusModalOpen(false)
-    setStatusLoading(false)
-    setStatusRefreshing(false)
-    setStatusError(null)
-    setStatusData({})
-    setStatusServerId(null)
-    setStatusServerName('')
-    setStatusPayload(null)
   }
 
   const fetchServerStatus = useCallback(
@@ -1097,32 +1344,34 @@ export function ServerManagement() {
     [canUse]
   )
 
-  const openStatusModal = async (server: Server) => {
-    if (!canUse) return
-    setStatusServerName(server.name)
-    setStatusServerId(server.id)
-    setStatusModalOpen(true)
+  useEffect(() => {
+    if (!selectedServer?.id || !canUse) {
+      setStatusLoading(false)
+      setStatusRefreshing(false)
+      setStatusError(null)
+      setStatusData({})
+      setStatusPayload(null)
+      return
+    }
+
     setStatusError(null)
     setStatusData({})
     setStatusPayload(null)
+    void fetchServerStatus(selectedServer.id, { initial: true })
 
-    await fetchServerStatus(server.id, { initial: true })
-  }
-
-  useEffect(() => {
-    if (!statusModalOpen || !statusServerId) return
     const intervalId = window.setInterval(() => {
-      void fetchServerStatus(statusServerId)
+      void fetchServerStatus(selectedServer.id)
     }, 2000)
 
     return () => {
       window.clearInterval(intervalId)
+      statusPollInFlightRef.current = false
     }
-  }, [statusModalOpen, statusServerId, fetchServerStatus])
+  }, [selectedServer?.id, canUse, fetchServerStatus])
 
-  const openConfirmAction = (action: Action, server: Server) => {
+  const openConfirmAction = (action: Action, server: Server, service: Service) => {
     if (!isActionRunnable(action)) return
-    setPendingAction({ action, server })
+    setPendingAction({ action, server, service })
     setConfirmInput('')
     setActionRunError(null)
   }
@@ -1136,8 +1385,10 @@ export function ServerManagement() {
   const isActionRunPending =
     Boolean(pendingAction) && actionRunPendingId === pendingAction?.action.id
 
+  const pendingActionRisk = pendingAction ? getActionRisk(pendingAction.action) : 'normal'
   const confirmEnabled =
-    (!pendingAction?.action.dangerous ||
+    (!pendingAction ||
+      !requiresConfirm(pendingActionRisk) ||
       confirmInput.trim().toLowerCase() === 'confirm') &&
     !isActionRunPending
 
@@ -1464,6 +1715,11 @@ export function ServerManagement() {
   )
 
   const renderServerDetail = (project: Project, server: Server) => {
+    const allActions = server.services.flatMap((service) => service.actions)
+    const runnableActions = allActions.filter((action) => action.command?.trim()).length
+    const warningActions = allActions.filter((action) => getActionRisk(action) === 'warning').length
+    const dangerousActions = allActions.filter((action) => getActionRisk(action) === 'dangerous').length
+
     return (
       <section className="space-y-6">
         <header className="space-y-4">
@@ -1488,15 +1744,6 @@ export function ServerManagement() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => openStatusModal(server)}
-                disabled={!canUse || statusLoading}
-              >
-                <Activity className="mr-2 h-4 w-4" />
-                View Status
-              </Button>
               {canManage && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => openEditServer(server)}>
@@ -1535,75 +1782,367 @@ export function ServerManagement() {
           <div className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-3">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Automation</p>
-              <p className="text-sm font-semibold">{server.actions.length} actions configured</p>
+              <p className="text-sm font-semibold">{allActions.length} actions configured</p>
               <p className="text-xs text-muted-foreground">
-                Dangerous actions require an extra confirmation step.
+                Warning actions open a confirmation modal. Dangerous actions require typing CONFIRM.
               </p>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Runnable actions</span>
-                <span className="font-medium text-right">
-                  {server.actions.filter((action) => action.command?.trim()).length}
-                </span>
+                <span className="font-medium text-right">{runnableActions}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Warning actions</span>
+                <span className="font-medium text-right">{warningActions}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Dangerous actions</span>
-                <span className="font-medium text-right">
-                  {server.actions.filter((action) => action.dangerous).length}
-                </span>
+                <span className="font-medium text-right">{dangerousActions}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
+        <section className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Actions</h2>
-              <p className="text-sm text-muted-foreground">Run approved automation on this server.</p>
+              <h2 className="text-lg font-semibold">Overall Status</h2>
+              <p className="text-sm text-muted-foreground">
+                CPU, memory, storage, and network for this server.
+              </p>
             </div>
+            {canUse && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  Live (2s)
+                </Badge>
+                {statusRefreshing && (
+                  <span className="text-xs text-muted-foreground">Updating...</span>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3">
-            {server.actions.map((action) => (
-              <div
-                key={action.id}
-                className={cn(
-                  'rounded-2xl border border-border/60 bg-background/90 p-4',
-                  action.dangerous && 'border-destructive/40 bg-destructive/5'
-                )}
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          {!canUse && (
+            <div className="rounded-2xl border border-border/60 bg-muted/40 p-3 text-sm text-muted-foreground">
+              Status updates require server management access.
+            </div>
+          )}
+          {statusLoading && (
+            <p className="text-sm text-muted-foreground">Loading status...</p>
+          )}
+          {statusError && (
+            <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+              {statusError}
+            </div>
+          )}
+          {!statusLoading && !statusError && statusPayload?.timestamp && (
+            <p className="text-xs text-muted-foreground">Last updated: {statusPayload.timestamp}</p>
+          )}
+
+          {instanceStatus && (
+            <section className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">CPU Load</p>
+                  <p className="text-sm font-semibold">
+                    {formatLoadAvg(instanceStatus.cpu?.loadavg_1m)} /{' '}
+                    {formatLoadAvg(instanceStatus.cpu?.loadavg_5m)} /{' '}
+                    {formatLoadAvg(instanceStatus.cpu?.loadavg_15m)}
+                  </p>
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold">{action.name}</h3>
-                      {action.dangerous && (
-                        <Badge variant="destructive" className="text-xs">
-                          Dangerous
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{action.description}</p>
+                    {loadSeries.values.map((entry) => (
+                      <div key={entry.label} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="w-6">{entry.label}</span>
+                        <div className="flex-1">
+                          {renderMiniBar(getLoadBarPercent(entry.value, loadSeries.max), 'bg-amber-500/80')}
+                        </div>
+                        <span className="w-10 text-right">{formatLoadAvg(entry.value)}</span>
+                      </div>
+                    ))}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={cn(action.dangerous && 'text-destructive border-destructive/50')}
-                    onClick={() => openConfirmAction(action, server)}
-                    disabled={!isActionRunnable(action) || actionRunPendingId === action.id}
-                  >
-                    <Play className="mr-2 h-4 w-4" />
-                    Run
-                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Load averages over the last 1, 5, and 15 minutes. Higher means busier.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
+                  <p className="text-sm font-semibold">
+                    {formatUsage(instanceStatus.mem?.used_bytes, instanceStatus.mem?.total_bytes)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Available: {formatBytes(instanceStatus.mem?.available_bytes)}
+                  </p>
+                  {renderPercentBar(
+                    getUsagePercent(instanceStatus.mem?.used_bytes, instanceStatus.mem?.total_bytes),
+                    'bg-emerald-500/80'
+                  )}
+                  <p className="text-xs text-muted-foreground">Used vs total memory with available snapshot.</p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Storage</p>
+                  <p className="text-sm font-semibold">
+                    {formatUsage(
+                      instanceStatus.storage_root?.used_bytes,
+                      instanceStatus.storage_root?.total_bytes
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Available: {formatBytes(instanceStatus.storage_root?.available_bytes)}
+                  </p>
+                  {renderPercentBar(
+                    getUsagePercent(
+                      instanceStatus.storage_root?.used_bytes,
+                      instanceStatus.storage_root?.total_bytes
+                    ),
+                    'bg-sky-500/80'
+                  )}
+                  <p className="text-xs text-muted-foreground">Root filesystem used vs total.</p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Network</p>
+                  <p className="text-sm font-semibold">
+                    {formatBytes(networkSummary?.totalRx)} rx / {formatBytes(networkSummary?.totalTx)} tx
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {networkSummary
+                      ? `${networkSummary.interfaceCount} interfaces reported.`
+                      : 'Network totals unavailable.'}
+                  </p>
+                  {networkTrafficSplit && (
+                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted/60 flex">
+                      <div
+                        className="h-full bg-sky-500/80"
+                        style={{ width: `${networkTrafficSplit.rxPercent}%` }}
+                      />
+                      <div
+                        className="h-full bg-indigo-500/70"
+                        style={{ width: `${networkTrafficSplit.txPercent}%` }}
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">Cumulative RX/TX totals since boot.</p>
                 </div>
               </div>
-            ))}
+
+              {networkGroups.length > 0 && (
+                <details className="rounded-2xl border border-border/60 bg-background/90 p-4">
+                  <summary className="cursor-pointer text-sm font-semibold">Network interfaces</summary>
+                  <p className="mt-1 text-xs text-muted-foreground">Grouped by interface type.</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    {networkGroups.map((group) => (
+                      <div
+                        key={group.label}
+                        className="rounded-2xl border border-border/60 bg-background/95 p-4 space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold">{group.label}</p>
+                            {group.description && (
+                              <p className="text-xs text-muted-foreground">{group.description}</p>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {group.entries.length} interfaces
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                          <span>RX: {formatBytes(group.totalRx)}</span>
+                          <span>TX: {formatBytes(group.totalTx)}</span>
+                        </div>
+                        <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                          {group.entries.map(({ name, stats }) => (
+                            <div key={name} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                              <span className="font-medium">{name}</span>
+                              <span className="text-muted-foreground">
+                                {formatBytes(stats?.rx_bytes)} rx / {formatBytes(stats?.tx_bytes)} tx
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </section>
+          )}
+
+          {!statusLoading && !statusError && !instanceStatus && Object.keys(statusData).length === 0 && canUse && (
+            <p className="text-sm text-muted-foreground">No overall status entries returned.</p>
+          )}
+          {!statusLoading && !statusError && !instanceStatus && Object.keys(statusData).length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {Object.entries(statusData).map(([key, value]) => (
+                <div key={key} className="rounded-xl border border-border/60 bg-background/90 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{key}</p>
+                  <p className="text-sm font-semibold">{value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Services</h2>
+            <p className="text-sm text-muted-foreground">
+              Docker status and actions grouped by service.
+            </p>
+          </div>
+          {dockerStatus?.compose_ps_error && (
+            <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+              {dockerStatus.compose_ps_error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {server.services.map((service) => {
+              const container = getContainerForService(service, dockerStatus?.containers)
+              const state = container?.state?.trim()
+              const health = container?.health?.trim()
+              const cpuPercent = container ? getContainerCpuPercent(container) : null
+              const cpuBarPercent =
+                cpuPercent !== null && cpuPercent > 0 && cpuPercent < 1 ? 1 : cpuPercent
+              const memPercent = container ? getContainerMemPercent(container.mem) : null
+              const hasContainerStatus = Boolean(container)
+              const healthVariant =
+                health && health.toLowerCase() === 'healthy' ? 'secondary' : 'destructive'
+              return (
+                <div
+                  key={service.serviceName || service.name}
+                  className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-4"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-semibold">{service.name}</h3>
+                      <p className="text-xs text-muted-foreground">{service.serviceName || '—'}</p>
+                    </div>
+                    {hasContainerStatus && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {state && (
+                          <Badge
+                            variant={state === 'running' ? 'secondary' : 'outline'}
+                            className="text-xs"
+                          >
+                            {state}
+                          </Badge>
+                        )}
+                        {health && (
+                          <Badge variant={healthVariant} className="text-xs">
+                            {health}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {canUse && hasContainerStatus && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">CPU</p>
+                        <p className="text-sm font-semibold">
+                          {container ? formatContainerCpu(container) : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Container CPU usage.</p>
+                        {renderPercentBar(cpuBarPercent, 'bg-amber-500/70')}
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
+                        <p className="text-sm font-semibold">
+                          {container ? formatContainerMem(container.mem) : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Usage vs limit.</p>
+                        {renderPercentBar(memPercent, 'bg-emerald-500/70')}
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Network</p>
+                        <p className="text-sm font-semibold">
+                          {container ? formatContainerNet(container.net) : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">RX / TX totals.</p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Storage</p>
+                        <p className="text-sm font-semibold">
+                          {container ? formatContainerBlock(container.block) : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Read / write IO.</p>
+                      </div>
+                    </div>
+                  )}
+                  {container?.status && (
+                    <p className="text-xs text-muted-foreground">{container.status}</p>
+                  )}
+                  {typeof container?.pids === 'number' && (
+                    <p className="text-xs text-muted-foreground">PIDs: {container.pids}</p>
+                  )}
+
+                  {service.actions.length > 0 ? (
+                    <details className="rounded-xl border border-border/60 bg-background/95 p-3">
+                      <summary className="cursor-pointer text-sm font-semibold">
+                        Actions ({service.actions.length})
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        {service.actions.map((action) => {
+                          const actionRisk = getActionRisk(action)
+                          return (
+                            <div
+                              key={action.id}
+                              className={cn(
+                                'rounded-xl border border-border/60 bg-background/95 p-3',
+                                actionRisk === 'dangerous' && 'border-destructive/40 bg-destructive/5',
+                                actionRisk === 'warning' && 'border-amber-500/40 bg-amber-500/5'
+                              )}
+                            >
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-semibold">{action.name}</h4>
+                                    {actionRisk !== 'normal' && (
+                                      <Badge
+                                        variant={actionRisk === 'dangerous' ? 'destructive' : 'outline'}
+                                        className={cn(
+                                          'text-xs',
+                                          actionRisk === 'warning' && ACTION_RISK_BADGE_CLASS.warning
+                                        )}
+                                      >
+                                        {ACTION_RISK_LABELS[actionRisk]}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">{action.description}</p>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className={cn(ACTION_RISK_BUTTON_CLASS[actionRisk])}
+                                  onClick={() => openConfirmAction(action, server, service)}
+                                  disabled={!isActionRunnable(action) || actionRunPendingId === action.id}
+                                >
+                                  <Play className="mr-2 h-4 w-4" />
+                                  Run
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </details>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
+                      No actions configured for this service.
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
-          {server.actions.length === 0 && (
+          {server.services.length === 0 && (
             <div className="rounded-2xl border border-dashed border-border/60 p-10 text-center text-sm text-muted-foreground">
-              No actions configured yet.
+              No services configured yet.
             </div>
           )}
         </div>
@@ -1845,87 +2384,168 @@ export function ServerManagement() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Actions
+                    Services
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    Action commands stay hidden in the UI, except inside this configuration form.
+                    Map services to docker compose names and attach actions to each service.
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setServerForm((prev) => ({ ...prev, actions: [...prev.actions, createAction()] }))}
-                >
+                <Button variant="outline" size="sm" onClick={addService}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Action
+                  Add Service
                 </Button>
               </div>
 
               <div className="space-y-4">
-                {serverForm.actions.map((action) => {
-                  const actionError = serverFormErrors.actions?.[action.id]
+                {serverForm.services.map((service) => {
+                  const serviceError = serverFormErrors.services?.[service.id]
                   return (
                     <div
-                      key={action.id}
-                      className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-3"
+                      key={service.id}
+                      className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-4"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-2 flex-1">
-                          <label className="text-sm font-medium">Action Name</label>
-                          <Input
-                            value={action.name}
-                            onChange={(e) => updateServerAction(action.id, { name: e.target.value })}
-                            placeholder="Deploy"
-                            className={cn(actionError?.name && fieldErrorClass)}
-                          />
-                          {actionError?.name && (
-                            <p className="text-xs text-destructive">{actionError.name}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={action.dangerous ?? false}
-                              onCheckedChange={(checked) => updateServerAction(action.id, { dangerous: checked })}
+                        <div className="grid gap-4 sm:grid-cols-2 flex-1">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Service Name</label>
+                            <Input
+                              value={service.name}
+                              onChange={(e) => updateService(service.id, { name: e.target.value })}
+                              placeholder="API"
+                              className={cn(serviceError?.name && fieldErrorClass)}
                             />
-                            <span className="text-sm">Dangerous</span>
+                            {serviceError?.name && (
+                              <p className="text-xs text-destructive">{serviceError.name}</p>
+                            )}
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => removeServerAction(action.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="grid gap-4 lg:grid-cols-2">
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Description</label>
-                          <Textarea
-                            value={action.description}
-                            onChange={(e) => updateServerAction(action.id, { description: e.target.value })}
-                            placeholder="Describe what this action does."
-                            className={cn('min-h-[90px]', actionError?.description && fieldErrorClass)}
-                          />
-                          {actionError?.description && (
-                            <p className="text-xs text-destructive">{actionError.description}</p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Command</label>
+                          <div className="space-y-1">
+                            <label className="text-sm font-medium">Compose Service Name (optional)</label>
+                            <p className="text-xs text-muted-foreground">
+                              Matches the docker compose service for status mapping.
+                            </p>
+                          </div>
                           <Input
-                            value={action.command}
-                            onChange={(e) => updateServerAction(action.id, { command: e.target.value })}
-                            placeholder="./instancectl deploy"
-                            className={cn(actionError?.command && fieldErrorClass)}
+                            value={service.serviceName}
+                            onChange={(e) => updateService(service.id, { serviceName: e.target.value })}
+                            placeholder="api"
                           />
-                          {actionError?.command && (
-                            <p className="text-xs text-destructive">{actionError.command}</p>
-                          )}
                         </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => removeService(service.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remove
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold">Actions</p>
+                          <p className="text-xs text-muted-foreground">
+                            Action commands stay hidden in the UI, except inside this configuration form.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addServiceAction(service.id)}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Action
+                        </Button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {service.actions.map((action) => {
+                          const actionError = serviceError?.actions?.[action.id]
+                          const actionRisk = getActionRisk(action)
+                          return (
+                            <div
+                              key={action.id}
+                              className="rounded-2xl border border-border/60 bg-background/95 p-4 space-y-3"
+                            >
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-2 flex-1">
+                                  <label className="text-sm font-medium">Action Name</label>
+                                  <Input
+                                    value={action.name}
+                                    onChange={(e) =>
+                                      updateServiceAction(service.id, action.id, { name: e.target.value })
+                                    }
+                                    placeholder="Deploy"
+                                    className={cn(actionError?.name && fieldErrorClass)}
+                                  />
+                                  {actionError?.name && (
+                                    <p className="text-xs text-destructive">{actionError.name}</p>
+                                  )}
+                                </div>
+                                <div className="flex flex-col gap-3 sm:items-end">
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-medium">Risk Level</p>
+                                    <RadioGroup
+                                      value={actionRisk}
+                                      onValueChange={(value) =>
+                                        updateServiceAction(service.id, action.id, { risk: value as ActionRisk })
+                                      }
+                                      className="flex flex-wrap gap-3"
+                                    >
+                                      {(['normal', 'warning', 'dangerous'] as ActionRisk[]).map((value) => (
+                                        <label key={value} className="flex items-center gap-2">
+                                          <RadioGroupItem value={value} />
+                                          <span className="text-sm">{ACTION_RISK_LABELS[value]}</span>
+                                        </label>
+                                      ))}
+                                    </RadioGroup>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive"
+                                    onClick={() => removeServiceAction(service.id, action.id)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="grid gap-4 lg:grid-cols-2">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium">Description</label>
+                                  <Textarea
+                                    value={action.description}
+                                    onChange={(e) =>
+                                      updateServiceAction(service.id, action.id, { description: e.target.value })
+                                    }
+                                    placeholder="Describe what this action does."
+                                    className={cn('min-h-[90px]', actionError?.description && fieldErrorClass)}
+                                  />
+                                  {actionError?.description && (
+                                    <p className="text-xs text-destructive">{actionError.description}</p>
+                                  )}
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium">Command</label>
+                                  <Input
+                                    value={action.command}
+                                    onChange={(e) =>
+                                      updateServiceAction(service.id, action.id, { command: e.target.value })
+                                    }
+                                    placeholder="./instancectl deploy"
+                                    className={cn(actionError?.command && fieldErrorClass)}
+                                  />
+                                  {actionError?.command && (
+                                    <p className="text-xs text-destructive">{actionError.command}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )
@@ -1997,261 +2617,6 @@ export function ServerManagement() {
         )}
       </Modal>
 
-      <Modal open={statusModalOpen} onClose={closeStatusModal} maxWidth="6xl" className="h-[92vh] sm:h-[90vh]">
-        <div className="flex h-full min-h-0 flex-col">
-          <div className="border-b border-border/60 px-4 py-3 sm:px-6 sm:py-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Server Status</h2>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <span>{statusServerName || 'Status snapshot'}</span>
-                  {statusModalOpen && (
-                    <Badge variant="secondary" className="text-xs">
-                      Live (2s)
-                    </Badge>
-                  )}
-                  {statusRefreshing && (
-                    <span className="text-xs text-muted-foreground">Updating...</span>
-                  )}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeStatusModal}
-                aria-label="Close status modal"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
-            {statusLoading && (
-              <p className="text-sm text-muted-foreground">Loading status...</p>
-            )}
-            {statusError && (
-              <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-                {statusError}
-              </div>
-            )}
-            {!statusLoading && statusHasStructured && (
-              <div className="space-y-6">
-                {statusPayload?.timestamp && (
-                  <p className="text-xs text-muted-foreground">Last updated: {statusPayload.timestamp}</p>
-                )}
-
-                {instanceStatus && (
-                  <section className="space-y-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      Instance
-                    </h3>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">CPU Load</p>
-                        <p className="text-sm font-semibold">
-                          {formatLoadAvg(instanceStatus.cpu?.loadavg_1m)} /{' '}
-                          {formatLoadAvg(instanceStatus.cpu?.loadavg_5m)} /{' '}
-                          {formatLoadAvg(instanceStatus.cpu?.loadavg_15m)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">1m / 5m / 15m</p>
-                      </div>
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
-                        <p className="text-sm font-semibold">
-                          {formatUsage(instanceStatus.mem?.used_bytes, instanceStatus.mem?.total_bytes)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Available: {formatBytes(instanceStatus.mem?.available_bytes)}
-                        </p>
-                        {renderPercentBar(
-                          getUsagePercent(instanceStatus.mem?.used_bytes, instanceStatus.mem?.total_bytes),
-                          'bg-emerald-500/80'
-                        )}
-                      </div>
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Storage</p>
-                        <p className="text-sm font-semibold">
-                          {formatUsage(instanceStatus.storage_root?.used_bytes, instanceStatus.storage_root?.total_bytes)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Available: {formatBytes(instanceStatus.storage_root?.available_bytes)}
-                        </p>
-                        {renderPercentBar(
-                          getUsagePercent(instanceStatus.storage_root?.used_bytes, instanceStatus.storage_root?.total_bytes),
-                          'bg-sky-500/80'
-                        )}
-                      </div>
-                    </div>
-
-                    {networkGroups.length > 0 && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold">Network</p>
-                          <span className="text-xs text-muted-foreground">
-                            {networkGroups.reduce((total, group) => total + group.entries.length, 0)} interfaces
-                          </span>
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {networkGroups.map((group) => (
-                            <div
-                              key={group.label}
-                              className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-3"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="space-y-1">
-                                  <p className="text-sm font-semibold">{group.label}</p>
-                                  {group.description && (
-                                    <p className="text-xs text-muted-foreground">{group.description}</p>
-                                  )}
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {group.entries.length} interfaces
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                                <span>RX: {formatBytes(group.totalRx)}</span>
-                                <span>TX: {formatBytes(group.totalTx)}</span>
-                              </div>
-                              <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                                {group.entries.map(({ name, stats }) => (
-                                  <div
-                                    key={name}
-                                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                                  >
-                                    <span className="font-medium">{name}</span>
-                                    <span className="text-muted-foreground">
-                                      {formatBytes(stats?.rx_bytes)} rx / {formatBytes(stats?.tx_bytes)} tx
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </section>
-                )}
-
-                {dockerStatus && (
-                  <section className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Docker
-                      </h3>
-                      {containerEntries.length > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {containerEntries.length} containers
-                        </span>
-                      )}
-                    </div>
-                    {dockerStatus.compose_ps_error && (
-                      <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-                        {dockerStatus.compose_ps_error}
-                      </div>
-                    )}
-                    {containerEntries.length === 0 && !dockerStatus.compose_ps_error && (
-                      <p className="text-sm text-muted-foreground">No container data returned.</p>
-                    )}
-                    {containerEntries.length > 0 && (
-                      <div className="rounded-2xl border border-border/60 bg-background/90 overflow-hidden">
-                        <div className="overflow-x-auto">
-                          <div className="min-w-[880px]">
-                            <div className="grid grid-cols-[minmax(180px,1.3fr)_minmax(180px,1fr)_minmax(90px,0.5fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)] gap-4 border-b border-border/60 px-4 py-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                              <span>Container</span>
-                              <span>Status</span>
-                              <span>CPU</span>
-                              <span>Memory</span>
-                              <span>Network</span>
-                              <span>Block I/O</span>
-                            </div>
-                            <div className="divide-y divide-border/60">
-                              {containerEntries.map(([key, container]) => {
-                                const name = container.name ?? key
-                                const state = container.state?.trim()
-                                const health = container.health?.trim()
-                                const healthVariant =
-                                  health && health.toLowerCase() === 'healthy' ? 'secondary' : 'destructive'
-                                const cpuPercent = clampPercent(container.cpu_percent)
-                                const memPercent = getContainerMemPercent(container.mem)
-                                return (
-                                  <div
-                                    key={key}
-                                    className="grid grid-cols-[minmax(180px,1.3fr)_minmax(180px,1fr)_minmax(90px,0.5fr)_minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)] gap-4 px-4 py-3 text-sm"
-                                  >
-                                    <div className="space-y-1">
-                                      <p className="font-medium">{name}</p>
-                                      {container.container_id && (
-                                        <p className="text-xs text-muted-foreground">{container.container_id}</p>
-                                      )}
-                                    </div>
-                                    <div className="space-y-1">
-                                      <div className="flex flex-wrap gap-1">
-                                        {state && (
-                                          <Badge
-                                            variant={state === 'running' ? 'secondary' : 'outline'}
-                                            className="text-xs"
-                                          >
-                                            {state}
-                                          </Badge>
-                                        )}
-                                        {health && (
-                                          <Badge variant={healthVariant} className="text-xs">
-                                            {health}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      {container.status && (
-                                        <p className="text-xs text-muted-foreground">{container.status}</p>
-                                      )}
-                                      {typeof container.pids === 'number' && (
-                                        <p className="text-xs text-muted-foreground">PIDs: {container.pids}</p>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="text-sm">{formatContainerCpu(container)}</div>
-                                      {renderPercentBar(cpuPercent, 'bg-amber-500/70')}
-                                    </div>
-                                    <div>
-                                      <div className="text-sm">{formatContainerMem(container.mem)}</div>
-                                      {renderPercentBar(memPercent, 'bg-emerald-500/70')}
-                                    </div>
-                                    <div>{formatContainerTransfer(container.net)}</div>
-                                    <div>{formatContainerBlock(container.block)}</div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </section>
-                )}
-              </div>
-            )}
-            {!statusLoading && !statusError && !statusHasStructured && Object.keys(statusData).length === 0 && (
-              <p className="text-sm text-muted-foreground">No status entries returned.</p>
-            )}
-            {!statusLoading && !statusHasStructured && Object.keys(statusData).length > 0 && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {Object.entries(statusData).map(([key, value]) => (
-                  <div key={key} className="rounded-xl border border-border/60 bg-background/90 p-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{key}</p>
-                    <p className="text-sm font-semibold">{value}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="border-t border-border/60 px-6 py-4 flex justify-end">
-            <Button variant="outline" size="sm" onClick={closeStatusModal}>
-              Close
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
       <Modal open={Boolean(pendingAction)} onClose={closeConfirmAction} maxWidth="lg">
         {pendingAction && (
           <div className="flex h-full flex-col">
@@ -2259,13 +2624,29 @@ export function ServerManagement() {
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    {pendingAction.action.dangerous && (
-                      <AlertTriangle className="h-5 w-5 text-destructive" />
+                    {pendingActionRisk !== 'normal' && (
+                      <AlertTriangle
+                        className={cn(
+                          'h-5 w-5',
+                          pendingActionRisk === 'dangerous' ? 'text-destructive' : 'text-amber-600'
+                        )}
+                      />
                     )}
                     <h2 className="text-lg font-semibold">Confirm Action</h2>
+                    {pendingActionRisk !== 'normal' && (
+                      <Badge
+                        variant={pendingActionRisk === 'dangerous' ? 'destructive' : 'outline'}
+                        className={cn(
+                          'text-xs',
+                          pendingActionRisk === 'warning' && ACTION_RISK_BADGE_CLASS.warning
+                        )}
+                      >
+                        {ACTION_RISK_LABELS[pendingActionRisk]}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {pendingAction.action.name} - {pendingAction.server.name}
+                    {pendingAction.action.name} - {pendingAction.service.name} - {pendingAction.server.name}
                   </p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={closeConfirmAction} aria-label="Close confirmation modal">
@@ -2279,7 +2660,13 @@ export function ServerManagement() {
                 <p className="mt-2 text-muted-foreground">Host: {pendingAction.server.host}</p>
               </div>
 
-              {pendingAction.action.dangerous && (
+              {pendingActionRisk === 'warning' && (
+                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800">
+                  Warning action. Review the details before running.
+                </div>
+              )}
+
+              {pendingActionRisk === 'dangerous' && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-destructive">
                     Dangerous action. Type CONFIRM to proceed.
@@ -2304,7 +2691,8 @@ export function ServerManagement() {
                 size="sm"
                 className={cn(
                   'border border-border/60',
-                  pendingAction.action.dangerous && 'bg-destructive text-destructive-foreground'
+                  pendingActionRisk === 'dangerous' && 'bg-destructive text-destructive-foreground',
+                  pendingActionRisk === 'warning' && 'bg-amber-500/20 text-amber-800 border-amber-500/40'
                 )}
                 onClick={handleConfirmRun}
                 disabled={!confirmEnabled}

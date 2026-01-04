@@ -12,6 +12,9 @@ export const PERMISSIONS = {
   SERVER_MANAGEMENT_VIEW: 'serverManagement:view',
   SERVER_MANAGEMENT_USE: 'serverManagement:use',
   SERVER_MANAGEMENT_ELEVATED_USE: 'serverManagement:elevatedUse',
+  SERVER_MANAGEMENT_ACTION_NORMAL: 'serverManagement:actionNormal',
+  SERVER_MANAGEMENT_ACTION_WARNING: 'serverManagement:actionWarning',
+  SERVER_MANAGEMENT_ACTION_DANGEROUS: 'serverManagement:actionDangerous',
   SERVER_MANAGEMENT_MANAGE: 'serverManagement:manage',
 
   BOARD_FULL_ACCESS: 'board:fullAccess',
@@ -108,6 +111,21 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   { value: PERMISSIONS.SERVER_MANAGEMENT_VIEW, label: 'Server Management View' },
   { value: PERMISSIONS.SERVER_MANAGEMENT_USE, label: 'Server Management Use' },
   { value: PERMISSIONS.SERVER_MANAGEMENT_ELEVATED_USE, label: 'Server Management Elevated Use' },
+  {
+    value: PERMISSIONS.SERVER_MANAGEMENT_ACTION_NORMAL,
+    label: 'Server Management Actions (Normal)',
+    description: 'Run normal server actions',
+  },
+  {
+    value: PERMISSIONS.SERVER_MANAGEMENT_ACTION_WARNING,
+    label: 'Server Management Actions (Warning)',
+    description: 'Run warning and normal server actions',
+  },
+  {
+    value: PERMISSIONS.SERVER_MANAGEMENT_ACTION_DANGEROUS,
+    label: 'Server Management Actions (Dangerous)',
+    description: 'Run all server actions, including dangerous ones',
+  },
   { value: PERMISSIONS.SERVER_MANAGEMENT_MANAGE, label: 'Server Management Manage' },
 
   // Workspaces & Boards
