@@ -143,6 +143,174 @@ export function useLiveKit(
     getStore().reset()
   }, [getStore, cleanupMirror])
 
+  // Helper to publish a mirrored camera track (reused for toggling and re-enabling video)
+  const publishMirroredTrackForRemote = useCallback(async (setState = true) => {
+    const room = roomRef.current
+    if (!room || !user) return false
+
+    // Cannot mirror while screen sharing or if no camera track
+    if (isScreenSharing) {
+      console.warn('[LiveKit] Cannot enable mirror while screen sharing')
+      return false
+    }
+
+    if (!localVideoTrackRef.current) {
+      console.warn('[LiveKit] Cannot enable mirror without an active camera track')
+      return false
+    }
+
+    const sourceTrack = localVideoTrackRef.current
+
+    // Store original track for restoration later
+    originalVideoTrackRef.current = sourceTrack
+
+    // Create hidden video element to capture from
+    const video = document.createElement('video')
+    video.srcObject = new MediaStream([sourceTrack.mediaStreamTrack])
+    video.autoplay = true
+    video.playsInline = true
+    video.muted = true
+    mirrorVideoRef.current = video
+    let resolveFirstFrame: (() => void) | null = null
+    const firstFramePromise = new Promise<void>((resolve, reject) => {
+      resolveFirstFrame = resolve
+      // Fail fast if we never get a frame; prevents publishing a blank track
+      setTimeout(() => reject(new Error('Mirror first frame not drawn in time')), 1500)
+    })
+
+    // Get video dimensions from track settings
+    const settings = sourceTrack.mediaStreamTrack.getSettings()
+    const width = settings.width || 1280
+    const height = settings.height || 720
+
+    // Create canvas for mirroring
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    mirrorCanvasRef.current = canvas
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      console.error('[LiveKit] Failed to get canvas context')
+      return false
+    }
+
+    const ensureCanvasSize = () => {
+      // Prefer actual video dimensions when available
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        return true
+      }
+      // Fallback to track settings if metadata not ready
+      if (canvas.width > 0 && canvas.height > 0) {
+        return true
+      }
+      return false
+    }
+
+    const drawFrame = () => {
+      if (!mirrorCanvasRef.current || !mirrorVideoRef.current || !ctx) {
+        return
+      }
+
+      if (!ensureCanvasSize()) {
+        mirrorAnimationFrameRef.current = requestAnimationFrame(drawFrame)
+        return
+      }
+
+      if (mirrorVideoRef.current.readyState >= 2) {
+        ctx.save()
+        ctx.scale(-1, 1) // Flip horizontally
+        ctx.drawImage(mirrorVideoRef.current, -canvas.width, 0, canvas.width, canvas.height)
+        ctx.restore()
+        if (resolveFirstFrame) {
+          resolveFirstFrame()
+          resolveFirstFrame = null
+        }
+      }
+
+      mirrorAnimationFrameRef.current = requestAnimationFrame(drawFrame)
+    }
+
+    // Wait for video to be ready, then start drawing and publish
+    await new Promise<void>((resolve) => {
+      const checkReady = () => {
+        if (video.readyState >= 2) {
+          resolve()
+        } else {
+          video.addEventListener('loadeddata', () => resolve(), { once: true })
+        }
+      }
+      checkReady()
+    })
+
+    // Attempt to start playback so frames flow to canvas; ignore gesture errors
+    try {
+      await video.play()
+    } catch (err) {
+      console.warn('[LiveKit] Mirror video.play() blocked (likely no gesture); continuing with canvas draw', err)
+    }
+
+    drawFrame()
+
+    // Ensure at least one frame was drawn before capturing/publishing
+    try {
+      await firstFramePromise
+    } catch (err) {
+      console.error('[LiveKit] Mirror failed to draw first frame:', err)
+      cleanupMirror()
+      return false
+    }
+
+    // Capture mirrored stream from canvas
+    const mirroredStream = canvas.captureStream(30)
+    const mirroredVideoTrackMediaStream = mirroredStream.getVideoTracks()[0]
+
+    if (!mirroredVideoTrackMediaStream) {
+      console.error('[LiveKit] Failed to capture mirrored video track')
+      cleanupMirror()
+      return false
+    }
+
+    // Ensure the track is enabled and properly configured
+    mirroredVideoTrackMediaStream.enabled = true
+    
+    // Create a LocalVideoTrack from the MediaStreamTrack
+    // LiveKit's LocalVideoTrack constructor accepts a MediaStreamTrack
+    const mirroredVideoTrack = new LocalVideoTrack(mirroredVideoTrackMediaStream)
+
+    // Unpublish original track and publish mirrored one (for remote participants)
+    // Note: Unpublishing doesn't stop the track, it just stops sending to remote
+    // Keep the original camera track alive so the canvas can keep drawing from it
+    await room.localParticipant.unpublishTrack(sourceTrack, false)
+    await room.localParticipant.publishTrack(mirroredVideoTrack, {
+      source: Track.Source.Camera,
+    })
+    // Track ref should point at the actively published track
+    localVideoTrackRef.current = mirroredVideoTrack
+
+    // Keep original track for local display - CSS transform (-scale-x-100) will flip it
+    // The track stays active even after unpublishing, so local display continues to work
+    setLocalStream((prev) => {
+      const newStream = new MediaStream()
+      // Keep the original video track for local display (it stays active)
+      newStream.addTrack(sourceTrack.mediaStreamTrack)
+      // Preserve audio track if it exists
+      if (prev) {
+        const audioTracks = prev.getAudioTracks()
+        audioTracks.forEach(track => newStream.addTrack(track))
+      }
+      return newStream
+    })
+
+    if (setState) {
+      setIsMirroredForRemote(true)
+    }
+    console.log('[LiveKit] Mirror enabled for remote participants')
+    return true
+  }, [isScreenSharing, isVideoEnabled, user, cleanupMirror])
+
   // Initialize room connection
   useEffect(() => {
     // If meetId or user becomes null, cleanup only if we were connected
@@ -508,18 +676,36 @@ export function useLiveKit(
           localVideoTrackRef.current = camPub.track as LocalVideoTrack
           setLocalStream((prevStream) => {
             const s = new MediaStream(prevStream?.getTracks() || [])
-            s.getVideoTracks().forEach(t => s.removeTrack(t))
+            // Only remove camera video tracks, preserve audio and any other tracks
+            s.getVideoTracks().forEach(t => {
+              // Only remove camera tracks, not screen share tracks (though screen shares shouldn't be here)
+              s.removeTrack(t)
+            })
             s.addTrack(camPub.track!.mediaStreamTrack)
             return s
           })
+          // If mirror was on, republish mirrored track for remote viewers
+          if (isMirroredForRemote) {
+            await publishMirroredTrackForRemote(false)
+          }
         }
       } else {
-        // Disabling - remove video track from stream and clear ref
+        // If mirrored, clean up mirror resources but keep mirror flag so it can reapply on enable
+        if (isMirroredForRemote) {
+          cleanupMirror()
+        }
+        // Disabling - remove camera video track from stream and clear ref
+        // Screen sharing is independent and managed separately via LiveKit's Track.Source.ScreenShare
         localVideoTrackRef.current = null
         setLocalStream((prevStream) => {
           if (!prevStream) return null
           const s = new MediaStream(prevStream.getTracks())
-          s.getVideoTracks().forEach(t => s.removeTrack(t))
+          // Only remove camera video tracks, preserve audio tracks
+          // Screen share tracks are managed separately and won't be in this stream
+          s.getVideoTracks().forEach(t => {
+            // Remove camera tracks only (screen shares have different source)
+            s.removeTrack(t)
+          })
           return s.getTracks().length ? s : null
         })
       }
@@ -528,7 +714,7 @@ export function useLiveKit(
       // Revert state on error
       setIsVideoEnabled(prev)
     }
-  }, [isVideoEnabled, getStore])
+  }, [isVideoEnabled, isMirroredForRemote, getStore, publishMirroredTrackForRemote, cleanupMirror])
 
   // Toggle audio using LiveKit's API
   const toggleAudio = useCallback(async () => {
@@ -613,135 +799,66 @@ export function useLiveKit(
 
     try {
       if (next) {
-        // Enable mirroring: create canvas-based mirrored stream
-        const sourceTrack = localVideoTrackRef.current
-
-        // Store original track for restoration later
-        originalVideoTrackRef.current = sourceTrack
-
-        // Create hidden video element to capture from
-        const video = document.createElement('video')
-        video.srcObject = new MediaStream([sourceTrack.mediaStreamTrack])
-        video.autoplay = true
-        video.playsInline = true
-        video.muted = true
-        mirrorVideoRef.current = video
-
-        // Get video dimensions from track settings
-        const settings = sourceTrack.mediaStreamTrack.getSettings()
-        const width = settings.width || 1280
-        const height = settings.height || 720
-
-        // Create canvas for mirroring
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        mirrorCanvasRef.current = canvas
-
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          console.error('[LiveKit] Failed to get canvas context')
-          return
-        }
-
-        // Start drawing mirrored frames
-        const drawFrame = () => {
-          if (!mirrorCanvasRef.current || !mirrorVideoRef.current || !ctx) {
-            return
-          }
-          
-          if (mirrorVideoRef.current.readyState >= 2) {
-            ctx.save()
-            ctx.scale(-1, 1) // Flip horizontally
-            ctx.drawImage(mirrorVideoRef.current, -canvas.width, 0, canvas.width, canvas.height)
-            ctx.restore()
-          }
-          
-          mirrorAnimationFrameRef.current = requestAnimationFrame(drawFrame)
-        }
-
-        // Wait for video to be ready, then start drawing and publish
-        await new Promise<void>((resolve) => {
-          const checkReady = () => {
-            if (video.readyState >= 2) {
-              resolve()
-            } else {
-              video.addEventListener('loadeddata', () => resolve(), { once: true })
-            }
-          }
-          checkReady()
-        })
-
-        drawFrame()
-
-        // Capture mirrored stream from canvas
-        const mirroredStream = canvas.captureStream(30)
-        const mirroredVideoTrack = mirroredStream.getVideoTracks()[0]
-
-        if (!mirroredVideoTrack) {
-          console.error('[LiveKit] Failed to capture mirrored video track')
-          cleanupMirror()
-          return
-        }
-
-        // Unpublish original track and publish mirrored one
-        await room.localParticipant.unpublishTrack(sourceTrack)
-        await room.localParticipant.publishTrack(mirroredVideoTrack)
-
-        // Update local stream display
-        setLocalStream((prev) => {
-          if (prev) {
-            const newStream = new MediaStream(prev.getTracks())
-            const oldTrack = newStream.getVideoTracks()[0]
-            if (oldTrack) {
-              newStream.removeTrack(oldTrack)
-            }
-            newStream.addTrack(mirroredVideoTrack)
-            return newStream
-          }
-          return new MediaStream([mirroredVideoTrack])
-        })
-
-        setIsMirroredForRemote(true)
-        console.log('[LiveKit] Mirror enabled for remote participants')
+        const success = await publishMirroredTrackForRemote(true)
+        if (!success) return
       } else {
-        // Disable mirroring: restore original track
-        const originalTrack = originalVideoTrackRef.current
-        if (!originalTrack) {
-          console.error('[LiveKit] No original track to restore')
-          cleanupMirror()
-          setIsMirroredForRemote(false)
-          return
-        }
+        // Disable mirroring: restore camera track
+        // Cleanup mirror resources first
+        cleanupMirror()
 
-        // Get current mirrored track publication
+        // Get current camera track from LiveKit (more reliable than stored ref)
+        let cameraTrack: LocalVideoTrack | null = null
         const currentPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+        
         if (currentPub?.track) {
+          // Unpublish the mirrored track
           await room.localParticipant.unpublishTrack(currentPub.track)
         }
 
-        // Republish original track
-        await room.localParticipant.publishTrack(originalTrack)
-        localVideoTrackRef.current = originalTrack
-
-        // Update local stream display
-        setLocalStream((prev) => {
-          if (prev) {
-            const newStream = new MediaStream(prev.getTracks())
-            const oldTrack = newStream.getVideoTracks()[0]
-            if (oldTrack) {
-              newStream.removeTrack(oldTrack)
+        // If video is enabled, get or create camera track
+        if (isVideoEnabled) {
+          // Try to get the original track from ref first
+          const originalTrack = originalVideoTrackRef.current
+          
+          if (originalTrack && originalTrack.mediaStreamTrack.readyState === 'live') {
+            // Original track is still valid, use it
+            cameraTrack = originalTrack
+          } else {
+            // Original track is stale or doesn't exist, create a new camera track
+            try {
+              cameraTrack = await createLocalVideoTrack({
+                resolution: { width: 1280, height: 720 },
+              })
+            } catch (error) {
+              console.error('[LiveKit] Failed to create camera track when disabling mirror:', error)
+              setIsMirroredForRemote(false)
+              return
             }
-            newStream.addTrack(originalTrack.mediaStreamTrack)
-            return newStream
           }
-          return new MediaStream([originalTrack.mediaStreamTrack])
-        })
 
-        // Cleanup mirror resources
-        cleanupMirror()
+          // Publish the camera track
+          await room.localParticipant.publishTrack(cameraTrack)
+          localVideoTrackRef.current = cameraTrack
+
+          // Update local stream display - restore original camera track
+          setLocalStream((prev) => {
+            const newStream = new MediaStream()
+            // Add the restored camera track
+            newStream.addTrack(cameraTrack!.mediaStreamTrack)
+            // Preserve audio tracks if they exist
+            if (prev) {
+              const audioTracks = prev.getAudioTracks()
+              audioTracks.forEach(track => newStream.addTrack(track))
+            }
+            return newStream
+          })
+        } else {
+          // Video is disabled, just clear the ref
+          localVideoTrackRef.current = null
+        }
+
         setIsMirroredForRemote(false)
-        console.log('[LiveKit] Mirror disabled, original track restored')
+        console.log('[LiveKit] Mirror disabled, camera track restored')
       }
     } catch (error) {
       console.error('[LiveKit] Error toggling mirror:', error)
