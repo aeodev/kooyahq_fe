@@ -210,11 +210,11 @@ export const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function Video
 
   // Trust participant state + verify stream exists
   const hasStream = stream && stream.getVideoTracks().length > 0
-  const showVideo = participant.isVideoEnabled && hasStream
+  const isScreenShare = participant.isScreenSharing
+  const showVideo = isScreenShare ? hasStream : (participant.isVideoEnabled && hasStream)
   const showProfile = !showVideo
 
   const profilePic = participant.profilePic || (isCurrentUser ? user?.profilePic : undefined)
-  const isScreenShare = participant.isScreenSharing
 
   const videoStyle =
     isScreenShare && scale !== 1

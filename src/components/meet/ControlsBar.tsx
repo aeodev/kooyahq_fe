@@ -1,4 +1,4 @@
-import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, LogOut, FlipHorizontal } from 'lucide-react'
+import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, LogOut, FlipHorizontal, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MoreMenu } from './MoreMenu'
 
@@ -55,15 +55,6 @@ export function ControlsBar({
 }: ControlsBarProps) {
   // On mobile, hide call controls when chat is open to prevent overlap with chat input
   const hideCallControlsOnMobile = isMobile && isChatOpen
-  
-  // On mobile, use flipCamera; on desktop, use toggleMirror
-  const handleFlip = () => {
-    if (isMobile && onFlipCamera) {
-      onFlipCamera()
-    } else {
-      onToggleMirror()
-    }
-  }
 
   return (
     <div className="flex items-center justify-center gap-3 md:gap-1 sm:gap-2 p-4 md:p-2 bg-background/95 backdrop-blur-sm border-t border-border shadow-lg z-50 flex-shrink-0 flex-wrap">
@@ -124,16 +115,31 @@ export function ControlsBar({
         <Monitor className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
       </Button>
 
-      {/* Flip/Mirror camera */}
-      <Button
-        variant={isMirrored ? 'default' : 'outline'}
-        size="icon"
-        onClick={handleFlip}
-        title={isMobile ? 'Flip camera' : (isMirrored ? 'Disable mirror' : 'Enable mirror (flip camera)')}
-        className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
-      >
-        <FlipHorizontal className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
-      </Button>
+      {/* Mirror camera (desktop only) - flips left/right */}
+      {!isMobile && (
+        <Button
+          variant={isMirrored ? 'default' : 'outline'}
+          size="icon"
+          onClick={onToggleMirror}
+          title={isMirrored ? 'Disable mirror' : 'Enable mirror (flip left/right)'}
+          className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
+        >
+          <FlipHorizontal className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
+        </Button>
+      )}
+
+      {/* Flip camera (mobile only) - switches front/back camera */}
+      {isMobile && onFlipCamera && (
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onFlipCamera}
+          title="Switch camera (front/back)"
+          className="h-14 w-14 md:h-9 md:w-9 sm:h-10 sm:w-10 rounded-full shadow-md"
+        >
+          <Camera className="h-6 w-6 md:h-4 md:w-4 sm:h-5 sm:w-5" />
+        </Button>
+      )}
 
       {/* Chat toggle */}
       <Button

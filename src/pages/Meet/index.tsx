@@ -13,6 +13,7 @@ import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
 import { InvitationModal } from '@/components/meet/InvitationModal'
 import { cn } from '@/utils/cn'
+import { playJoinSound, playLeaveSound } from '@/utils/sounds'
 
 export function Meet() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -122,6 +123,33 @@ export function Meet() {
       socketState.connect()
     }
   }, [socket?.connected])
+
+  // Play sounds when participants join/leave (only for remote participants, not self)
+  useEffect(() => {
+    if (!socket?.connected || !meetId || !user) return
+
+    const handleParticipantJoined = (data: { userId: string; userName: string }) => {
+      // Only play sound for remote participants
+      if (data.userId !== user.id) {
+        playJoinSound()
+      }
+    }
+
+    const handleParticipantLeft = (data: { userId: string }) => {
+      // Only play sound for remote participants
+      if (data.userId !== user.id) {
+        playLeaveSound()
+      }
+    }
+
+    socket.on('meet:participant-joined', handleParticipantJoined)
+    socket.on('meet:participant-left', handleParticipantLeft)
+
+    return () => {
+      socket.off('meet:participant-joined', handleParticipantJoined)
+      socket.off('meet:participant-left', handleParticipantLeft)
+    }
+  }, [socket, meetId, user])
 
   const handleLeave = () => {
     cleanup()
