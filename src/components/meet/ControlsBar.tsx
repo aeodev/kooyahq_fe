@@ -1,6 +1,7 @@
 import { Mic, MicOff, Video, VideoOff, Monitor, MessageSquare, LogOut, FlipHorizontal, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MoreMenu } from './MoreMenu'
+import type { MorganAIState } from '@/composables/meet/useMorganAI'
 
 interface ControlsBarProps {
   meetId: string | null
@@ -26,6 +27,9 @@ interface ControlsBarProps {
   onVideoDeviceChange: (deviceId: string) => void
   onAudioInputChange: (deviceId: string) => void
   onAudioOutputChange: (deviceId: string) => void
+  morganActive?: boolean
+  morganState?: MorganAIState
+  onToggleMorgan?: () => void
 }
 
 export function ControlsBar({
@@ -52,6 +56,9 @@ export function ControlsBar({
   onVideoDeviceChange,
   onAudioInputChange,
   onAudioOutputChange,
+  morganActive,
+  morganState,
+  onToggleMorgan,
 }: ControlsBarProps) {
   // On mobile, hide call controls when chat is open to prevent overlap with chat input
   const hideCallControlsOnMobile = isMobile && isChatOpen
@@ -71,6 +78,9 @@ export function ControlsBar({
           onVideoDeviceChange={onVideoDeviceChange}
           onAudioInputChange={onAudioInputChange}
           onAudioOutputChange={onAudioOutputChange}
+          morganActive={morganActive}
+          morganState={morganState}
+          onToggleMorgan={onToggleMorgan}
         />
       )}
 

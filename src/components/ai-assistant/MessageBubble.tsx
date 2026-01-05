@@ -45,7 +45,8 @@ export function MessageBubble({ message, onQuickReply, isLastAssistant }: Messag
         ) : (
           <MessageContent 
             content={message.content} 
-            onQuickReply={isLastAssistant ? onQuickReply : undefined} 
+            onQuickReply={isLastAssistant ? onQuickReply : undefined}
+            toolExecutions={message.toolExecutions}
           />
         )}
       </div>

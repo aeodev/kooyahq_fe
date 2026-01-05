@@ -25,12 +25,33 @@ export interface AIMessage {
 export const AIAssistantSocketEvents = {
   MESSAGE: 'ai:message',
   RESPONSE: 'ai:response',
+  AUDIO_RESPONSE: 'ai:audio-response',
   TOOL_START: 'ai:tool-start',
   TOOL_COMPLETE: 'ai:tool-complete',
   ERROR: 'ai:error',
   STREAM_END: 'ai:stream-end',
   CLEAR_CONVERSATION: 'ai:clear-conversation',
 } as const
+
+// Audio response payload type
+export interface AIAudioResponsePayload {
+  conversationId: string
+  audio: string // base64 encoded audio
+  format: 'mp3'
+}
+
+// Audio response listeners for Morgan AI
+type AudioResponseListener = (payload: AIAudioResponsePayload) => void
+const audioResponseListeners = new Set<AudioResponseListener>()
+
+export function subscribeToAudioResponse(listener: AudioResponseListener): () => void {
+  audioResponseListeners.add(listener)
+  return () => audioResponseListeners.delete(listener)
+}
+
+export function notifyAudioResponseListeners(payload: AIAudioResponsePayload): void {
+  audioResponseListeners.forEach(listener => listener(payload))
+}
 
 // State type
 type AIAssistantState = {
@@ -46,6 +67,7 @@ type AIAssistantState = {
   selectedProjects: string[]
   showSelections: boolean
   startVoiceRecording: boolean
+  navigateToMeet: string | null
 }
 
 // Actions type
@@ -75,6 +97,8 @@ type AIAssistantActions = {
   showSelectionUI: () => void
   hideSelectionUI: () => void
   confirmSelections: () => string | null
+  // Meet navigation
+  setNavigateToMeet: (meetId: string | null) => void
 }
 
 type AIAssistantStore = AIAssistantState & AIAssistantActions
@@ -92,6 +116,7 @@ const initialState: AIAssistantState = {
   selectedProjects: [],
   showSelections: false,
   startVoiceRecording: false,
+  navigateToMeet: null,
 }
 
 export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
@@ -237,6 +262,8 @@ export const useAIAssistantStore = create<AIAssistantStore>((set, get) => ({
     }
     return null
   },
+
+  setNavigateToMeet: (meetId: string | null) => set({ navigateToMeet: meetId }),
 
   reset: () => set(initialState),
 }))

@@ -42,6 +42,7 @@ import { BoardView } from './pages/Workspace/BoardView'
 import { PERMISSIONS } from '@/constants/permissions'
 import { PermissionGate } from '@/components/auth/PermissionGate'
 import { HeyKooya } from '@/components/ai-assistant/HeyKooya'
+import { MeetInvitationToast } from '@/components/meet/MeetInvitationToast'
 
 function App() {
   return (
@@ -432,6 +433,7 @@ function App() {
             }
           />
         </Routes>
+        <MeetInvitationToast />
         </BrowserRouter>
         <Toaster />
         <HeyKooya />

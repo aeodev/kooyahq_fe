@@ -11,10 +11,11 @@ import { usePictureInPicture } from '@/composables/meet/usePictureInPicture'
 import { VideoTile, type VideoTileRef } from '@/components/meet/VideoTile'
 import { ControlsBar } from '@/components/meet/ControlsBar'
 import { ChatPanel } from '@/components/meet/ChatPanel'
-import { InvitationModal } from '@/components/meet/InvitationModal'
+import { MorganOrb } from '@/components/meet/MorganOrb'
 import { cn } from '@/utils/cn'
 import { playJoinSound, playLeaveSound, initializeAudioContext } from '@/utils/sounds'
 import { toast } from 'sonner'
+import { useMorganBot } from '@/composables/meet/useMorganBot'
 
 export function Meet() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -65,9 +66,21 @@ export function Meet() {
     changeAudioOutput,
     flipCamera,
     cleanup,
+    getRoom,
   } = useLiveKit(meetId || null, initialVideoEnabled, initialAudioEnabled)
 
   const { isRecording, startRecording, stopRecording } = useRecording(localStream, meetId || null)
+
+  const {
+    isActive: isMorganActive,
+    aiState: morganState,
+    toggleMorgan,
+    morganParticipant,
+    morganAudioStream,
+  } = useMorganBot({
+    enabledByDefault: false,
+    getRoom,
+  })
 
   // Picture-in-Picture support
   const { isPiPActive, isPiPSupported, togglePiP, setVideoElement, enterPiP } = usePictureInPicture()
@@ -102,12 +115,10 @@ export function Meet() {
 
   // Initialize meet and join socket room for chat
   useEffect(() => {
-    if (meetId) {
+    if (meetId && socket?.connected) {
       setMeetId(meetId)
-      if (socket?.connected) {
-        socket.emit('meet:join', meetId)
-        initializeAudioContext()
-      }
+      socket.emit('meet:join', meetId)
+      initializeAudioContext()
     }
 
     return () => {
@@ -116,7 +127,7 @@ export function Meet() {
       }
       reset()
     }
-  }, [meetId, setMeetId, reset, socket])
+  }, [meetId, setMeetId, reset, socket, socket?.connected])
 
   // Ensure socket is connected
   useEffect(() => {
@@ -125,6 +136,35 @@ export function Meet() {
       socketState.connect()
     }
   }, [socket?.connected])
+
+  // Listen for remote Morgan AI activation/deactivation
+  useEffect(() => {
+    if (!socket?.connected) return
+
+    const handleMorganToggle = (data: { isActive: boolean; activatedBy: string }) => {
+      const store = useMeetStore.getState()
+      if (data.isActive) {
+        if (!store.participants.has('morgan-bot')) {
+          store.addParticipant({
+            userId: 'morgan-bot',
+            userName: 'Morgan AI',
+            isVideoEnabled: false,
+            isAudioEnabled: true,
+            isScreenSharing: false,
+          })
+          console.log('[Meet] Remote Morgan activation received')
+        }
+      } else {
+        store.removeParticipant('morgan-bot')
+        console.log('[Meet] Remote Morgan deactivation received')
+      }
+    }
+
+    socket.on('meet:morgan-toggle', handleMorganToggle)
+    return () => {
+      socket.off('meet:morgan-toggle', handleMorganToggle)
+    }
+  }, [socket, socket?.connected])
 
   // Play sounds when participants join/leave (only for remote participants, not self)
   const hasJoinedRef = useRef(false)
@@ -188,6 +228,17 @@ export function Meet() {
     return streamMap
   }, [getRemoteStreams, participants, streamsUpdateCounter])
 
+  const mergedStreams = useMemo(() => {
+    const map = new Map(remoteStreams)
+    if (isMorganActive && morganParticipant) {
+      console.log('[Meet] Morgan active, audioStream:', morganAudioStream ? 'exists' : 'null')
+      if (morganAudioStream) {
+        map.set(morganParticipant.userId, morganAudioStream)
+      }
+    }
+    return map
+  }, [remoteStreams, isMorganActive, morganParticipant, morganAudioStream])
+
   // Get local screen share stream
   const localScreenShareStream = useMemo(() => {
     return getLocalScreenShareStream()
@@ -195,7 +246,7 @@ export function Meet() {
 
   // Detect active speaker
   const activeSpeakerId = useActiveSpeaker({
-    remoteStreams,
+    remoteStreams: mergedStreams,
     currentUserId: user?.id || null,
   })
 
@@ -215,6 +266,11 @@ export function Meet() {
   const allParticipants = useMemo(() => {
     const participantArray = Array.from(participants.values())
 
+    // Add Morgan AI if active and not already in participants
+    if (isMorganActive && morganParticipant && !participants.has(morganParticipant.userId)) {
+      participantArray.push(morganParticipant)
+    }
+
     // Ensure local user is always included (defensive programming)
     if (user && !participants.has(user.id)) {
       participantArray.push({
@@ -228,7 +284,7 @@ export function Meet() {
     }
 
     return participantArray
-  }, [participants, user, isVideoEnabled, isAudioEnabled, isScreenSharing])
+  }, [participants, user, isVideoEnabled, isAudioEnabled, isScreenSharing, isMorganActive, morganParticipant])
 
   // Detect if anyone is screen sharing
   const screenSharingParticipant = useMemo(() => {
@@ -457,19 +513,24 @@ export function Meet() {
           <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto md:overflow-x-hidden md:w-48 lg:w-56 xl:w-64 flex-shrink-0">
             {thumbnailParticipants.map((participant) => {
               const isLocal = participant.userId === user.id
-              const stream = isLocal ? localStream : remoteStreams.get(participant.userId) || null
+              const isMorgan = participant.userId === 'morgan-bot'
+              const stream = isLocal ? localStream : mergedStreams.get(participant.userId) || null
 
               return (
                 <div 
                   key={participant.userId} 
                   className="flex-shrink-0 w-32 h-24 md:w-full md:h-auto md:aspect-video rounded-lg overflow-hidden"
                 >
-                  {renderVideoTile(
-                    participant,
-                    stream,
-                    isLocal,
-                    'h-full',
-                    isLocal ? 'You' : participant.userName
+                  {isMorgan ? (
+                    <MorganOrb state={morganState} className="h-full" />
+                  ) : (
+                    renderVideoTile(
+                      participant,
+                      stream,
+                      isLocal,
+                      'h-full',
+                      isLocal ? 'You' : participant.userName
+                    )
                   )}
                 </div>
               )
@@ -504,10 +565,12 @@ export function Meet() {
             onVideoDeviceChange={changeVideoDevice}
             onAudioInputChange={changeAudioInput}
             onAudioOutputChange={changeAudioOutput}
+            morganActive={isMorganActive}
+            morganState={morganState}
+            onToggleMorgan={toggleMorgan}
           />
         </div>
 
-        <InvitationModal />
       </div>
     )
   }
@@ -529,7 +592,13 @@ export function Meet() {
         >
           {displayParticipants.map((participant) => {
             const isLocal = participant.userId === user.id
-            const stream = isLocal ? localStream : remoteStreams.get(participant.userId) || null
+            const isMorgan = participant.userId === 'morgan-bot'
+            const stream = isLocal ? localStream : mergedStreams.get(participant.userId) || null
+
+            // Render MorganOrb for Morgan AI
+            if (isMorgan) {
+              return <MorganOrb key={participant.userId} state={morganState} />
+            }
 
             return (
               <VideoTile
@@ -572,10 +641,11 @@ export function Meet() {
           onVideoDeviceChange={changeVideoDevice}
           onAudioInputChange={changeAudioInput}
           onAudioOutputChange={changeAudioOutput}
+          morganActive={isMorganActive}
+          morganState={morganState}
+          onToggleMorgan={toggleMorgan}
         />
       </div>
-
-      <InvitationModal />
     </div>
   )
 }

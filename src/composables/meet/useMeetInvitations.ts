@@ -19,6 +19,7 @@ export function useMeetInvitations() {
     if (!socket?.connected) return
 
     const handleInvitation = (data: { fromUserId: string; fromUserName: string; meetId: string }) => {
+      // Replace any existing invitation with the new one
       setInvitation({
         fromUserId: data.fromUserId,
         fromUserName: data.fromUserName,
@@ -41,7 +42,7 @@ export function useMeetInvitations() {
       socket.off('meet:invitation', handleInvitation)
       socket.off('meet:invitation-accepted', handleInvitationAccepted)
     }
-  }, [socket, navigate])
+  }, [socket, socket?.connected, navigate])
 
   const sendInvitation = useCallback(
     (meetId: string, invitedUserId: string) => {
@@ -86,11 +87,16 @@ export function useMeetInvitations() {
     setInvitation(null)
   }, [socket, invitation])
 
+  const clearInvitation = useCallback(() => {
+    setInvitation(null)
+  }, [])
+
   return {
     invitation,
     sendInvitation,
     acceptInvitation,
     declineInvitation,
+    clearInvitation,
   }
 }
 

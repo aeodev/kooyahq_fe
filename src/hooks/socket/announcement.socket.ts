@@ -15,3 +15,4 @@ export function registerAnnouncementHandlers(socket: Socket, eventHandlers: Map<
   eventHandlers.set('announcement:created', handleAnnouncementCreated)
 }
 
+

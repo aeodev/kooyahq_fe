@@ -20,3 +20,4 @@ export function getParticipantState(participant: RemoteParticipant) {
   return { isVideoEnabled, isAudioEnabled, isScreenSharing }
 }
 
+

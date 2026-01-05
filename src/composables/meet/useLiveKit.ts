@@ -142,6 +142,7 @@ export function useLiveKit(
     changeAudioOutput,
     flipCamera,
     cleanup: cleanupRoom,
+    getRoom: () => refs.room.current,
     getDatabaseId,
     getLiveKitId,
   }

@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useVoiceRecognition } from '@/composables/useVoiceRecognition'
 import { useSocketStore } from '@/stores/socket.store'
-import { useAIAssistantStore } from '@/stores/ai-assistant.store'
+import { useAIAssistantStore, subscribeToAudioResponse } from '@/stores/ai-assistant.store'
 import { sendAIMessage } from '@/hooks/socket/ai-assistant.socket'
-import { AIAssistantSocketEvents } from '@/stores/ai-assistant.store'
 
-type MorganAIState = 'idle' | 'listening' | 'processing' | 'speaking'
+export type MorganAIState = 'idle' | 'listening' | 'processing' | 'speaking'
 
 interface UseMorganAIOptions {
   enabled?: boolean
+  wakeWord?: string
+  onSpeak?: (audioBase64: string) => void | Promise<void>
 }
 
 interface UseMorganAIReturn {
@@ -17,164 +18,262 @@ interface UseMorganAIReturn {
   transcript: string
   error: string | null
   toggle: () => void
-  speak: (text: string) => void
   stopSpeaking: () => void
 }
 
-export function useMorganAI({ enabled = false }: UseMorganAIOptions): UseMorganAIReturn {
+// Timeout for processing after wake word detected (ms)
+const WAKE_WORD_TIMEOUT = 1500
+
+export function useMorganAI({ enabled = false, wakeWord, onSpeak }: UseMorganAIOptions): UseMorganAIReturn {
   const [isActive, setIsActive] = useState(enabled)
   const [state, setState] = useState<MorganAIState>('idle')
   const [error, setError] = useState<string | null>(null)
-  const socket = useSocketStore((state) => state.socket)
+
+  const socket = useSocketStore((s) => s.socket)
   const aiStore = useAIAssistantStore()
-  const synthesisRef = useRef<SpeechSynthesisUtterance | null>(null)
+
   const isSpeakingRef = useRef(false)
+  const onSpeakRef = useRef(onSpeak)
+  const isActiveRef = useRef(isActive)
+  
+  // Refs for timeout-based processing
+  const pendingPayloadRef = useRef<string | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const processedRef = useRef(false)
 
-  // Text-to-speech function
-  const speak = useCallback((text: string) => {
-    if (isSpeakingRef.current) {
-      window.speechSynthesis.cancel()
-    }
-
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 1.0
-    utterance.pitch = 1.0
-    utterance.volume = 0.8
-    utterance.lang = 'en-US'
-
-    utterance.onstart = () => {
-      isSpeakingRef.current = true
-      setState('speaking')
-    }
-
-    utterance.onend = () => {
-      isSpeakingRef.current = false
-      setState('idle')
-      synthesisRef.current = null
-    }
-
-    utterance.onerror = (event) => {
-      console.error('[Morgan AI] Speech synthesis error:', event)
-      isSpeakingRef.current = false
-      setState('idle')
-      setError('Failed to speak response')
-    }
-
-    synthesisRef.current = utterance
-    window.speechSynthesis.speak(utterance)
-  }, [])
-
-  // Handle AI responses and convert to speech
+  // Keep refs in sync
   useEffect(() => {
-    if (!isActive || !socket) return
+    onSpeakRef.current = onSpeak
+  }, [onSpeak])
 
-    const handleAIResponse = (data: { conversationId: string; content: string; isComplete: boolean }) => {
-      if (data.isComplete && data.content) {
-        setState('speaking')
-        speak(data.content)
+  useEffect(() => {
+    isActiveRef.current = isActive
+  }, [isActive])
+
+  // Normalized wake word for comparison
+  const wakeWordNormalized = useMemo(
+    () => wakeWord?.trim().toLowerCase() || null,
+    [wakeWord]
+  )
+
+  // Process the pending payload (send to AI)
+  const processPayload = useCallback((payload: string) => {
+    if (processedRef.current) return
+    processedRef.current = true
+    
+    console.log('[Morgan AI] Processing payload:', payload)
+    setState('processing')
+    sendAIMessage(socket, payload, aiStore.conversationId)
+    
+    // Clear pending state
+    pendingPayloadRef.current = null
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+  }, [socket, aiStore.conversationId])
+
+  // Extract payload from text (strips wake word)
+  const extractPayload = useCallback((text: string): string | null => {
+    if (!text.trim()) return null
+    
+    let payload = text.trim()
+    
+    if (wakeWordNormalized) {
+      const normalized = payload.toLowerCase()
+      if (!normalized.startsWith(wakeWordNormalized)) {
+        return null // Wake word not found
       }
+      // Strip wake word
+      payload = payload.slice(wakeWordNormalized.length).trim() || payload
     }
+    
+    return payload
+  }, [wakeWordNormalized])
 
-    const handleStreamEnd = () => {
-      setState((currentState) => {
-        if (currentState === 'processing') {
-          return 'idle'
-        }
-        return currentState
-      })
-    }
-
-    socket.on(AIAssistantSocketEvents.RESPONSE, handleAIResponse)
-    socket.on(AIAssistantSocketEvents.STREAM_END, handleStreamEnd)
-
-    return () => {
-      socket.off(AIAssistantSocketEvents.RESPONSE, handleAIResponse)
-      socket.off(AIAssistantSocketEvents.STREAM_END, handleStreamEnd)
-    }
-  }, [isActive, socket, speak])
-
-  const stopSpeaking = useCallback(() => {
-    if (isSpeakingRef.current) {
-      window.speechSynthesis.cancel()
-      isSpeakingRef.current = false
-      setState('idle')
-    }
-  }, [])
-
-  // Voice recognition for user input
+  // Voice recognition
   const {
     transcript,
     startListening,
     stopListening,
     reset: resetVoice,
-    state: voiceState,
     error: voiceError,
   } = useVoiceRecognition({
-    onFinalResult: (text) => {
-      if (!isActive || !text.trim()) return
+    onResult: (text) => {
+      // Check interim results for wake word
+      if (!isActiveRef.current || processedRef.current) return
       
-      setState('processing')
-      // Send to AI assistant
-      sendAIMessage(socket, text, aiStore.conversationId)
+      const payload = extractPayload(text)
+      if (!payload) return
+      
+      console.log('[Morgan AI] Wake word detected in interim:', payload)
+      
+      // Update pending payload
+      pendingPayloadRef.current = payload
+      
+      // Reset timeout - wait for more speech or timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+      
+      timeoutRef.current = setTimeout(() => {
+        if (pendingPayloadRef.current && !processedRef.current) {
+          console.log('[Morgan AI] Timeout - processing now')
+          processPayload(pendingPayloadRef.current)
+        }
+      }, WAKE_WORD_TIMEOUT)
+    },
+    onFinalResult: (text) => {
+      console.log('[Morgan AI] Final result received:', text)
+
+      if (!isActiveRef.current || !text.trim()) {
+        console.log('[Morgan AI] Ignored - not active or empty text')
+        return
+      }
+
+      // Clear any pending timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+
+      // If already processed via timeout, skip
+      if (processedRef.current) {
+        console.log('[Morgan AI] Already processed via timeout')
+        processedRef.current = false // Reset for next utterance
+        return
+      }
+
+      const payload = extractPayload(text)
+      if (!payload) {
+        console.log('[Morgan AI] Wake word not detected, ignoring')
+        return
+      }
+
+      console.log('[Morgan AI] Wake word detected! Payload:', payload)
+      processPayload(payload)
+      
+      // Reset for next utterance
+      setTimeout(() => {
+        processedRef.current = false
+      }, 500)
+    },
+    onError: (err) => {
+      setError(err)
+      setState('idle')
     },
     continuous: true,
     interimResults: true,
   })
 
-  // Update state based on voice recognition
+  // Listen for audio responses from backend
   useEffect(() => {
-    if (voiceState === 'listening' && state !== 'speaking') {
+    if (!isActive) return
+
+    console.log('[Morgan AI] Subscribing to audio responses')
+
+    const unsubscribe = subscribeToAudioResponse(async (payload) => {
+      console.log('[Morgan AI] Audio response received:', payload.conversationId, `${payload.audio.length} bytes`)
+
+      if (!onSpeakRef.current) {
+        console.warn('[Morgan AI] No onSpeak handler, skipping playback')
+        return
+      }
+
+      setState('speaking')
+      isSpeakingRef.current = true
+
+      try {
+        const result = onSpeakRef.current(payload.audio)
+        if (result instanceof Promise) {
+          await result
+        }
+        console.log('[Morgan AI] Audio playback complete')
+      } catch (err) {
+        console.error('[Morgan AI] Speak handler failed:', err)
+        setError('Failed to play audio response')
+      } finally {
+        isSpeakingRef.current = false
+        processedRef.current = false // Ready for next command
+        setState('listening')
+      }
+    })
+
+    return unsubscribe
+  }, [isActive])
+
+  // Sync voice error to state
+  useEffect(() => {
+    if (voiceError) {
+      setError(voiceError)
+    }
+  }, [voiceError])
+
+  const stopSpeaking = useCallback(() => {
+    isSpeakingRef.current = false
+    if (isActiveRef.current) {
       setState('listening')
-    } else if (voiceState === 'processing' && state !== 'speaking') {
-      setState('processing')
-    } else if (voiceState === 'error') {
-      setError(voiceError || 'Voice recognition error')
+    } else {
       setState('idle')
     }
-  }, [voiceState, voiceError, state])
+  }, [])
 
-  // Toggle Morgan AI on/off
   const toggle = useCallback(() => {
-    const newActive = !isActive
+    const newActive = !isActiveRef.current
     setIsActive(newActive)
+    isActiveRef.current = newActive
     setError(null)
+    processedRef.current = false
 
     if (newActive) {
       startListening()
       setState('listening')
     } else {
       stopListening()
-      stopSpeaking()
+      isSpeakingRef.current = false
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
       resetVoice()
       setState('idle')
     }
-  }, [isActive, startListening, stopListening, stopSpeaking, resetVoice])
+  }, [startListening, stopListening, resetVoice])
 
-  // Auto-start/stop based on enabled prop
+  // Handle enabled prop changes
   useEffect(() => {
-    if (enabled !== isActive) {
+    if (enabled !== isActiveRef.current) {
       if (enabled) {
         setIsActive(true)
+        isActiveRef.current = true
+        processedRef.current = false
         startListening()
         setState('listening')
       } else {
         setIsActive(false)
+        isActiveRef.current = false
         stopListening()
-        stopSpeaking()
+        isSpeakingRef.current = false
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
         resetVoice()
         setState('idle')
       }
     }
-  }, [enabled, isActive, startListening, stopListening, stopSpeaking, resetVoice])
+  }, [enabled, startListening, stopListening, resetVoice])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopListening()
-      stopSpeaking()
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
       resetVoice()
     }
-  }, [stopListening, stopSpeaking, resetVoice])
+  }, [stopListening, resetVoice])
 
   return {
     isActive,
@@ -182,8 +281,6 @@ export function useMorganAI({ enabled = false }: UseMorganAIOptions): UseMorganA
     transcript,
     error,
     toggle,
-    speak,
     stopSpeaking,
   }
 }
-

@@ -1,5 +1,11 @@
 import type { Socket } from 'socket.io-client'
-import { useAIAssistantStore, AIAssistantSocketEvents, type AIToolExecution } from '@/stores/ai-assistant.store'
+import { 
+  useAIAssistantStore, 
+  AIAssistantSocketEvents, 
+  type AIToolExecution,
+  type AIAudioResponsePayload,
+  notifyAudioResponseListeners,
+} from '@/stores/ai-assistant.store'
 
 // Response payload types
 interface AIResponsePayload {
@@ -67,13 +73,21 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
 
   // Handle tool execution complete
   const handleToolComplete = (data: AIToolCompletePayload) => {
-    const { toolId, result, success, error } = data
+    const { toolId, toolName, result, success, error } = data
     
     store.updateToolExecution(toolId, {
       status: success ? 'complete' : 'error',
       result,
       error,
     })
+
+    // Auto-navigate to meet room when created
+    if (toolName === 'create_meet_room' && success && result) {
+      const resultData = result as { meetId?: string }
+      if (resultData.meetId) {
+        store.setNavigateToMeet(resultData.meetId)
+      }
+    }
   }
 
   // Handle errors
@@ -87,6 +101,12 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
   const handleStreamEnd = () => {
     console.log('[AI Assistant] Stream ended')
     store.setLoading(false)
+  }
+
+  // Handle audio response (TTS audio from backend)
+  const handleAudioResponse = (data: AIAudioResponsePayload) => {
+    console.log('[AI Assistant] Audio response received:', data.conversationId, `${data.audio.length} bytes`)
+    notifyAudioResponseListeners(data)
   }
 
   // Handle socket connection status
@@ -109,6 +129,7 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
   // Register all handlers
   console.log('[AI Assistant] Registering event listeners:', {
     RESPONSE: AIAssistantSocketEvents.RESPONSE,
+    AUDIO_RESPONSE: AIAssistantSocketEvents.AUDIO_RESPONSE,
     TOOL_START: AIAssistantSocketEvents.TOOL_START,
     TOOL_COMPLETE: AIAssistantSocketEvents.TOOL_COMPLETE,
     ERROR: AIAssistantSocketEvents.ERROR,
@@ -116,6 +137,7 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
   })
   
   socket.on(AIAssistantSocketEvents.RESPONSE, handleResponse)
+  socket.on(AIAssistantSocketEvents.AUDIO_RESPONSE, handleAudioResponse)
   socket.on(AIAssistantSocketEvents.TOOL_START, handleToolStart)
   socket.on(AIAssistantSocketEvents.TOOL_COMPLETE, handleToolComplete)
   socket.on(AIAssistantSocketEvents.ERROR, handleError)
@@ -131,6 +153,7 @@ export function registerAIAssistantHandlers(socket: Socket, eventHandlers: Map<s
 
   // Store handlers for cleanup (wrap typed handlers to match Map signature)
   eventHandlers.set(AIAssistantSocketEvents.RESPONSE, handleResponse as (...args: unknown[]) => void)
+  eventHandlers.set(AIAssistantSocketEvents.AUDIO_RESPONSE, handleAudioResponse as (...args: unknown[]) => void)
   eventHandlers.set(AIAssistantSocketEvents.TOOL_START, handleToolStart as (...args: unknown[]) => void)
   eventHandlers.set(AIAssistantSocketEvents.TOOL_COMPLETE, handleToolComplete as (...args: unknown[]) => void)
   eventHandlers.set(AIAssistantSocketEvents.ERROR, handleError as (...args: unknown[]) => void)

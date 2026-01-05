@@ -20,10 +20,10 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useMorganAI } from '@/composables/meet/useMorganAI'
 import { useUsers } from '@/hooks/user.hooks'
 import { useMeetInvitations } from '@/composables/meet/useMeetInvitations'
 import { useAuthStore } from '@/stores/auth.store'
+import type { MorganAIState } from '@/composables/meet/useMorganAI'
 
 interface MediaDevice {
   deviceId: string
@@ -42,6 +42,9 @@ interface MoreMenuProps {
   onVideoDeviceChange: (deviceId: string) => void
   onAudioInputChange: (deviceId: string) => void
   onAudioOutputChange: (deviceId: string) => void
+  morganActive?: boolean
+  morganState?: MorganAIState
+  onToggleMorgan?: () => void
 }
 
 export function MoreMenu({
@@ -55,6 +58,9 @@ export function MoreMenu({
   onVideoDeviceChange,
   onAudioInputChange,
   onAudioOutputChange,
+  morganActive = false,
+  morganState,
+  onToggleMorgan,
 }: MoreMenuProps) {
   // Device settings state
   const [devices, setDevices] = useState<MediaDevice[]>([])
@@ -69,9 +75,6 @@ export function MoreMenu({
   const { users, loading: usersLoading, fetchUsers } = useUsers()
   const { sendInvitation } = useMeetInvitations()
   const currentUser = useAuthStore((state) => state.user)
-
-  // Morgan AI
-  const { isActive: morganActive, state: morganState, toggle: toggleMorgan } = useMorganAI({ enabled: false })
 
   useEffect(() => {
     const loadDevices = async () => {
@@ -210,7 +213,7 @@ export function MoreMenu({
           <DropdownMenuSeparator />
 
           {/* Morgan AI */}
-          <DropdownMenuItem onClick={toggleMorgan} disabled={isMorganProcessing}>
+          <DropdownMenuItem onClick={onToggleMorgan} disabled={isMorganProcessing || !onToggleMorgan}>
             {isMorganProcessing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (

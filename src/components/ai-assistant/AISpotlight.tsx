@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAIAssistantStore } from '@/stores/ai-assistant.store'
 import { useSocketStore } from '@/stores/socket.store'
@@ -18,6 +19,7 @@ import { AIAssistantErrorBoundary } from './ErrorBoundary'
 function AISpotlightContent() {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
 
   // Store state
   const isOpen = useAIAssistantStore((s) => s.isOpen)
@@ -28,12 +30,14 @@ function AISpotlightContent() {
   const error = useAIAssistantStore((s) => s.error)
   const pendingToolExecutions = useAIAssistantStore((s) => s.pendingToolExecutions)
   const isOffline = useAIAssistantStore((s) => s.isOffline)
+  const navigateToMeet = useAIAssistantStore((s) => s.navigateToMeet)
   const toggle = useAIAssistantStore((s) => s.toggle)
   const close = useAIAssistantStore((s) => s.close)
   const sendMessage = useAIAssistantStore((s) => s.sendMessage)
   const clearMessages = useAIAssistantStore((s) => s.clearMessages)
   const setError = useAIAssistantStore((s) => s.setError)
   const startVoiceRecording = useAIAssistantStore((s) => s.startVoiceRecording)
+  const setNavigateToMeet = useAIAssistantStore((s) => s.setNavigateToMeet)
 
   // Socket and auth
   const socket = useSocketStore((s) => s.socket)
@@ -76,6 +80,15 @@ function AISpotlightContent() {
       return () => clearTimeout(timer)
     }
   }, [error, setError])
+
+  // Auto-navigate to meet room when created
+  useEffect(() => {
+    if (navigateToMeet) {
+      navigate(`/meet/${navigateToMeet}`)
+      // Clear the navigation trigger
+      setNavigateToMeet(null)
+    }
+  }, [navigateToMeet, navigate, setNavigateToMeet])
 
   // Don't render if no access
   if (!hasAIAccess) return null
