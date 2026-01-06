@@ -43,14 +43,12 @@ import { PERMISSIONS } from '@/constants/permissions'
 import { PermissionGate } from '@/components/auth/PermissionGate'
 import { HeyKooya } from '@/components/ai-assistant/HeyKooya'
 import { MeetInvitationToast } from '@/components/meet/MeetInvitationToast'
-import { RouteMeta } from '@/components/RouteMeta'
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <BrowserRouter>
-          <RouteMeta />
           <Routes>
           {/* Auth routes */}
           <Route path="/login" element={<PublicRoute><AuthLayout><Auth /></AuthLayout></PublicRoute>} />
