@@ -6,28 +6,9 @@ import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { RichTextDisplay } from '@/components/ui/rich-text-display'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/utils/cn'
+import { richTextDocToHtml, hasRichTextContent } from '@/utils/rich-text'
 import type { TicketDetailResponse } from './types'
 import { MOCK_ASSIGNEES } from '../index'
-
-// Helper function to extract HTML from RichTextDoc format
-function extractHtmlFromRichTextDoc(content: any): string {
-  if (typeof content === 'string') {
-    return content
-  }
-  if (content && typeof content === 'object') {
-    // Handle RichTextDoc format: { type: 'html', content: '<p>...</p>' }
-    if (content.type === 'html' && typeof content.content === 'string') {
-      return content.content
-    }
-    // Handle Quill Delta format or other structures
-    if (content.ops && Array.isArray(content.ops)) {
-      // This is a Quill Delta - would need delta-to-html conversion
-      // For now, return empty or a message
-      return ''
-    }
-  }
-  return ''
-}
 
 type TaskActivitySectionProps = {
   ticketDetails: TicketDetailResponse | null
@@ -192,16 +173,16 @@ export function TaskActivitySection({
                           {new Date(comment.createdAt).toLocaleDateString()}
                         </span>
                       </div>
-                      <div className="text-sm">
-                        {(() => {
-                          const htmlContent = extractHtmlFromRichTextDoc(comment.content)
-                          return htmlContent ? (
+                        <div className="text-sm">
+                          {(() => {
+                          const htmlContent = richTextDocToHtml(comment.content)
+                          return hasRichTextContent(comment.content) ? (
                             <RichTextDisplay content={htmlContent} />
                           ) : (
                             <p className="text-muted-foreground italic">Empty comment</p>
                           )
-                        })()}
-                      </div>
+                          })()}
+                        </div>
                     </div>
                   </div>
                 )
@@ -289,8 +270,8 @@ export function TaskActivitySection({
                         </div>
                         <div className="text-sm">
                           {(() => {
-                            const htmlContent = extractHtmlFromRichTextDoc(comment.content)
-                            return htmlContent ? (
+                            const htmlContent = richTextDocToHtml(comment.content)
+                            return hasRichTextContent(comment.content) ? (
                               <RichTextDisplay content={htmlContent} />
                             ) : (
                               <p className="text-muted-foreground italic">Empty comment</p>

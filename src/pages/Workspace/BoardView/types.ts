@@ -1,5 +1,7 @@
 // Board View Types
 
+import type { RichTextDoc } from '@/types/rich-text'
+
 export type TaskType = 'task' | 'subtask' | 'epic' | 'story' | 'bug'
 export type GroupBy = 'none' | 'assignee' | 'type' | 'subtask' | 'epic' | 'story' | 'priority'
 export type Priority = 'highest' | 'high' | 'medium' | 'low' | 'lowest'
@@ -33,7 +35,7 @@ export type Task = {
   id: string
   key: string
   title: string
-  description: string
+  description: string | RichTextDoc
   type: TaskType
   status: string
   assignee?: Assignee
@@ -68,6 +70,5 @@ export type Board = {
   columns: Column[]
   nextTaskNumber: number
 }
-
 
 

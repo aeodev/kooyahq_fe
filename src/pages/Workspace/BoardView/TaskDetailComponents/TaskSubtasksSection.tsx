@@ -72,33 +72,32 @@ export function TaskSubtasksSection({
 
   return (
     <div>
-      <button
-        onClick={onToggleSubtasks}
-        className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2 w-full"
-      >
-        <ChevronRight
-          className={cn(
-            'h-4 w-4 transition-transform',
-            subtasksExpanded && 'rotate-90'
-          )}
-        />
-        Subtasks
+      <div className="flex items-center gap-2 mb-2 w-full">
+        <button
+          type="button"
+          onClick={onToggleSubtasks}
+          className="flex items-center gap-2 text-sm font-semibold text-foreground flex-1 text-left"
+        >
+          <ChevronRight
+            className={cn(
+              'h-4 w-4 transition-transform',
+              subtasksExpanded && 'rotate-90'
+            )}
+          />
+          Subtasks
+        </button>
         {canCreateSubtask && (
-          <div className="flex items-center gap-2 ml-auto" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsAddingSubtask(true)
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => setIsAddingSubtask(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
         )}
-      </button>
+      </div>
       {subtasksExpanded && (
         <div className="ml-6">
           {/* Get actual subtasks from ticketDetails (children with ticketType === 'subtask') */}

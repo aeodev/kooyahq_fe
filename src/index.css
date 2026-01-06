@@ -339,6 +339,77 @@
   .rich-text-display .ql-indent-8 {
     padding-left: 24em;
   }
+  /* Ticket rich text: align display with Quill editor rendering */
+  .rich-text-display--ticket.ql-editor {
+    line-height: 1.42;
+    padding: 0;
+    overflow-y: visible;
+    white-space: pre-wrap;
+  }
+  .rich-text-display--ticket.ql-editor p,
+  .rich-text-display--ticket.ql-editor ol,
+  .rich-text-display--ticket.ql-editor ul,
+  .rich-text-display--ticket.ql-editor pre,
+  .rich-text-display--ticket.ql-editor blockquote,
+  .rich-text-display--ticket.ql-editor h1,
+  .rich-text-display--ticket.ql-editor h2,
+  .rich-text-display--ticket.ql-editor h3,
+  .rich-text-display--ticket.ql-editor h4,
+  .rich-text-display--ticket.ql-editor h5,
+  .rich-text-display--ticket.ql-editor h6 {
+    margin: 0;
+    padding: 0;
+  }
+  .rich-text-display--ticket.ql-editor h1 {
+    font-size: 2em;
+  }
+  .rich-text-display--ticket.ql-editor h2 {
+    font-size: 1.5em;
+  }
+  .rich-text-display--ticket.ql-editor h3 {
+    font-size: 1.17em;
+  }
+  .rich-text-display--ticket.ql-editor h4 {
+    font-size: 1em;
+  }
+  .rich-text-display--ticket.ql-editor h5 {
+    font-size: 0.83em;
+  }
+  .rich-text-display--ticket.ql-editor h6 {
+    font-size: 0.67em;
+  }
+  .rich-text-display--ticket.ql-editor ol,
+  .rich-text-display--ticket.ql-editor ul {
+    margin: 0;
+    padding-left: 1.5em;
+  }
+  .rich-text-display--ticket.ql-editor li {
+    margin: 0;
+  }
+  .rich-text-display--ticket.ql-editor blockquote {
+    border-left: 4px solid #ccc;
+    margin: 5px 0;
+    padding-left: 16px;
+    color: inherit;
+  }
+  .rich-text-display--ticket.ql-editor code {
+    background-color: #f0f0f0;
+    border-radius: 3px;
+    font-size: 85%;
+    padding: 2px 4px;
+  }
+  .rich-text-display--ticket.ql-editor .ql-code-block-container {
+    background-color: #23241f;
+    border-radius: 3px;
+    color: #f8f8f2;
+    margin: 5px 0;
+    overflow: visible;
+    padding: 5px 10px;
+  }
+  .rich-text-display--ticket.ql-editor a {
+    color: #06c;
+    text-decoration: underline;
+  }
   /* Ensure proper spacing and formatting */
   .rich-text-display * {
     max-width: 100%;

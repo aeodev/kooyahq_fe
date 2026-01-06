@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { RichTextDisplay } from '@/components/ui/rich-text-display'
 import { cn } from '@/utils/cn'
+import { richTextDocToHtml, hasRichTextContent } from '@/utils/rich-text'
 import type { Task } from '../types'
 import type { TicketDetailResponse } from './types'
 
@@ -14,9 +15,9 @@ type TaskTitleSectionProps = {
   isEditingDescription: boolean
   onToggleDescription: () => void
   onStartEditingDescription: () => void
-  onUpdateDescription: (description: string | Record<string, any>) => void
+  onUpdateDescription: (descriptionHtml: string) => void
   onCancelEditingDescription: () => void
-  onDescriptionChange: (description: string | Record<string, any>) => void
+  onDescriptionChange: (descriptionHtml: string) => void
 }
 
 export function TaskTitleSection({
@@ -34,9 +35,8 @@ export function TaskTitleSection({
   
   // Use ticketDetails.ticket.description as source of truth (RichTextDoc)
   const description = ticketDetails?.ticket.description || editedTask.description || {}
-  
-  // Check if description has content (RichTextDoc is an object)
-  const hasDescription = description && typeof description === 'object' && Object.keys(description).length > 0
+  const descriptionHtml = richTextDocToHtml(description)
+  const hasDescription = hasRichTextContent(description)
 
   return (
     <>
@@ -66,7 +66,7 @@ export function TaskTitleSection({
             {isEditingDescription ? (
               <div className="space-y-2">
                 <RichTextEditor
-                  value={description}
+                  value={descriptionHtml}
                   onChange={onDescriptionChange}
                   placeholder="Add a description..."
                   onUploadingChange={setIsUploading}
@@ -75,7 +75,7 @@ export function TaskTitleSection({
                   <Button
                     size="sm"
                     onClick={() => {
-                      onUpdateDescription(description)
+                      onUpdateDescription(descriptionHtml)
                     }}
                     disabled={isUploading}
                   >
@@ -98,14 +98,14 @@ export function TaskTitleSection({
               </div>
             ) : hasDescription ? (
               <RichTextDisplay
-                content={description}
-                className="prose prose-sm max-w-none text-foreground cursor-pointer hover:opacity-80 transition-opacity"
+                content={descriptionHtml}
+                className="text-foreground cursor-pointer hover:opacity-80 transition-opacity"
                 onDoubleClick={onStartEditingDescription}
               />
             ) : (
               <div
                 onClick={onStartEditingDescription}
-                className="prose prose-sm max-w-none text-muted-foreground/50 cursor-pointer hover:text-muted-foreground transition-colors italic"
+                className="text-muted-foreground/50 cursor-pointer hover:text-muted-foreground transition-colors italic"
               >
                 <p>Add a description...</p>
               </div>
@@ -116,4 +116,3 @@ export function TaskTitleSection({
     </>
   )
 }
-

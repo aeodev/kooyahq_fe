@@ -30,9 +30,9 @@ export const SocketTimeEntriesEvents = {
 export type SocketTimeEntriesEventsEnum = typeof SocketTimeEntriesEvents[keyof typeof SocketTimeEntriesEvents]
 
 // Auth routes
-export const SIGN_UP = () => `/auth/register`
-export const SIGN_IN = () => `/auth/login`
 export const SIGN_IN_WITH_GOOGLE = () => `/auth/google`
+export const AUTH_REFRESH = () => `/auth/refresh`
+export const AUTH_LOGOUT = () => `/auth/logout`
 export const PROFILE = () => `/auth/me`
 
 // User routes

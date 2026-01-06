@@ -1,14 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { cn } from '@/utils/cn'
+import { richTextDocToHtml } from '@/utils/rich-text'
+import type { RichTextDoc } from '@/types/rich-text'
 
 type RichTextDisplayProps = {
-  content: string
+  content: string | RichTextDoc
   className?: string
   onDoubleClick?: () => void
 }
 
 export function RichTextDisplay({ content, className, onDoubleClick }: RichTextDisplayProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const htmlContent = richTextDocToHtml(content)
 
   useEffect(() => {
     const container = containerRef.current
@@ -60,13 +63,13 @@ export function RichTextDisplay({ content, className, onDoubleClick }: RichTextD
       videos.forEach((video) => video.removeEventListener('error', handleVideoError))
       iframes.forEach((iframe) => iframe.removeEventListener('error', handleIframeError))
     }
-  }, [content])
+  }, [htmlContent])
 
   return (
     <div
       ref={containerRef}
-      className={cn('rich-text-display', className)}
-      dangerouslySetInnerHTML={{ __html: content }}
+      className={cn('rich-text-display rich-text-display--ticket ql-editor', className)}
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
       onDoubleClick={onDoubleClick}
     />
   )

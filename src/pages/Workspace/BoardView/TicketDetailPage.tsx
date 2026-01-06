@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { Task, Column } from './types'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS } from '@/constants/permissions'
+import { toRichTextDoc } from '@/utils/rich-text'
 
 const resolveBoardRole = (board: ApiBoardType | null, userId?: string): 'owner' | 'admin' | 'member' | 'viewer' | 'none' => {
   if (!board || !userId) return 'none'
@@ -130,7 +131,7 @@ export function TicketDetailPage() {
           id: ticket.id,
           key: ticket.ticketKey,
           title: ticket.title,
-          description: typeof ticket.description === 'string' ? ticket.description : '',
+          description: toRichTextDoc(ticket.description),
           type: taskType,
           status,
           assignee,

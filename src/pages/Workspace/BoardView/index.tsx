@@ -4,6 +4,7 @@ import axiosInstance from '@/utils/axios.instance'
 import { GET_ARCHIVED_TICKETS_BY_BOARD, GET_BOARD_BY_KEY, GET_TICKETS_BY_BOARD, GET_USERS } from '@/utils/api.routes'
 import type { Board as ApiBoardType, Ticket, GithubStatus, GithubAutomationRule } from '@/types/board'
 import type { Board as BoardViewBoard, Column as BoardViewColumn } from './types'
+import { toRichTextDoc } from '@/utils/rich-text'
 import { useSocketStore } from '@/stores/socket.store'
 import { BoardSocketEvents } from '@/hooks/socket/board.socket'
 import { TicketSocketEvents } from '@/hooks/socket/ticket.socket'
@@ -898,7 +899,7 @@ export function BoardView() {
         id: ticket.id,
         key: ticket.ticketKey || `${boardPrefix || 'T'}-${ticket.id.substring(0, 3)}`,
         title: ticket.title,
-        description: typeof ticket.description === 'string' ? ticket.description : '',
+        description: toRichTextDoc(ticket.description),
         type: taskType,
         status: status || 'Unknown',
         assignee,

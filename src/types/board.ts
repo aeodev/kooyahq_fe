@@ -1,3 +1,5 @@
+import type { RichTextDoc } from '@/types/rich-text'
+
 export type Sprint = {
   id: string
   name: string
@@ -105,7 +107,7 @@ export type Ticket = {
   id: string
   ticketKey: string
   title: string
-  description?: any // RichTextDoc
+  description?: RichTextDoc | string
   boardId: string
   columnId: string
   ticketType: 'epic' | 'story' | 'task' | 'bug' | 'subtask'

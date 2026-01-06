@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { cn } from '@/utils/cn'
+import { toRichTextDoc } from '@/utils/rich-text'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -179,7 +180,7 @@ export function CreateTaskModal({
       const payload = {
         ticketType: type,
         title: title.trim(),
-        description: description || undefined,
+        description: toRichTextDoc(description),
         columnId,
         assigneeId: assigneeId || undefined,
         priority,

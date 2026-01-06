@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import type { Task, Column, Assignee, Priority } from './types'
 import type { Ticket } from '@/types/board'
 import type { GithubStatus } from './TaskDetailComponents/types'
+import { toRichTextDoc, richTextDocToHtml } from '@/utils/rich-text'
 import {
   TaskDetailHeader,
   TaskTitleSection,
@@ -63,8 +64,8 @@ const ticketToTask = (ticket: Ticket, columns: Column[], users: Array<{ id: stri
     }
   }
 
-  // Handle description - it's a RichTextDoc object, not a string
-  const description = ticket.description || originalTask.description
+  // Normalize description to RichTextDoc for consistent rendering/editing
+  const description = toRichTextDoc(ticket.description || originalTask.description)
 
   return {
     ...originalTask,
@@ -85,6 +86,20 @@ const ticketToTask = (ticket: Ticket, columns: Column[], users: Array<{ id: stri
     type: ticket.ticketType,
   }
 }
+
+const normalizeTicketDetails = (data: TicketDetailResponse): TicketDetailResponse => ({
+  ...data,
+  ticket: {
+    ...data.ticket,
+    description: toRichTextDoc(data.ticket.description),
+  },
+  comments: Array.isArray(data.comments)
+    ? data.comments.map((comment) => ({
+        ...comment,
+        content: toRichTextDoc(comment.content),
+      }))
+    : [],
+})
 
 export function TaskDetailModal({
   open,
@@ -164,12 +179,13 @@ export function TaskDetailModal({
         GET_TICKET_BY_ID(task.id)
       )
       if (response.data.success && response.data.data) {
+        const normalized = normalizeTicketDetails(response.data.data)
         // Only update if we don't have a pending update with different columnId
         if (!pendingUpdateRef.current || 
             pendingUpdateRef.current.columnId === response.data.data.ticket.columnId) {
-          setTicketDetails(response.data.data)
+          setTicketDetails(normalized)
           // Clear pending update if it matches
-          if (pendingUpdateRef.current?.columnId === response.data.data.ticket.columnId) {
+          if (pendingUpdateRef.current?.columnId === normalized.ticket.columnId) {
             pendingUpdateRef.current = null
           }
         }
@@ -177,7 +193,7 @@ export function TaskDetailModal({
         handleView()
         
         // Fetch epic ticket if rootEpicId exists - don't block on this
-        const rootEpicId = response.data.data.ticket.rootEpicId
+        const rootEpicId = normalized.ticket.rootEpicId
         if (rootEpicId) {
           // Fetch epic ticket - non-blocking
           axiosInstance.get<{ success: boolean; data: TicketDetailResponse }>(
@@ -196,7 +212,7 @@ export function TaskDetailModal({
         } else {
           setEpicTicket(null)
         }
-        return response.data.data
+        return normalized
       }
       return null
     } catch (error) {
@@ -320,15 +336,12 @@ export function TaskDetailModal({
     }
   }
 
-  const handleUpdateDescription = async (description: string | Record<string, any>) => {
+  const handleUpdateDescription = async (descriptionHtml: string) => {
     if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
     const oldDescription = ticketDetails.ticket.description
-    // Convert to RichTextDoc format if it's a string
-    const descriptionDoc = typeof description === 'string' 
-      ? (description ? (description.startsWith('{') ? JSON.parse(description) : {}) : {})
-      : (description || {})
+    const descriptionDoc = toRichTextDoc(descriptionHtml)
 
     // Optimistic update
     setTicketDetails((prev) => prev ? {
@@ -1113,8 +1126,8 @@ export function TaskDetailModal({
         onUpdateAssignee(task.id, assignee)
       }
     } else if (field === 'description' && ticketDetails?.ticket.id) {
-      const description = value as string | undefined
-      handleUpdateDescription(description || '')
+      const descriptionHtml = richTextDocToHtml(value)
+      handleUpdateDescription(descriptionHtml)
     }
   }
 
@@ -1495,8 +1508,8 @@ export function TaskDetailModal({
                     isEditingDescription={isEditingDescription}
                     onToggleDescription={() => setDescriptionExpanded(!descriptionExpanded)}
                     onStartEditingDescription={() => setIsEditingDescription(true)}
-                    onUpdateDescription={(description: string | Record<string, any>) => {
-                      handleUpdateDescription(typeof description === 'string' ? description : JSON.stringify(description))
+                    onUpdateDescription={(descriptionHtml: string) => {
+                      handleUpdateDescription(descriptionHtml)
                       setIsEditingDescription(false)
                     }}
                     onCancelEditingDescription={() => {
@@ -1507,18 +1520,17 @@ export function TaskDetailModal({
                           ...ticketDetails,
                           ticket: {
                             ...ticketDetails.ticket,
-                            description: ticketDetails.ticket.description || {},
+                            description: toRichTextDoc(ticketDetails.ticket.description),
                           },
                         })
                       }
                     }}
-                    onDescriptionChange={(value: string | Record<string, any>) => {
-                      // Update local state for editing - RichTextEditor returns RichTextDoc object
+                    onDescriptionChange={(descriptionHtml: string) => {
                       setTicketDetails((prev) => prev ? {
                         ...prev,
                         ticket: {
                           ...prev.ticket,
-                          description: typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value || {}),
+                          description: toRichTextDoc(descriptionHtml),
                         },
                       } : null)
                     }}
@@ -1687,8 +1699,8 @@ export function TaskDetailModal({
                 isEditingDescription={isEditingDescription}
                 onToggleDescription={() => setDescriptionExpanded(!descriptionExpanded)}
                 onStartEditingDescription={() => setIsEditingDescription(true)}
-                onUpdateDescription={(description: string | Record<string, any>) => {
-                  handleUpdateDescription(typeof description === 'string' ? description : JSON.stringify(description))
+                onUpdateDescription={(descriptionHtml: string) => {
+                  handleUpdateDescription(descriptionHtml)
                   setIsEditingDescription(false)
                 }}
                 onCancelEditingDescription={() => {
@@ -1699,18 +1711,17 @@ export function TaskDetailModal({
                       ...ticketDetails,
                       ticket: {
                         ...ticketDetails.ticket,
-                        description: ticketDetails.ticket.description || {},
+                        description: toRichTextDoc(ticketDetails.ticket.description),
                       },
                     })
                   }
                 }}
-                onDescriptionChange={(value: string | Record<string, any>) => {
-                  // Update local state for editing - RichTextEditor returns RichTextDoc object
+                onDescriptionChange={(descriptionHtml: string) => {
                   setTicketDetails((prev) => prev ? {
                     ...prev,
                     ticket: {
                       ...prev.ticket,
-                      description: typeof value === 'string' ? (value ? JSON.parse(value) : {}) : (value || {}),
+                      description: toRichTextDoc(descriptionHtml),
                     },
                   } : null)
                 }}

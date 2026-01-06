@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import axiosInstance from '@/utils/axios.instance'
-import { PROFILE, SIGN_IN_WITH_GOOGLE, SIGN_UP } from '@/utils/api.routes'
+import { PROFILE, SIGN_IN_WITH_GOOGLE } from '@/utils/api.routes'
 import type { User } from '@/types/user'
 
 type AuthResponse = {
@@ -66,40 +66,6 @@ export const useAuthLogin = () => {
 
       try {
         const response = await axiosInstance.post<ApiEnvelope<AuthResponse>>(SIGN_IN_WITH_GOOGLE(), payload)
-        setData(response.data.data)
-        return response.data.data
-      } catch (err) {
-        const normalized = normalizeError(err)
-        setError(normalized)
-        throw normalized
-      } finally {
-        setLoading(false)
-      }
-    },
-    [],
-  )
-
-  return {
-    data,
-    loading,
-    error,
-    sendRequest,
-  }
-}
-
-export const useAuthRegister = () => {
-  const [data, setData] = useState<AuthResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<AuthError | null>(null)
-
-  const sendRequest = useCallback(
-    async (payload: { name: string; email: string; password: string; permissions: string[] }) => {
-      setLoading(true)
-      setError(null)
-      setData(null)
-
-      try {
-        const response = await axiosInstance.post<ApiEnvelope<AuthResponse>>(SIGN_UP(), payload)
         setData(response.data.data)
         return response.data.data
       } catch (err) {
