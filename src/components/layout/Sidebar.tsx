@@ -148,6 +148,14 @@ const MANAGEMENT_ITEMS: NavItem[] = [
   },
 ]
 
+const NAV_GROUPS = [
+  { key: 'productivity', label: 'Productivity', icon: Briefcase, items: PRODUCTIVITY_ITEMS },
+  { key: 'social', label: 'Social', icon: UsersRound, items: SOCIAL_ITEMS },
+  { key: 'management', label: 'Management', icon: Settings, items: MANAGEMENT_ITEMS },
+] as const
+
+type NavGroupKey = (typeof NAV_GROUPS)[number]['key']
+
 // Sidebar store for state management
 type SidebarState = {
   collapsed: boolean
@@ -282,13 +290,13 @@ export function Sidebar() {
   const closeMobile = useSidebarStore((s) => s.closeMobile)
 
   const [imageError, setImageError] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+  const [openGroups, setOpenGroups] = useState<Record<NavGroupKey, boolean>>({
     productivity: false,
     social: false,
     management: false,
   })
 
-  const toggleGroup = (group: string) => {
+  const toggleGroup = (group: NavGroupKey) => {
     setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }))
   }
   
@@ -310,19 +318,20 @@ export function Sidebar() {
     return hasAnyPermission
   })
 
-  // Filtered items for each group
-  const productivityItems = filterByPermissions(PRODUCTIVITY_ITEMS)
-  const socialItems = filterByPermissions(SOCIAL_ITEMS)
-  const managementItems = filterByPermissions(MANAGEMENT_ITEMS)
-
   // Helper to check if route is active
   const isRouteActive = (to: string) => 
     to === '/' ? location.pathname === to : location.pathname === to || location.pathname.startsWith(`${to}/`)
 
-  // Check if any route in a group is active
-  const isProductivityActive = productivityItems.some((item) => isRouteActive(item.to))
-  const isSocialActive = socialItems.some((item) => isRouteActive(item.to))
-  const isManagementActive = managementItems.some((item) => isRouteActive(item.to))
+  const sidebarGroups = NAV_GROUPS.map((group) => {
+    const items = filterByPermissions(group.items)
+    const isActive = items.some((item) => isRouteActive(item.to))
+    return {
+      ...group,
+      items,
+      isActive,
+      isOpen: openGroups[group.key] || isActive,
+    }
+  }).filter((group) => group.items.length > 0)
 
   useEffect(() => {
     setImageError(false)
@@ -461,50 +470,20 @@ export function Sidebar() {
             collapsed ? 'mx-1' : 'mx-2'
           )} />
 
-          {/* Productivity Group */}
-          {productivityItems.length > 0 && (
+          {sidebarGroups.map((group) => (
             <NavGroup
-              label="Productivity"
-              icon={Briefcase}
-              items={productivityItems}
-              isOpen={openGroups.productivity}
-              isActive={isProductivityActive}
-              onToggle={() => toggleGroup('productivity')}
+              key={group.key}
+              label={group.label}
+              icon={group.icon}
+              items={group.items}
+              isOpen={group.isOpen}
+              isActive={group.isActive}
+              onToggle={() => toggleGroup(group.key)}
               collapsed={collapsed}
               closeMobile={closeMobile}
               isRouteActive={isRouteActive}
             />
-          )}
-
-          {/* Social Group */}
-          {socialItems.length > 0 && (
-            <NavGroup
-              label="Social"
-              icon={UsersRound}
-              items={socialItems}
-              isOpen={openGroups.social}
-              isActive={isSocialActive}
-              onToggle={() => toggleGroup('social')}
-              collapsed={collapsed}
-              closeMobile={closeMobile}
-              isRouteActive={isRouteActive}
-            />
-          )}
-
-          {/* Management Group */}
-          {managementItems.length > 0 && (
-            <NavGroup
-              label="Management"
-              icon={Settings}
-              items={managementItems}
-              isOpen={openGroups.management}
-              isActive={isManagementActive}
-              onToggle={() => toggleGroup('management')}
-              collapsed={collapsed}
-              closeMobile={closeMobile}
-              isRouteActive={isRouteActive}
-            />
-          )}
+          ))}
         </div>
       </nav>
 
