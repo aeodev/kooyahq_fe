@@ -24,7 +24,13 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
       
       if (existingProjects.length > 0) {
         projectTaskStore.setSelectedProjects(existingProjects)
-        projectTaskStore.setActiveProject(existingProjects[0])
+        // Use the project from the timer entry, not existingProjects[0]
+        const timerProject = data.entry.projects?.[0]
+        if (timerProject) {
+          projectTaskStore.setActiveProject(timerProject)
+        } else if (existingProjects.length > 0) {
+          projectTaskStore.setActiveProject(existingProjects[0])
+        }
       }
     }
   }
