@@ -3,20 +3,77 @@ import axiosInstance from '@/utils/axios.instance'
 import { GET_NOTIFICATIONS, MARK_NOTIFICATION_READ, MARK_ALL_NOTIFICATIONS_READ, GET_UNREAD_COUNT } from '@/utils/api.routes'
 import type { Notification } from '@/types/post'
 
+const DEFAULT_PAGE_SIZE = 20
+
+type FetchNotificationsOptions = {
+  unreadOnly?: boolean
+  page?: number
+  limit?: number
+  append?: boolean
+}
+
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(DEFAULT_PAGE_SIZE)
+  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
 
-  const fetchNotifications = useCallback(async (showUnreadOnly = false) => {
-    setLoading(true)
+  const fetchNotifications = useCallback(async (options: boolean | FetchNotificationsOptions = false) => {
+    const resolvedOptions = typeof options === 'boolean' ? { unreadOnly: options } : options ?? {}
+    const unreadOnly = resolvedOptions.unreadOnly ?? false
+    const nextPage = resolvedOptions.page ?? 1
+    const nextLimit = resolvedOptions.limit ?? DEFAULT_PAGE_SIZE
+    const append = resolvedOptions.append ?? false
+
+    const shouldSetLoading = !append
+    if (shouldSetLoading) {
+      setLoading(true)
+    }
     setError(null)
     try {
-      const response = await axiosInstance.get(GET_NOTIFICATIONS(showUnreadOnly))
-      const data = response.data.data
-      setNotifications(data.notifications || [])
-      setUnreadCount(data.unreadCount || 0)
+      const response = await axiosInstance.get(
+        GET_NOTIFICATIONS({ unreadOnly, page: nextPage, limit: nextLimit })
+      )
+      const data = response.data.data || {}
+      const nextNotifications = data.notifications || []
+      const nextUnreadCount = data.unreadCount || 0
+      const responsePage = typeof data.page === 'number' ? data.page : nextPage
+      const responseLimit = typeof data.limit === 'number' ? data.limit : nextLimit
+      const responseTotal = typeof data.total === 'number' ? data.total : nextNotifications.length
+      const responseHasMore =
+        typeof data.hasMore === 'boolean'
+          ? data.hasMore
+          : responsePage * responseLimit < responseTotal
+
+      setNotifications((prev) => {
+        if (!append) {
+          return nextNotifications
+        }
+        if (nextNotifications.length === 0) {
+          return prev
+        }
+        const merged = [...prev]
+        const indexById = new Map(merged.map((notification, index) => [notification.id, index]))
+        nextNotifications.forEach((notification: Notification) => {
+          const existingIndex = indexById.get(notification.id)
+          if (existingIndex === undefined) {
+            merged.push(notification)
+            indexById.set(notification.id, merged.length - 1)
+          } else {
+            merged[existingIndex] = notification
+          }
+        })
+        return merged
+      })
+      setUnreadCount(nextUnreadCount)
+      setPage(responsePage)
+      setLimit(responseLimit)
+      setTotal(responseTotal)
+      setHasMore(responseHasMore)
       return data
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to fetch notifications'
@@ -24,7 +81,9 @@ export const useNotifications = () => {
       console.error('Failed to fetch notifications:', err)
       return null
     } finally {
-      setLoading(false)
+      if (shouldSetLoading) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -128,6 +187,10 @@ export const useNotifications = () => {
     unreadCount,
     loading,
     error,
+    page,
+    limit,
+    total,
+    hasMore,
     fetchNotifications,
     markAsRead,
     markAllAsRead,
@@ -186,4 +249,3 @@ export const useUnreadCount = () => {
     fetchCount,
   }
 }
-

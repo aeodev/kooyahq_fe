@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { CREATE_TICKET } from '@/utils/api.routes'
 import type { Task, Column } from '../types'
 import type { TicketDetailResponse } from './types'
 import { getTaskTypeIcon, getPriorityIcon, getPriorityLabel } from '../index'
+import { AssigneeAvatar } from '../AssigneeAvatar'
 import { toast } from 'sonner'
 
 type TaskSubtasksSectionProps = {
@@ -20,7 +21,8 @@ type TaskSubtasksSectionProps = {
   columns: Column[]
   onToggleSubtasks: () => void
   onNavigateToTask?: (taskKey: string) => void
-  onRefreshTicket?: () => void
+  onRefreshTicket?: (force?: boolean) => void
+  onRefreshBoardTickets?: () => void
   canCreateSubtask: boolean
 }
 
@@ -34,23 +36,34 @@ export function TaskSubtasksSection({
   onToggleSubtasks,
   onNavigateToTask,
   onRefreshTicket,
+  onRefreshBoardTickets,
   canCreateSubtask,
 }: TaskSubtasksSectionProps) {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [isAddingSubtask, setIsAddingSubtask] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleAddSubtask = async () => {
     if (!newSubtaskTitle.trim() || !boardId || !ticketDetails?.ticket.id || !canCreateSubtask) return
 
     setIsCreating(true)
     try {
+      const firstColumnId = columns[0]?.id || ticketDetails.ticket.columnId
       const payload = {
         ticketType: 'subtask' as const,
         title: newSubtaskTitle.trim(),
         parentTicketId: ticketDetails.ticket.id,
         rootEpicId: ticketDetails.ticket.rootEpicId || undefined,
-        columnId: ticketDetails.ticket.columnId,
+        columnId: firstColumnId,
         priority: 'medium' as const,
       }
 
@@ -60,8 +73,16 @@ export function TaskSubtasksSection({
       
       // Refresh ticket details to get the new subtask
       if (onRefreshTicket) {
-        onRefreshTicket()
+        onRefreshTicket(true)
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current)
+        }
+        refreshTimeoutRef.current = setTimeout(() => {
+          onRefreshTicket(true)
+          refreshTimeoutRef.current = null
+        }, 800)
       }
+      onRefreshBoardTickets?.()
     } catch (error) {
       console.error('Error creating subtask:', error)
       toast.error('Failed to create subtask')
@@ -241,14 +262,7 @@ export function TaskSubtasksSection({
                             <td className="px-3 py-2">
                               {subtask.assignee && (
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <div
-                                    className={cn(
-                                      'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white flex-shrink-0',
-                                      subtask.assignee.color
-                                    )}
-                                  >
-                                    {subtask.assignee.initials}
-                                  </div>
+                                  <AssigneeAvatar assignee={subtask.assignee} size="sm" />
                                   <span className="truncate">{subtask.assignee.name}</span>
                                 </div>
                               )}

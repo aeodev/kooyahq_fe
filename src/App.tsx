@@ -16,6 +16,8 @@ const queryClient = new QueryClient({
 })
 import { Home } from '@/pages/Home/index.tsx'
 import { Auth } from '@/pages/Auth'
+import { TermsOfService } from '@/pages/Legal/Terms'
+import { PrivacyPolicy } from '@/pages/Legal/Privacy'
 import { TimeTracker } from '@/pages/TimeTracker'
 import { Workspace } from '@/pages/Workspace'
 import { TicketDetailPage } from '@/pages/Workspace/BoardView/TicketDetailPage'
@@ -43,16 +45,20 @@ import { PERMISSIONS } from '@/constants/permissions'
 import { PermissionGate } from '@/components/auth/PermissionGate'
 import { HeyKooya } from '@/components/ai-assistant/HeyKooya'
 import { MeetInvitationToast } from '@/components/meet/MeetInvitationToast'
+import { RouteDocumentMeta } from '@/components/RouteDocumentMeta'
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <BrowserRouter>
+          <RouteDocumentMeta />
           <Routes>
           {/* Auth routes */}
           <Route path="/login" element={<PublicRoute><AuthLayout><Auth /></AuthLayout></PublicRoute>} />
           <Route path="/signup" element={<PublicRoute><AuthLayout><Auth /></AuthLayout></PublicRoute>} />
+          <Route path="/terms" element={<AuthLayout align="top"><TermsOfService /></AuthLayout>} />
+          <Route path="/privacy" element={<AuthLayout align="top"><PrivacyPolicy /></AuthLayout>} />
 
           {/* Dashboard routes */}
           <Route

@@ -28,11 +28,13 @@ type TaskSidebarProps = {
   newBranchName: string
   setNewBranchName: (name: string) => void
   availableTicketsForParent: Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
+  availableTags: string[]
+  onFilterByTag?: (tag: string) => void
   onStatusChange: (columnId: string) => void
   onUpdatePriority: (priority: Task['priority']) => void
   onUpdateField: <K extends keyof Task>(field: K, value: Task[K]) => void
   onUpdateDate: (field: 'dueDate' | 'startDate' | 'endDate', date: Date | null) => void
-  onAddTag: () => void
+  onAddTag: (tag?: string) => void
   onRemoveTag: (tag: string) => void
   onUpdateParent: (parentId: string | null) => void
   getAvailableParents: () => Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
@@ -57,6 +59,8 @@ export function TaskSidebar({
   newBranchName,
   setNewBranchName,
   availableTicketsForParent,
+  availableTags,
+  onFilterByTag,
   onStatusChange,
   onUpdatePriority,
   onUpdateField,
@@ -190,6 +194,8 @@ export function TaskSidebar({
           datePickerOpen={datePickerOpen}
           setDatePickerOpen={setDatePickerOpen}
           availableTicketsForParent={availableTicketsForParent}
+          availableTags={availableTags}
+          onFilterByTag={onFilterByTag}
           onUpdatePriority={onUpdatePriority}
           onUpdateField={onUpdateField}
           onUpdateDate={onUpdateDate}

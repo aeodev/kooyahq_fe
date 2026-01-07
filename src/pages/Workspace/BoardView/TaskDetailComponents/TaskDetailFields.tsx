@@ -11,9 +11,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import { cn } from '@/utils/cn'
+import { formatReadableDate } from '@/utils/date'
 import type { Task, Assignee, Priority, TaskType } from '../types'
 import { getPriorityIcon, getPriorityLabel, getTaskTypeIcon } from '../index'
 import type { TicketDetailResponse } from './types'
+import { AssigneeAvatar } from '../AssigneeAvatar'
 
 const PRIORITY_OPTIONS: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 
@@ -29,10 +31,12 @@ type TaskDetailFieldsProps = {
   datePickerOpen: 'dueDate' | 'startDate' | 'endDate' | null
   setDatePickerOpen: (date: 'dueDate' | 'startDate' | 'endDate' | null) => void
   availableTicketsForParent: Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
+  availableTags: string[]
+  onFilterByTag?: (tag: string) => void
   onUpdatePriority: (priority: Priority) => void
   onUpdateField: <K extends keyof Task>(field: K, value: Task[K]) => void
   onUpdateDate: (field: 'dueDate' | 'startDate' | 'endDate', date: Date | null) => void
-  onAddTag: () => void
+  onAddTag: (tag?: string) => void
   onRemoveTag: (tag: string) => void
   onUpdateParent: (parentId: string | null) => void
   getAvailableParents: () => Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
@@ -49,6 +53,8 @@ export function TaskDetailFields({
   datePickerOpen,
   setDatePickerOpen,
   availableTicketsForParent,
+  availableTags,
+  onFilterByTag,
   onUpdatePriority,
   onUpdateField,
   onUpdateDate,
@@ -66,6 +72,10 @@ export function TaskDetailFields({
   const canHaveParent = ticketType === 'task' || ticketType === 'bug' || ticketType === 'story' || ticketType === 'subtask'
   const parentTicketId = ticketDetails?.ticket.parentTicketId
   const parentTicket = ticketDetails?.relatedTickets.parent
+
+  const availableTagOptions = availableTags
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0 && !editedTask.labels.includes(tag))
 
   // Get visible fields sorted by order
   const getVisibleFields = () => {
@@ -142,14 +152,7 @@ export function TaskDetailFields({
             <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full min-w-0">
               {editedTask.assignee ? (
                 <>
-                  <div
-                    className={cn(
-                      'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white flex-shrink-0',
-                      editedTask.assignee.color
-                    )}
-                  >
-                    {editedTask.assignee.initials}
-                  </div>
+                  <AssigneeAvatar assignee={editedTask.assignee} size="sm" />
                   <span className="text-sm truncate">{editedTask.assignee.name}</span>
                 </>
               ) : (
@@ -179,14 +182,7 @@ export function TaskDetailFields({
                   onClick={() => onUpdateField('assignee', assignee)}
                   className="cursor-pointer"
                 >
-                  <div
-                    className={cn(
-                      'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white mr-2',
-                      assignee.color
-                    )}
-                  >
-                    {assignee.initials}
-                  </div>
+                  <AssigneeAvatar assignee={assignee} size="sm" className="mr-2" />
                   {assignee.name}
                 </DropdownMenuItem>
               )
@@ -200,11 +196,29 @@ export function TaskDetailFields({
         <label className="text-xs text-muted-foreground block mb-1">Tags</label>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full text-left">
+            <div
+              role="button"
+              tabIndex={0}
+              className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full text-left"
+            >
               {editedTask.labels.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {editedTask.labels.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="text-xs">
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className={cn('text-xs', onFilterByTag && 'cursor-pointer')}
+                      onPointerDown={(event) => {
+                        if (!onFilterByTag) return
+                        event.preventDefault()
+                        event.stopPropagation()
+                      }}
+                      onClick={(event) => {
+                        if (!onFilterByTag) return
+                        event.stopPropagation()
+                        onFilterByTag(tag)
+                      }}
+                    >
                       {tag}
                     </Badge>
                   ))}
@@ -212,10 +226,27 @@ export function TaskDetailFields({
               ) : (
                 <span className="text-sm text-muted-foreground">Add tags</span>
               )}
-            </button>
+            </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-64 p-3" align="start">
             <div className="space-y-3">
+              {availableTagOptions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Existing tags</p>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                    {availableTagOptions.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => onAddTag(tag)}
+                        className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-foreground transition-colors hover:bg-muted"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Input
                   placeholder="Enter tag name"
@@ -229,7 +260,7 @@ export function TaskDetailFields({
                   }}
                   className="h-8 text-xs"
                 />
-                <Button onClick={onAddTag} size="sm" className="h-8">Add</Button>
+                <Button onClick={() => onAddTag()} size="sm" className="h-8">Add</Button>
               </div>
               {editedTask.labels.length > 0 ? (
                 <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
@@ -334,7 +365,7 @@ export function TaskDetailFields({
             <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               {editedTask.dueDate ? (
-                <span className="text-sm">{editedTask.dueDate.toLocaleDateString()}</span>
+                <span className="text-sm">{formatReadableDate(editedTask.dueDate)}</span>
               ) : (
                 <span className="text-sm text-muted-foreground">Add due date</span>
               )}
@@ -369,7 +400,7 @@ export function TaskDetailFields({
             <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               {editedTask.startDate ? (
-                <span className="text-sm">{editedTask.startDate.toLocaleDateString()}</span>
+                <span className="text-sm">{formatReadableDate(editedTask.startDate)}</span>
               ) : (
                 <span className="text-sm text-muted-foreground">Add date</span>
               )}
@@ -404,7 +435,7 @@ export function TaskDetailFields({
             <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               {editedTask.endDate ? (
-                <span className="text-sm">{editedTask.endDate.toLocaleDateString()}</span>
+                <span className="text-sm">{formatReadableDate(editedTask.endDate)}</span>
               ) : (
                 <span className="text-sm text-muted-foreground">Add date</span>
               )}

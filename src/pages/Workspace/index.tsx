@@ -24,6 +24,7 @@ import { BoardSocketEvents } from '@/hooks/socket/board.socket'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS } from '@/constants/permissions'
+import { AssigneeAvatar } from './BoardView/AssigneeAvatar'
 
 // Types for Board Display
 type BoardType = 'kanban' | 'sprint'
@@ -552,14 +553,7 @@ export function Workspace() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div
-                          className={cn(
-                            'flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white',
-                            board.lead.color
-                          )}
-                        >
-                          {board.lead.initials}
-                        </div>
+                        <AssigneeAvatar assignee={board.lead} size="sm" className="h-7 w-7 text-xs" />
                         <span className="text-sm text-foreground">{board.lead.name}</span>
                       </div>
                     </td>
@@ -698,14 +692,7 @@ export function Workspace() {
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div
-                  className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-medium text-white',
-                    board.lead.color
-                  )}
-                >
-                  {board.lead.initials}
-                </div>
+                <AssigneeAvatar assignee={board.lead} size="xs" />
                 <span className="text-muted-foreground text-xs">{board.lead.name}</span>
               </div>
             </div>

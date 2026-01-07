@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/utils/cn'
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { DEFAULT_IMAGE_FALLBACK } from '@/utils/image.utils'
 
 type UploadFile = {
   file: File
@@ -187,6 +188,11 @@ export function GalleryUploadSection({ onUpload, uploading, onClose }: GalleryUp
                   src={uploadFile.preview}
                   alt={uploadFile.title}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.currentTarget
+                    target.onerror = null
+                    target.src = DEFAULT_IMAGE_FALLBACK
+                  }}
                 />
                 {!uploading && (
                   <Button
@@ -252,4 +258,3 @@ export function GalleryUploadSection({ onUpload, uploading, onClose }: GalleryUp
     </div>
   )
 }
-

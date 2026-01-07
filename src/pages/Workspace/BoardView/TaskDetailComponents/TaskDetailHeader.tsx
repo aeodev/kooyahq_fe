@@ -10,6 +10,7 @@ import { cn } from '@/utils/cn'
 import type { Task, Assignee } from '../types'
 import { MOCK_ASSIGNEES, getTaskTypeIcon } from '../index'
 import type { TicketDetailResponse, Ticket } from './types'
+import { AssigneeAvatar } from '../AssigneeAvatar'
 
 type TaskDetailHeaderProps = {
   editedTask: Task
@@ -175,14 +176,7 @@ export function TaskDetailHeader({
               viewers.map((viewer) => (
                 <DropdownMenuItem key={viewer.id} className="cursor-default">
                   <div className="flex items-center gap-2 w-full">
-                    <div
-                      className={cn(
-                        'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
-                        viewer.color
-                      )}
-                    >
-                      {viewer.initials}
-                    </div>
+                    <AssigneeAvatar assignee={viewer} size="sm" />
                     <div className="flex flex-col flex-1 min-w-0">
                       <span className="text-sm">{viewer.name}</span>
                       {viewer.viewedAgainAt && (
@@ -197,9 +191,7 @@ export function TaskDetailHeader({
             ) : (
               <DropdownMenuItem className="cursor-default">
                 <div className="flex items-center gap-2 w-full">
-                  <div className="h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white bg-cyan-500">
-                    {MOCK_ASSIGNEES[0]?.initials || 'U'}
-                  </div>
+                  <AssigneeAvatar assignee={MOCK_ASSIGNEES[0]} size="sm" />
                   <span className="text-sm">{MOCK_ASSIGNEES[0]?.name || 'You'}</span>
                 </div>
               </DropdownMenuItem>

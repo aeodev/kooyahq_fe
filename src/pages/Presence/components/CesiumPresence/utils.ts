@@ -138,9 +138,10 @@ export function preloadImage(url: string): Promise<string> {
 export function createTooltipHTML(users: Array<{ name: string; avatar: string }>): string {
   if (users.length === 1) {
     const user = users[0]
+    const fallback = getFallbackAvatar('#94a3b8', user.name)
     return `
       <div style="padding: 12px; text-align: center; min-width: 120px;">
-        <img src="${user.avatar}" style="width: 48px; height: 48px; border-radius: 50%; margin-bottom: 8px; border: 2px solid rgba(255,255,255,0.4);" alt="${user.name}" />
+        <img src="${user.avatar}" style="width: 48px; height: 48px; border-radius: 50%; margin-bottom: 8px; border: 2px solid rgba(255,255,255,0.4);" alt="${user.name}" onerror="this.onerror=null;this.src='${fallback}'" />
         <div style="font-size: 14px; color: rgba(255,255,255,0.95); font-weight: 500; margin-top: 4px;">${user.name}</div>
         <div style="font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 4px;">Click to zoom in</div>
       </div>
@@ -150,8 +151,10 @@ export function createTooltipHTML(users: Array<{ name: string; avatar: string }>
   const iconsHtml = users
     .slice(0, 8)
     .map(
-      (user) =>
-        `<img src="${user.avatar}" style="width: 32px; height: 32px; border-radius: 50%; margin: 2px; border: 1px solid rgba(255,255,255,0.3);" alt="${user.name}" title="${user.name}" />`
+      (user) => {
+        const fallback = getFallbackAvatar('#94a3b8', user.name)
+        return `<img src="${user.avatar}" style="width: 32px; height: 32px; border-radius: 50%; margin: 2px; border: 1px solid rgba(255,255,255,0.3);" alt="${user.name}" title="${user.name}" onerror="this.onerror=null;this.src='${fallback}'" />`
+      }
     )
     .join('')
   
@@ -171,4 +174,3 @@ export function createTooltipHTML(users: Array<{ name: string; avatar: string }>
     </div>
   `
 }
-

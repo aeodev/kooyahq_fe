@@ -4,6 +4,7 @@ import { PERMISSIONS } from '@/constants/permissions'
 import { Button } from '@/components/ui/button'
 import { Trash2, Edit2, Loader2 } from 'lucide-react'
 import { usePostComments } from '@/hooks/post.hooks'
+import { getInitialsFallback } from '@/utils/image.utils'
 import type { PostComment } from '@/types/post'
 
 interface CommentItemProps {
@@ -96,7 +97,9 @@ export function CommentItem({ comment, onUpdate, onDelete }: CommentItemProps) {
           alt={comment.author.name}
           className="h-6 w-6 rounded-xl ring-1 ring-border/50 object-cover flex-shrink-0"
           onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none'
+            const target = e.currentTarget
+            target.onerror = null
+            target.src = getInitialsFallback(comment.author.name)
           }}
         />
       ) : (

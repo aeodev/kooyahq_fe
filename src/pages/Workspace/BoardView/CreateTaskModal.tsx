@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, ChevronDown, Plus, Trash2, CheckSquare, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,8 +11,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { Column, TaskType, Priority } from './types'
+import type { Column, TaskType, Priority, Assignee } from './types'
 import { getTaskTypeIcon, getPriorityIcon, getPriorityLabel } from './index'
+import { AssigneeAvatar } from './AssigneeAvatar'
 import axiosInstance from '@/utils/axios.instance'
 import { CREATE_TICKET, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
 import type { Ticket } from '@/types/board'
@@ -23,7 +24,7 @@ type CreateTaskModalProps = {
   columns: Column[]
   selectedColumnId: string | null
   boardId: string
-  assignees: Array<{ id: string; name: string; initials: string; color: string }>
+  assignees: Assignee[]
   onSuccess?: () => void
   canCreate: boolean
   canRead: boolean
@@ -132,6 +133,13 @@ export function CreateTaskModal({
     setTags(tags.filter((t) => t !== tag))
   }
 
+  const handleAddExistingTag = (tag: string) => {
+    const trimmed = tag.trim()
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed])
+    }
+  }
+
   const handleAddCriteria = () => {
     if (newCriteria.trim()) {
       setAcceptanceCriteria([
@@ -226,6 +234,25 @@ export function CreateTaskModal({
   const availableEpics = availableTickets.filter(t => t.ticketType === 'epic')
 
   const showParentEpicFields = type === 'story' || type === 'task'
+
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    availableTickets.forEach((ticket) => {
+      if (!Array.isArray(ticket.tags)) return
+      ticket.tags.forEach((tag) => {
+        const trimmed = tag.trim()
+        if (trimmed) {
+          tagSet.add(trimmed)
+        }
+      })
+    })
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+  }, [availableTickets])
+
+  const availableTagOptions = useMemo(
+    () => availableTags.filter((tag) => !tags.includes(tag)),
+    [availableTags, tags]
+  )
 
   if (!open) return null
 
@@ -478,14 +505,7 @@ export function CreateTaskModal({
                       <button className="flex items-center gap-2 w-full text-left hover:bg-accent rounded px-2 py-1.5 transition-colors">
                         {selectedAssignee ? (
                           <>
-                            <div
-                              className={cn(
-                                'h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0',
-                                selectedAssignee.color
-                              )}
-                            >
-                              {selectedAssignee.initials}
-                            </div>
+                            <AssigneeAvatar assignee={selectedAssignee} size="xs" />
                             <span className="text-sm flex-1">{selectedAssignee.name}</span>
                           </>
                         ) : (
@@ -507,14 +527,7 @@ export function CreateTaskModal({
                           onClick={() => setAssigneeId(user.id)}
                           className="cursor-pointer"
                         >
-                          <div
-                            className={cn(
-                              'h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white mr-2',
-                              user.color
-                            )}
-                          >
-                            {user.initials}
-                          </div>
+                          <AssigneeAvatar assignee={user} size="xs" className="mr-2" />
                           {user.name}
                         </DropdownMenuItem>
                       ))}
@@ -654,7 +667,7 @@ export function CreateTaskModal({
                         value={newTag}
                         onChange={(e) => setNewTag(e.target.value)}
                         placeholder="Add tag"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs flex-1"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault()
@@ -665,6 +678,35 @@ export function CreateTaskModal({
                       <Button type="button" variant="outline" size="sm" onClick={handleAddTag} className="h-8">
                         <Plus className="h-3.5 w-3.5" />
                       </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs gap-1"
+                            disabled={availableTagOptions.length === 0}
+                          >
+                            <span>Existing</span>
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="max-h-48 overflow-y-auto">
+                          {availableTagOptions.length > 0 ? (
+                            availableTagOptions.map((tag) => (
+                              <DropdownMenuItem
+                                key={tag}
+                                onClick={() => handleAddExistingTag(tag)}
+                                className="cursor-pointer"
+                              >
+                                {tag}
+                              </DropdownMenuItem>
+                            ))
+                          ) : (
+                            <DropdownMenuItem disabled>No tags yet</DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </div>

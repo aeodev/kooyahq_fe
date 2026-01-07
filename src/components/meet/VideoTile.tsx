@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 're
 import { useAuthStore } from '@/stores/auth.store'
 import type { Participant } from '@/stores/meet.store'
 import { cn } from '@/utils/cn'
+import { getInitialsFallback } from '@/utils/image.utils'
 
 interface VideoTileProps {
   participant: Participant
@@ -259,7 +260,9 @@ export const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function Video
               alt={displayName}
               className="w-24 h-24 rounded-full object-cover"
               onError={(e) => {
-                e.currentTarget.style.display = 'none'
+                const target = e.currentTarget
+                target.onerror = null
+                target.src = getInitialsFallback(displayName || 'U')
               }}
             />
           ) : (

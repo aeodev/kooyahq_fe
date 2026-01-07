@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Loader2, ZoomIn, ZoomOut } from 'lucide-react'
+import { DEFAULT_IMAGE_FALLBACK } from '@/utils/image.utils'
 
 type ImageCropModalProps = {
   open: boolean
@@ -249,6 +250,9 @@ export function ImageCropModal({
                   cursor: 'move',
                 }}
                 draggable={false}
+                onError={() => {
+                  setImageSrc((prev) => (prev === DEFAULT_IMAGE_FALLBACK ? prev : DEFAULT_IMAGE_FALLBACK))
+                }}
               />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div 

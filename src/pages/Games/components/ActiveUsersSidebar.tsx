@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
+import { getInitialsFallback } from '@/utils/image.utils'
 
 interface ActiveUsersSidebarProps {
   activeUsers: ActiveUser[]
@@ -202,6 +203,11 @@ export function ActiveUsersSidebar({
                             src={activeUser.profilePic}
                             alt={activeUser.name}
                             className="h-10 w-10 rounded-full object-cover ring-1 ring-[hsl(var(--ios-divider))]"
+                            onError={(e) => {
+                              const target = e.currentTarget
+                              target.onerror = null
+                              target.src = getInitialsFallback(activeUser.name)
+                            }}
                           />
                         ) : (
                           <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-sm font-semibold text-primary-foreground ring-1 ring-[hsl(var(--ios-divider))]">
@@ -266,7 +272,9 @@ export function ActiveUsersSidebar({
                           alt={activeUser.name}
                           className="h-10 w-10 rounded-full object-cover ring-1 ring-[hsl(var(--ios-divider))]"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none'
+                            const target = e.currentTarget
+                            target.onerror = null
+                            target.src = getInitialsFallback(activeUser.name)
                           }}
                         />
                       ) : (
@@ -386,7 +394,6 @@ export function ActiveUsersSidebar({
     </aside>
   )
 }
-
 
 
 

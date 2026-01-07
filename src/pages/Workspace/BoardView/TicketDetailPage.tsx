@@ -10,6 +10,7 @@ import type { Task, Column } from './types'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS } from '@/constants/permissions'
 import { toRichTextDoc } from '@/utils/rich-text'
+import { getUserInitials } from '@/utils/formatters'
 
 const resolveBoardRole = (board: ApiBoardType | null, userId?: string): 'owner' | 'admin' | 'member' | 'viewer' | 'none' => {
   if (!board || !userId) return 'none'
@@ -113,12 +114,19 @@ export function TicketDetailPage() {
 
         // Get user for assignee
         const assignee = ticket.assigneeId
-          ? {
-              id: ticket.assigneeId,
-              name: 'User', // Will be fetched properly if needed
-              initials: 'U',
-              color: 'bg-cyan-500',
-            }
+          ? (() => {
+              const member = board.memberUsers?.find((user) => user.id === ticket.assigneeId)
+              const name = member?.name || 'User'
+              const colors = ['bg-cyan-500', 'bg-amber-500', 'bg-purple-500', 'bg-green-500', 'bg-red-500', 'bg-blue-500']
+              const colorIndex = parseInt(ticket.assigneeId.slice(-1), 16) % colors.length
+              return {
+                id: ticket.assigneeId,
+                name,
+                initials: getUserInitials(name),
+                color: colors[colorIndex],
+                avatar: member?.profilePic,
+              }
+            })()
           : undefined
 
         const taskType = ticket.ticketType === 'bug' ? 'bug' :
@@ -162,6 +170,11 @@ export function TicketDetailPage() {
 
     loadTicket()
   }, [boardKey, ticketKey, navigate])
+
+  useEffect(() => {
+    if (!task) return
+    document.title = `${task.key} ${task.title} | KooyaHQ`
+  }, [task])
 
   const handleClose = () => {
     navigate(`/workspace/${boardKey}`)

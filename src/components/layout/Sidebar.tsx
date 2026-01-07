@@ -230,10 +230,10 @@ function NavGroup({ label, icon: GroupIcon, items, isOpen, isActive, onToggle, c
       <div
         className={cn(
           'overflow-hidden transition-all duration-300 ease-in-out',
-          isOpen && !collapsed ? 'max-h-64 opacity-100 mt-0.5' : 'max-h-0 opacity-0'
+          isOpen && !collapsed ? 'max-h-64 opacity-100 mt-2' : 'max-h-0 opacity-0'
         )}
       >
-        <div className="pl-4 space-y-0.5">
+        <div className="pl-4 space-y-1">
           {items.map((item) => {
             const Icon = item.icon
             const itemIsActive = isRouteActive(item.to)

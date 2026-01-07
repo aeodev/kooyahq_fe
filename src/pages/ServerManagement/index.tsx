@@ -1,13 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import AnsiToHtml from 'ansi-to-html'
-import { AlertTriangle, ChevronLeft, Pencil, Play, Plus, Trash2, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  ChevronLeft,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { PERMISSIONS } from '@/constants/permissions'
 import { useAuthStore } from '@/stores/auth.store'
@@ -243,12 +261,6 @@ const ACTION_RISK_BADGE_CLASS: Record<ActionRisk, string> = {
   dangerous: '',
 }
 
-const ACTION_RISK_BUTTON_CLASS: Record<ActionRisk, string> = {
-  normal: '',
-  warning: 'text-amber-700 border-amber-500/40',
-  dangerous: 'text-destructive border-destructive/50',
-}
-
 const getActionRisk = (action: { risk?: ActionRisk; dangerous?: boolean }): ActionRisk => {
   if (action.risk === 'normal' || action.risk === 'warning' || action.risk === 'dangerous') {
     return action.risk
@@ -283,20 +295,11 @@ const formatLoadAvg = (value?: number) => {
   return value.toFixed(2)
 }
 
-const formatUsage = (used?: number, total?: number) => {
-  if (typeof used !== 'number' || typeof total !== 'number' || !Number.isFinite(used) || !Number.isFinite(total)) {
-    return '—'
-  }
-  const percent = total > 0 ? (used / total) * 100 : 0
-  return `${formatBytes(used)} / ${formatBytes(total)} (${percent.toFixed(1)}%)`
-}
-
-const formatContainerMem = (mem?: StatusUsage) => {
+const formatContainerMemPair = (mem?: StatusUsage) => {
   if (!mem) return '—'
   if (mem.raw) return mem.raw
   if (typeof mem.usage_bytes === 'number' && typeof mem.limit_bytes === 'number') {
-    const percent = typeof mem.percent === 'number' ? mem.percent : (mem.usage_bytes / mem.limit_bytes) * 100
-    return `${formatBytes(mem.usage_bytes)} / ${formatBytes(mem.limit_bytes)} (${percent.toFixed(1)}%)`
+    return `${formatBytes(mem.usage_bytes)} / ${formatBytes(mem.limit_bytes)}`
   }
   return '—'
 }
@@ -304,6 +307,18 @@ const formatContainerMem = (mem?: StatusUsage) => {
 const clampPercent = (value?: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
   return Math.min(100, Math.max(0, value))
+}
+
+const formatPercentShort = (value: number | null) => {
+  if (value === null || !Number.isFinite(value)) return '—'
+  return `${Math.round(value)}%`
+}
+
+const getUsageTone = (percent: number | null) => {
+  if (percent === null) return 'bg-muted-foreground/30'
+  if (percent >= 80) return 'bg-rose-500/80'
+  if (percent >= 60) return 'bg-amber-500/80'
+  return 'bg-emerald-500/80'
 }
 
 const formatContainerCpu = (container: DockerContainerStatus) => {
@@ -378,13 +393,82 @@ const formatContainerNet = (net?: StatusTransfer) => {
   return '—'
 }
 
-const formatContainerBlock = (block?: StatusBlock) => {
-  if (!block) return '—'
-  if (block.raw) return block.raw
-  if (typeof block.read_bytes === 'number' && typeof block.write_bytes === 'number') {
-    return `${formatBytes(block.read_bytes)} / ${formatBytes(block.write_bytes)}`
+const SIZE_UNIT_FACTORS: Record<string, number> = {
+  B: 1,
+  KB: 1024,
+  KIB: 1024,
+  MB: 1024 ** 2,
+  MIB: 1024 ** 2,
+  GB: 1024 ** 3,
+  GIB: 1024 ** 3,
+  TB: 1024 ** 4,
+  TIB: 1024 ** 4,
+  PB: 1024 ** 5,
+  PIB: 1024 ** 5,
+}
+
+const normalizeSizeUnit = (unit?: string) => {
+  if (!unit) return 'B'
+  const upper = unit.toUpperCase()
+  if (upper === 'K') return 'KB'
+  if (upper === 'M') return 'MB'
+  if (upper === 'G') return 'GB'
+  if (upper === 'T') return 'TB'
+  if (upper === 'P') return 'PB'
+  return upper
+}
+
+const parseSizeValue = (value: string) => {
+  const match = value.trim().replace(/,/g, '').match(/([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)?/)
+  if (!match) return null
+  const amount = Number.parseFloat(match[1])
+  if (!Number.isFinite(amount)) return null
+  const unit = normalizeSizeUnit(match[2])
+  const factor = SIZE_UNIT_FACTORS[unit]
+  if (!factor) return null
+  return amount * factor
+}
+
+const parseSizePair = (raw: string) => {
+  const parts = raw.split('/')
+  let total = 0
+  let parsedAny = false
+  parts.forEach((part) => {
+    const parsed = parseSizeValue(part)
+    if (parsed !== null) {
+      total += parsed
+      parsedAny = true
+    }
+  })
+  return parsedAny ? total : null
+}
+
+const parseSizePairParts = (raw: string) => {
+  const parts = raw.split('/')
+  const read = parts[0] ? parseSizeValue(parts[0]) : null
+  const write = parts[1] ? parseSizeValue(parts[1]) : null
+  return { read, write }
+}
+
+const getTransferTotal = (net?: StatusTransfer) => {
+  if (!net) return null
+  if (typeof net.rx_bytes === 'number' && typeof net.tx_bytes === 'number') {
+    return net.rx_bytes + net.tx_bytes
   }
-  return '—'
+  if (net.raw) return parseSizePair(net.raw)
+  return null
+}
+
+const getBlockReadWrite = (block?: StatusBlock) => {
+  if (!block) return { read: null, write: null }
+  if (typeof block.read_bytes === 'number' || typeof block.write_bytes === 'number') {
+    return {
+      read: typeof block.read_bytes === 'number' ? block.read_bytes : null,
+      write: typeof block.write_bytes === 'number' ? block.write_bytes : null,
+    }
+  }
+  if (block.raw) return parseSizePairParts(block.raw)
+  return { read: null, write: null }
 }
 
 const getUsagePercent = (used?: number, total?: number) => {
@@ -393,6 +477,12 @@ const getUsagePercent = (used?: number, total?: number) => {
   }
   if (total <= 0) return null
   return clampPercent((used / total) * 100)
+}
+
+const getRelativePercent = (value?: number | null, max?: number | null) => {
+  if (value === null || typeof value !== 'number' || !Number.isFinite(value)) return null
+  if (max === null || typeof max !== 'number' || !Number.isFinite(max) || max <= 0) return null
+  return clampPercent((value / max) * 100)
 }
 
 const getContainerMemPercent = (mem?: StatusUsage) => {
@@ -404,8 +494,8 @@ const getContainerMemPercent = (mem?: StatusUsage) => {
 const renderPercentBar = (percent: number | null, toneClass: string) => {
   if (percent === null) return null
   return (
-    <div className="mt-2 h-2 w-full rounded-full bg-muted/60">
-      <div className={cn('h-full rounded-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
+    <div className="mt-2 h-1.5 w-full bg-muted/60">
+      <div className={cn('h-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
     </div>
   )
 }
@@ -413,8 +503,47 @@ const renderPercentBar = (percent: number | null, toneClass: string) => {
 const renderMiniBar = (percent: number | null, toneClass: string) => {
   if (percent === null) return null
   return (
-    <div className="h-1.5 w-full rounded-full bg-muted/60">
-      <div className={cn('h-full rounded-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
+    <div className="h-1 w-full bg-muted/60">
+      <div className={cn('h-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
+    </div>
+  )
+}
+
+const renderFlatBar = (percent: number | null, toneClass: string) => {
+  if (percent === null) return null
+  return (
+    <div className="mt-1.5 h-1.5 w-full bg-muted/60">
+      <div className={cn('h-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
+    </div>
+  )
+}
+
+const getSplitPercents = (read?: number | null, write?: number | null) => {
+  const safeRead = typeof read === 'number' && Number.isFinite(read) ? read : 0
+  const safeWrite = typeof write === 'number' && Number.isFinite(write) ? write : 0
+  const total = safeRead + safeWrite
+  if (total <= 0) return { read: null, write: null }
+  return {
+    read: clampPercent((safeRead / total) * 100),
+    write: clampPercent((safeWrite / total) * 100),
+  }
+}
+
+const renderSplitBar = (readPercent: number | null, writePercent: number | null) => {
+  if (readPercent === null && writePercent === null) return null
+  const safeRead = Math.max(0, readPercent ?? 0)
+  const safeWrite = Math.max(0, writePercent ?? 0)
+  if (safeRead === 0 && safeWrite === 0) return null
+  const total = safeRead + safeWrite
+  const readWidth = total > 0 ? (safeRead / total) * 100 : 0
+  const writeWidth = total > 0 ? (safeWrite / total) * 100 : 0
+  const hasBoth = readWidth > 0 && writeWidth > 0
+  return (
+    <div className="mt-1.5 h-1.5 w-full overflow-hidden bg-muted/60">
+      <div className={cn('flex h-full w-full', hasBoth && 'gap-px')}>
+        <div className="h-full bg-teal-500/70" style={{ width: `${readWidth}%` }} />
+        <div className="h-full bg-amber-500/70" style={{ width: `${writeWidth}%` }} />
+      </div>
     </div>
   )
 }
@@ -423,6 +552,55 @@ const getLoadBarPercent = (value?: number, max?: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
   if (typeof max !== 'number' || !Number.isFinite(max) || max <= 0) return null
   return clampPercent((value / max) * 100)
+}
+
+type ServiceStatusTone = 'good' | 'warning' | 'error' | 'stopped' | 'muted'
+
+const SERVICE_STATUS_STYLES: Record<ServiceStatusTone, { dot: string; text: string }> = {
+  good: { dot: 'bg-emerald-500', text: 'text-emerald-700' },
+  warning: { dot: 'bg-amber-500', text: 'text-amber-700' },
+  error: { dot: 'bg-rose-500', text: 'text-rose-700' },
+  stopped: { dot: 'bg-slate-400', text: 'text-slate-500' },
+  muted: { dot: 'bg-slate-300', text: 'text-muted-foreground' },
+}
+
+const getServiceStatusSummary = (state?: string, health?: string) => {
+  const normalizedState = state?.trim().toLowerCase()
+  const normalizedHealth = health?.trim().toLowerCase()
+
+  if (!normalizedState) {
+    return { label: 'Unknown', tone: 'muted' as ServiceStatusTone }
+  }
+
+  if (normalizedState === 'running') {
+    if (normalizedHealth && normalizedHealth !== 'healthy') {
+      const label = normalizedHealth === 'unhealthy' ? 'Unhealthy' : 'Degraded'
+      const tone = normalizedHealth === 'unhealthy' ? 'error' : 'warning'
+      return { label, tone: tone as ServiceStatusTone }
+    }
+    return { label: 'Running', tone: 'good' as ServiceStatusTone }
+  }
+
+  if (['exited', 'dead', 'stopped'].includes(normalizedState)) {
+    return { label: 'Stopped', tone: 'stopped' as ServiceStatusTone }
+  }
+
+  if (normalizedState === 'restarting') {
+    return { label: 'Restarting', tone: 'warning' as ServiceStatusTone }
+  }
+  if (normalizedState === 'paused') {
+    return { label: 'Paused', tone: 'warning' as ServiceStatusTone }
+  }
+
+  return { label: normalizedState.replace(/_/g, ' '), tone: 'muted' as ServiceStatusTone }
+}
+
+const getContainerMeta = (container?: DockerContainerStatus) => {
+  if (!container) return []
+  const parts: string[] = []
+  if (container.state) parts.push(`State: ${container.state}`)
+  if (container.status) parts.push(`Status: ${container.status}`)
+  return parts
 }
 
 type NetworkSummary = {
@@ -442,16 +620,6 @@ const summarizeNetwork = (network?: Record<string, StatusTransfer>): NetworkSumm
     totalTx += typeof stats?.tx_bytes === 'number' ? stats.tx_bytes : 0
   })
   return { totalRx, totalTx, interfaceCount }
-}
-
-const getTrafficSplit = (summary: NetworkSummary | null) => {
-  if (!summary) return null
-  const total = summary.totalRx + summary.totalTx
-  if (!Number.isFinite(total) || total <= 0) return null
-  return {
-    rxPercent: clampPercent((summary.totalRx / total) * 100),
-    txPercent: clampPercent((summary.totalTx / total) * 100),
-  }
 }
 
 type NetworkGroup = {
@@ -558,6 +726,20 @@ const cardClassName = 'rounded-2xl border border-border/60 bg-background/90 p-5 
 
 const fieldErrorClass = 'border-destructive/60 focus-visible:ring-destructive'
 
+const SERVER_MANAGEMENT_TITLE = 'Server Management | KooyaHQ'
+const SERVER_MANAGEMENT_DESCRIPTION = 'Monitor servers, projects, and health.'
+
+const setMetaByName = (name: string, content: string) => {
+  if (typeof document === 'undefined') return
+  let tag = document.querySelector(`meta[name="${name}"]`)
+  if (!tag) {
+    tag = document.createElement('meta')
+    tag.setAttribute('name', name)
+    document.head.appendChild(tag)
+  }
+  tag.setAttribute('content', content)
+}
+
 const getErrorMessage = (error: unknown, fallback: string) => {
   const responseMessage =
     (error as { response?: { data?: { message?: string | string[]; error?: { message?: string | string[] } } } })
@@ -579,7 +761,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 
 export function ServerManagement() {
   const [projects, setProjects] = useState<Project[]>([])
-  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectsError, setProjectsError] = useState<string | null>(null)
   const [projectModalOpen, setProjectModalOpen] = useState(false)
   const [projectModalMode, setProjectModalMode] = useState<'create' | 'edit'>('create')
@@ -681,10 +863,6 @@ export function ServerManagement() {
     () => summarizeNetwork(instanceStatus?.network),
     [instanceStatus?.network]
   )
-  const networkTrafficSplit = useMemo(
-    () => getTrafficSplit(networkSummary),
-    [networkSummary]
-  )
   const loadSeries = useMemo(() => {
     const values = [
       { label: '1m', value: instanceStatus?.cpu?.loadavg_1m },
@@ -717,6 +895,24 @@ export function ServerManagement() {
       navigate(`/server-management/projects/${project.id}`, { replace: true })
     }
   }, [routeProjectId, routeServerId, projects, projectsLoading, projectsError, navigate])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    let title = SERVER_MANAGEMENT_TITLE
+    let description = SERVER_MANAGEMENT_DESCRIPTION
+
+    if (selectedProject && selectedServer) {
+      title = `${selectedServer.name} | ${selectedProject.name} | KooyaHQ`
+      description = selectedServer.summary?.trim() || selectedProject.description?.trim() || description
+    } else if (selectedProject) {
+      title = `${selectedProject.name} | Server Management | KooyaHQ`
+      description = selectedProject.description?.trim() || description
+    }
+
+    document.title = title
+    setMetaByName('description', description)
+  }, [selectedProject, selectedServer])
 
   const updateCliOutput = useCallback((runId: string, updater: (current: CliOutput) => CliOutput) => {
     setCliOutput((current) => {
@@ -1719,6 +1915,126 @@ export function ServerManagement() {
     const runnableActions = allActions.filter((action) => action.command?.trim()).length
     const warningActions = allActions.filter((action) => getActionRisk(action) === 'warning').length
     const dangerousActions = allActions.filter((action) => getActionRisk(action) === 'dangerous').length
+    const showServicesSkeleton = statusLoading && server.services.length > 0
+    const servicesSkeletonRows = Math.min(server.services.length, 3)
+    const memoryPercent = getUsagePercent(
+      instanceStatus?.mem?.used_bytes,
+      instanceStatus?.mem?.total_bytes
+    )
+    const storagePercent = getUsagePercent(
+      instanceStatus?.storage_root?.used_bytes,
+      instanceStatus?.storage_root?.total_bytes
+    )
+    const cpuLoadPeak = loadSeries.max > 0 ? loadSeries.max : null
+    const cpuLoadPercent = getRelativePercent(instanceStatus?.cpu?.loadavg_1m ?? null, cpuLoadPeak)
+    const networkTotal =
+      typeof networkSummary?.totalRx === 'number' && typeof networkSummary?.totalTx === 'number'
+        ? networkSummary.totalRx + networkSummary.totalTx
+        : null
+    const networkRxPercent = getRelativePercent(networkSummary?.totalRx ?? null, networkTotal)
+    const networkTxPercent = getRelativePercent(networkSummary?.totalTx ?? null, networkTotal)
+    const trafficMax = server.services.reduce(
+      (acc, service) => {
+        const container = getContainerForService(service, dockerStatus?.containers)
+        const netTotal = getTransferTotal(container?.net)
+        return {
+          maxNet: Math.max(acc.maxNet, netTotal ?? 0),
+        }
+      },
+      { maxNet: 0 }
+    )
+
+    const renderServiceActionsMenu = (
+      service: Service,
+      options: { compact?: boolean; align?: 'start' | 'center' | 'end' } = {}
+    ) => {
+      const { compact = false, align = 'end' } = options
+      if (service.actions.length === 0) {
+        return <span className="text-xs text-muted-foreground">{compact ? '—' : 'No actions'}</span>
+      }
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size={compact ? 'icon' : 'sm'}
+              className={cn(
+                'rounded-none',
+                compact ? 'h-8 w-8 p-0' : 'h-8 px-3 text-xs uppercase tracking-[0.2em]'
+              )}
+              aria-label={compact ? `Manage actions for ${service.name}` : undefined}
+            >
+              {!compact && <span>Manage</span>}
+              <MoreHorizontal className={cn('h-4 w-4', !compact && 'ml-2')} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align={align}
+            side="bottom"
+            sideOffset={8}
+            collisionPadding={12}
+            className="w-[min(28rem,90vw)] rounded-none border-border/80 bg-popover p-2 shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-border/60 pb-2">
+              <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Actions</span>
+              <span className="text-xs text-muted-foreground">{service.actions.length} total</span>
+            </div>
+            <div className="mt-2 max-h-[320px] space-y-2 overflow-y-auto pr-1">
+              {service.actions.map((action) => {
+                const actionRisk = getActionRisk(action)
+                const isRunnable = isActionRunnable(action)
+                const isPending = actionRunPendingId === action.id
+                return (
+                  <DropdownMenuItem
+                    key={action.id}
+                    onSelect={() => openConfirmAction(action, server, service)}
+                    disabled={!isRunnable || isPending}
+                    className={cn(
+                      'flex flex-col items-start gap-2 rounded-none border border-border/60 bg-background/95 p-3 text-left cursor-pointer focus:bg-muted/30',
+                      'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-60',
+                      actionRisk === 'dangerous' && 'border-destructive/40 bg-destructive/5',
+                      actionRisk === 'warning' && 'border-amber-500/40 bg-amber-500/5'
+                    )}
+                  >
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold">{action.name || 'Untitled action'}</span>
+                          {actionRisk !== 'normal' && (
+                            <Badge
+                              variant={actionRisk === 'dangerous' ? 'destructive' : 'outline'}
+                              className={cn(
+                                'rounded-none text-[11px] uppercase tracking-[0.2em]',
+                                actionRisk === 'warning' && ACTION_RISK_BADGE_CLASS.warning
+                              )}
+                            >
+                              {ACTION_RISK_LABELS[actionRisk]}
+                            </Badge>
+                          )}
+                          {!isRunnable && (
+                            <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                              <Lock className="h-3 w-3" />
+                              No access
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {action.description?.trim() ? action.description : 'No description provided.'}
+                        </p>
+                      </div>
+                      <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                        {isPending ? 'Running' : 'Run'}
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                )
+              })}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    }
 
     return (
       <section className="space-y-6">
@@ -1740,7 +2056,7 @@ export function ServerManagement() {
               <p className="text-sm text-muted-foreground max-w-2xl">{server.summary}</p>
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Host</p>
-                <p className="text-sm font-medium">{server.host}</p>
+                <p className="text-sm font-medium font-mono tabular-nums">{server.host}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1766,7 +2082,7 @@ export function ServerManagement() {
         </header>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-3">
+          <div className="border border-border/60 bg-background/90 p-4 space-y-3">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Connection</p>
               <p className="text-sm font-semibold">Access details</p>
@@ -1774,12 +2090,14 @@ export function ServerManagement() {
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Host</span>
-                <span className="font-medium text-right break-all">{server.host || '—'}</span>
+                <span className="font-medium font-mono tabular-nums text-right break-all">
+                  {server.host || '—'}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-3">
+          <div className="border border-border/60 bg-background/90 p-4 space-y-3">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Automation</p>
               <p className="text-sm font-semibold">{allActions.length} actions configured</p>
@@ -1790,22 +2108,22 @@ export function ServerManagement() {
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Runnable actions</span>
-                <span className="font-medium text-right">{runnableActions}</span>
+                <span className="font-medium font-mono tabular-nums text-right">{runnableActions}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Warning actions</span>
-                <span className="font-medium text-right">{warningActions}</span>
+                <span className="font-medium font-mono tabular-nums text-right">{warningActions}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Dangerous actions</span>
-                <span className="font-medium text-right">{dangerousActions}</span>
+                <span className="font-medium font-mono tabular-nums text-right">{dangerousActions}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <section className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <section className="space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">Overall Status</h2>
               <p className="text-sm text-muted-foreground">
@@ -1813,156 +2131,174 @@ export function ServerManagement() {
               </p>
             </div>
             {canUse && (
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
+              <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   Live (2s)
-                </Badge>
-                {statusRefreshing && (
-                  <span className="text-xs text-muted-foreground">Updating...</span>
-                )}
+                </span>
+                {statusRefreshing && <span>Updating...</span>}
               </div>
             )}
           </div>
 
           {!canUse && (
-            <div className="rounded-2xl border border-border/60 bg-muted/40 p-3 text-sm text-muted-foreground">
+            <div className="border border-border/60 bg-muted/40 p-3 text-sm text-muted-foreground">
               Status updates require server management access.
             </div>
           )}
-          {statusLoading && (
-            <p className="text-sm text-muted-foreground">Loading status...</p>
-          )}
           {statusError && (
-            <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
               {statusError}
             </div>
           )}
-          {!statusLoading && !statusError && statusPayload?.timestamp && (
-            <p className="text-xs text-muted-foreground">Last updated: {statusPayload.timestamp}</p>
+          {statusPayload?.timestamp && (
+            <p className="text-xs text-muted-foreground font-mono tabular-nums">
+              Last updated: {statusPayload.timestamp}
+            </p>
+          )}
+          {statusLoading && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`status-skeleton-${index}`} className="border border-border/60 bg-background/90 p-3">
+                  <Skeleton className="h-3 w-20 rounded-none" />
+                  <Skeleton className="mt-3 h-6 w-28 rounded-none" />
+                  <Skeleton className="mt-2 h-3 w-32 rounded-none" />
+                  <Skeleton className="mt-2 h-1.5 w-full rounded-none" />
+                </div>
+              ))}
+            </div>
           )}
 
           {instanceStatus && (
-            <section className="space-y-4">
+            <section className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">CPU Load</p>
-                  <p className="text-sm font-semibold">
+                <div className="border border-border/60 bg-background/90 p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">CPU Load</p>
+                  <p className="text-lg font-semibold font-mono tabular-nums">
                     {formatLoadAvg(instanceStatus.cpu?.loadavg_1m)} /{' '}
                     {formatLoadAvg(instanceStatus.cpu?.loadavg_5m)} /{' '}
                     {formatLoadAvg(instanceStatus.cpu?.loadavg_15m)}
                   </p>
+                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                    {formatLoadAvg(instanceStatus.cpu?.loadavg_1m)} /{' '}
+                    {cpuLoadPeak !== null ? formatLoadAvg(cpuLoadPeak) : '—'}{' '}
+                    {cpuLoadPercent !== null ? `(${formatPercentShort(cpuLoadPercent)})` : ''}
+                  </p>
                   <div className="space-y-1">
-                    {loadSeries.values.map((entry) => (
-                      <div key={entry.label} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="w-6">{entry.label}</span>
-                        <div className="flex-1">
-                          {renderMiniBar(getLoadBarPercent(entry.value, loadSeries.max), 'bg-amber-500/80')}
+                    {loadSeries.values.map((entry) => {
+                      const loadPercent = getLoadBarPercent(entry.value, loadSeries.max)
+                      return (
+                        <div key={entry.label} className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="w-6 font-mono tabular-nums">{entry.label}</span>
+                          <div className="flex-1">{renderMiniBar(loadPercent, getUsageTone(loadPercent))}</div>
+                          <span className="w-10 text-right font-mono tabular-nums">
+                            {formatLoadAvg(entry.value)}
+                          </span>
                         </div>
-                        <span className="w-10 text-right">{formatLoadAvg(entry.value)}</span>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Load averages over the last 1, 5, and 15 minutes. Higher means busier.
-                  </p>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
-                  <p className="text-sm font-semibold">
-                    {formatUsage(instanceStatus.mem?.used_bytes, instanceStatus.mem?.total_bytes)}
+                <div className="border border-border/60 bg-background/90 p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
+                  <p className="text-lg font-semibold font-mono tabular-nums">
+                    {formatPercentShort(memoryPercent)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Available: {formatBytes(instanceStatus.mem?.available_bytes)}
+                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                    {formatBytes(instanceStatus.mem?.used_bytes)} / {formatBytes(instanceStatus.mem?.total_bytes)}
                   </p>
-                  {renderPercentBar(
-                    getUsagePercent(instanceStatus.mem?.used_bytes, instanceStatus.mem?.total_bytes),
-                    'bg-emerald-500/80'
+                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                    {formatBytes(instanceStatus.mem?.available_bytes)} free
+                  </p>
+                  {renderPercentBar(memoryPercent, getUsageTone(memoryPercent))}
+                </div>
+                <div className="border border-border/60 bg-background/90 p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Storage</p>
+                  <p className="text-lg font-semibold font-mono tabular-nums">
+                    {formatPercentShort(storagePercent)}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                    {formatBytes(instanceStatus.storage_root?.used_bytes)} /{' '}
+                    {formatBytes(instanceStatus.storage_root?.total_bytes)}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                    {formatBytes(instanceStatus.storage_root?.available_bytes)} free
+                  </p>
+                  {renderPercentBar(storagePercent, getUsageTone(storagePercent))}
+                </div>
+                <div className="border border-border/60 bg-background/90 p-3 space-y-3">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Network</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 font-mono tabular-nums text-emerald-700">
+                        <ArrowDownRight className="h-4 w-4" />
+                        {formatBytes(networkSummary?.totalRx)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">RX</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 font-mono tabular-nums text-sky-700">
+                        <ArrowUpRight className="h-4 w-4" />
+                        {formatBytes(networkSummary?.totalTx)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">TX</span>
+                    </div>
+                  </div>
+                  {networkTotal !== null && (
+                    <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                      RX {networkRxPercent !== null ? formatPercentShort(networkRxPercent) : '—'} / TX{' '}
+                      {networkTxPercent !== null ? formatPercentShort(networkTxPercent) : '—'}
+                    </p>
                   )}
-                  <p className="text-xs text-muted-foreground">Used vs total memory with available snapshot.</p>
-                </div>
-                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Storage</p>
-                  <p className="text-sm font-semibold">
-                    {formatUsage(
-                      instanceStatus.storage_root?.used_bytes,
-                      instanceStatus.storage_root?.total_bytes
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Available: {formatBytes(instanceStatus.storage_root?.available_bytes)}
-                  </p>
-                  {renderPercentBar(
-                    getUsagePercent(
-                      instanceStatus.storage_root?.used_bytes,
-                      instanceStatus.storage_root?.total_bytes
-                    ),
-                    'bg-sky-500/80'
-                  )}
-                  <p className="text-xs text-muted-foreground">Root filesystem used vs total.</p>
-                </div>
-                <div className="rounded-xl border border-border/60 bg-background/90 p-3 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Network</p>
-                  <p className="text-sm font-semibold">
-                    {formatBytes(networkSummary?.totalRx)} rx / {formatBytes(networkSummary?.totalTx)} tx
-                  </p>
                   <p className="text-xs text-muted-foreground">
                     {networkSummary
                       ? `${networkSummary.interfaceCount} interfaces reported.`
                       : 'Network totals unavailable.'}
                   </p>
-                  {networkTrafficSplit && (
-                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted/60 flex">
-                      <div
-                        className="h-full bg-sky-500/80"
-                        style={{ width: `${networkTrafficSplit.rxPercent}%` }}
-                      />
-                      <div
-                        className="h-full bg-indigo-500/70"
-                        style={{ width: `${networkTrafficSplit.txPercent}%` }}
-                      />
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">Cumulative RX/TX totals since boot.</p>
                 </div>
               </div>
 
               {networkGroups.length > 0 && (
-                <details className="rounded-2xl border border-border/60 bg-background/90 p-4">
-                  <summary className="cursor-pointer text-sm font-semibold">Network interfaces</summary>
-                  <p className="mt-1 text-xs text-muted-foreground">Grouped by interface type.</p>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    {networkGroups.map((group) => (
-                      <div
-                        key={group.label}
-                        className="rounded-2xl border border-border/60 bg-background/95 p-4 space-y-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold">{group.label}</p>
-                            {group.description && (
-                              <p className="text-xs text-muted-foreground">{group.description}</p>
-                            )}
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {group.entries.length} interfaces
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                          <span>RX: {formatBytes(group.totalRx)}</span>
-                          <span>TX: {formatBytes(group.totalTx)}</span>
-                        </div>
-                        <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                          {group.entries.map(({ name, stats }) => (
-                            <div key={name} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                              <span className="font-medium">{name}</span>
-                              <span className="text-muted-foreground">
-                                {formatBytes(stats?.rx_bytes)} rx / {formatBytes(stats?.tx_bytes)} tx
-                              </span>
+                <details className="border border-border/60 bg-background/90">
+                  <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
+                    Network interfaces
+                  </summary>
+                  <div className="border-t border-border/60 px-3 py-3">
+                    <p className="text-xs text-muted-foreground">Grouped by interface type.</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      {networkGroups.map((group) => (
+                        <div
+                          key={group.label}
+                          className="border border-border/60 bg-background/95 p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold">{group.label}</p>
+                              {group.description && (
+                                <p className="text-xs text-muted-foreground">{group.description}</p>
+                              )}
                             </div>
-                          ))}
+                            <span className="text-xs text-muted-foreground">
+                              {group.entries.length} interfaces
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground font-mono tabular-nums">
+                            <span>RX: {formatBytes(group.totalRx)}</span>
+                            <span>TX: {formatBytes(group.totalTx)}</span>
+                          </div>
+                          <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                            {group.entries.map(({ name, stats }) => (
+                              <div key={name} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                <span className="font-medium">{name}</span>
+                                <span className="text-muted-foreground font-mono tabular-nums">
+                                  {formatBytes(stats?.rx_bytes)} rx / {formatBytes(stats?.tx_bytes)} tx
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </details>
               )}
@@ -1975,9 +2311,9 @@ export function ServerManagement() {
           {!statusLoading && !statusError && !instanceStatus && Object.keys(statusData).length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2">
               {Object.entries(statusData).map(([key, value]) => (
-                <div key={key} className="rounded-xl border border-border/60 bg-background/90 p-3">
+                <div key={key} className="border border-border/60 bg-background/90 p-3">
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{key}</p>
-                  <p className="text-sm font-semibold">{value}</p>
+                  <p className="text-sm font-semibold font-mono tabular-nums">{value}</p>
                 </div>
               ))}
             </div>
@@ -1992,156 +2328,340 @@ export function ServerManagement() {
             </p>
           </div>
           {dockerStatus?.compose_ps_error && (
-            <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
               {dockerStatus.compose_ps_error}
             </div>
           )}
 
-          <div className="space-y-4">
-            {server.services.map((service) => {
-              const container = getContainerForService(service, dockerStatus?.containers)
-              const state = container?.state?.trim()
-              const health = container?.health?.trim()
-              const cpuPercent = container ? getContainerCpuPercent(container) : null
-              const cpuBarPercent =
-                cpuPercent !== null && cpuPercent > 0 && cpuPercent < 1 ? 1 : cpuPercent
-              const memPercent = container ? getContainerMemPercent(container.mem) : null
-              const hasContainerStatus = Boolean(container)
-              const healthVariant =
-                health && health.toLowerCase() === 'healthy' ? 'secondary' : 'destructive'
-              return (
-                <div
-                  key={service.serviceName || service.name}
-                  className="rounded-2xl border border-border/60 bg-background/90 p-4 space-y-4"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-semibold">{service.name}</h3>
-                      <p className="text-xs text-muted-foreground">{service.serviceName || '—'}</p>
-                    </div>
-                    {hasContainerStatus && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        {state && (
-                          <Badge
-                            variant={state === 'running' ? 'secondary' : 'outline'}
-                            className="text-xs"
-                          >
-                            {state}
-                          </Badge>
-                        )}
-                        {health && (
-                          <Badge variant={healthVariant} className="text-xs">
-                            {health}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {canUse && hasContainerStatus && (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">CPU</p>
-                        <p className="text-sm font-semibold">
-                          {container ? formatContainerCpu(container) : '—'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Container CPU usage.</p>
-                        {renderPercentBar(cpuBarPercent, 'bg-amber-500/70')}
-                      </div>
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
-                        <p className="text-sm font-semibold">
-                          {container ? formatContainerMem(container.mem) : '—'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Usage vs limit.</p>
-                        {renderPercentBar(memPercent, 'bg-emerald-500/70')}
-                      </div>
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Network</p>
-                        <p className="text-sm font-semibold">
-                          {container ? formatContainerNet(container.net) : '—'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">RX / TX totals.</p>
-                      </div>
-                      <div className="rounded-xl border border-border/60 bg-background/90 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Storage</p>
-                        <p className="text-sm font-semibold">
-                          {container ? formatContainerBlock(container.block) : '—'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Read / write IO.</p>
-                      </div>
-                    </div>
-                  )}
-                  {container?.status && (
-                    <p className="text-xs text-muted-foreground">{container.status}</p>
-                  )}
-                  {typeof container?.pids === 'number' && (
-                    <p className="text-xs text-muted-foreground">PIDs: {container.pids}</p>
-                  )}
-
-                  {service.actions.length > 0 ? (
-                    <details className="rounded-xl border border-border/60 bg-background/95 p-3">
-                      <summary className="cursor-pointer text-sm font-semibold">
-                        Actions ({service.actions.length})
-                      </summary>
-                      <div className="mt-3 space-y-3">
-                        {service.actions.map((action) => {
-                          const actionRisk = getActionRisk(action)
-                          return (
-                            <div
-                              key={action.id}
-                              className={cn(
-                                'rounded-xl border border-border/60 bg-background/95 p-3',
-                                actionRisk === 'dangerous' && 'border-destructive/40 bg-destructive/5',
-                                actionRisk === 'warning' && 'border-amber-500/40 bg-amber-500/5'
-                              )}
-                            >
-                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="text-sm font-semibold">{action.name}</h4>
-                                    {actionRisk !== 'normal' && (
-                                      <Badge
-                                        variant={actionRisk === 'dangerous' ? 'destructive' : 'outline'}
-                                        className={cn(
-                                          'text-xs',
-                                          actionRisk === 'warning' && ACTION_RISK_BADGE_CLASS.warning
-                                        )}
-                                      >
-                                        {ACTION_RISK_LABELS[actionRisk]}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-muted-foreground">{action.description}</p>
-                                </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className={cn(ACTION_RISK_BUTTON_CLASS[actionRisk])}
-                                  onClick={() => openConfirmAction(action, server, service)}
-                                  disabled={!isActionRunnable(action) || actionRunPendingId === action.id}
-                                >
-                                  <Play className="mr-2 h-4 w-4" />
-                                  Run
-                                </Button>
-                              </div>
+          {showServicesSkeleton && (
+            <>
+              <div className="hidden lg:block border border-border/60 bg-background/90">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1120px] table-fixed text-sm">
+                    <colgroup>
+                      <col className="w-[56px]" />
+                      <col className="w-[260px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[100px]" />
+                    </colgroup>
+                    <thead className="bg-muted/40 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      <tr className="border-b border-border/60">
+                        <th className="border-l border-border/60 px-3 py-3 text-center font-semibold first:border-l-0">
+                          <span className="sr-only">Status</span>
+                        </th>
+                        <th className="border-l border-border/60 px-4 py-3 text-left font-semibold">Service</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">CPU</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Memory</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Net I/O</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">
+                          Storage I/O
+                        </th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Manage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {Array.from({ length: servicesSkeletonRows }).map((_, index) => (
+                        <tr key={`service-skeleton-${index}`} className="align-top">
+                          <td className="border-l border-border/60 px-3 py-4 align-top first:border-l-0">
+                            <div className="flex items-center justify-center">
+                              <Skeleton className="h-2 w-2 rounded-none" />
                             </div>
-                          )
-                        })}
-                      </div>
-                    </details>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
-                      No actions configured for this service.
-                    </div>
-                  )}
+                          </td>
+                          <td className="border-l border-border/60 px-4 py-4 align-top">
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-32 rounded-none" />
+                              <Skeleton className="h-3 w-24 rounded-none" />
+                            </div>
+                          </td>
+                          <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                            <Skeleton className="ml-auto h-4 w-16 rounded-none" />
+                            <Skeleton className="mt-2 h-1.5 w-full rounded-none" />
+                          </td>
+                          <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                            <Skeleton className="ml-auto h-4 w-20 rounded-none" />
+                            <Skeleton className="mt-2 h-1.5 w-full rounded-none" />
+                          </td>
+                          <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                            <div className="flex flex-col items-end gap-1">
+                              <Skeleton className="ml-auto h-4 w-24 rounded-none" />
+                              <Skeleton className="h-1.5 w-full rounded-none" />
+                            </div>
+                          </td>
+                          <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                            <div className="flex flex-col items-end gap-1">
+                              <Skeleton className="ml-auto h-4 w-24 rounded-none" />
+                              <Skeleton className="h-1.5 w-full rounded-none" />
+                            </div>
+                          </td>
+                          <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                            <Skeleton className="ml-auto h-8 w-8 rounded-none" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )
-            })}
-          </div>
+              </div>
+              <div className="grid gap-3 lg:hidden">
+                {Array.from({ length: servicesSkeletonRows }).map((_, index) => (
+                  <div key={`service-skeleton-card-${index}`} className="border border-border/60 bg-background/90 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-32 rounded-none" />
+                      <Skeleton className="h-3 w-16 rounded-none" />
+                    </div>
+                    <Skeleton className="h-3 w-24 rounded-none" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Skeleton className="h-3 w-16 rounded-none" />
+                        <Skeleton className="h-4 w-20 rounded-none" />
+                        <Skeleton className="h-1.5 w-full rounded-none" />
+                      </div>
+                      <div className="space-y-2">
+                        <Skeleton className="h-3 w-16 rounded-none" />
+                        <Skeleton className="h-4 w-20 rounded-none" />
+                        <Skeleton className="h-1.5 w-full rounded-none" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-3 w-16 rounded-none" />
+                      <Skeleton className="h-3 w-24 rounded-none" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-3 w-20 rounded-none" />
+                      <Skeleton className="h-3 w-24 rounded-none" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-8 w-28 rounded-none" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
-          {server.services.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-border/60 p-10 text-center text-sm text-muted-foreground">
+          {!showServicesSkeleton && server.services.length > 0 && (
+            <>
+              <div className="hidden lg:block border border-border/60 bg-background/90">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1120px] table-fixed text-sm">
+                    <colgroup>
+                      <col className="w-[56px]" />
+                      <col className="w-[260px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[100px]" />
+                    </colgroup>
+                    <thead className="bg-muted/40 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      <tr className="border-b border-border/60">
+                        <th className="border-l border-border/60 px-3 py-3 text-center font-semibold first:border-l-0">
+                          <span className="sr-only">Status</span>
+                        </th>
+                        <th className="border-l border-border/60 px-4 py-3 text-left font-semibold">Service</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">CPU</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Memory</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Net I/O</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">
+                          Storage I/O
+                        </th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Manage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {server.services.map((service) => {
+                        const container = getContainerForService(service, dockerStatus?.containers)
+                        const state = container?.state?.trim()
+                        const health = container?.health?.trim()
+                        const cpuPercent = container ? getContainerCpuPercent(container) : null
+                        const cpuBarPercent =
+                          cpuPercent !== null && cpuPercent > 0 && cpuPercent < 1 ? 1 : cpuPercent
+                        const memPercent = container ? getContainerMemPercent(container.mem) : null
+                        const netTotal = getTransferTotal(container?.net)
+                        const { read: blockRead, write: blockWrite } = getBlockReadWrite(container?.block)
+                        const netBarPercent = getRelativePercent(netTotal, trafficMax.maxNet)
+                        const blockSplit = getSplitPercents(blockRead, blockWrite)
+                        const statusSummary = getServiceStatusSummary(state, health)
+                        const statusStyles = SERVICE_STATUS_STYLES[statusSummary.tone]
+                        const containerMeta = getContainerMeta(container)
+                        return (
+                          <tr
+                            key={service.serviceName || service.name}
+                            className="group align-top transition-colors hover:bg-muted/30"
+                          >
+                            <td className="border-l border-border/60 px-3 py-4 align-top text-center first:border-l-0">
+                              <div className="relative flex h-6 items-center justify-center">
+                                <span className={cn('h-2.5 w-2.5 rounded-full', statusStyles.dot)} />
+                                <span className="sr-only">{statusSummary.label}</span>
+                              </div>
+                            </td>
+                            <td className="border-l border-border/60 px-4 py-4 align-top">
+                              <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">{service.name}</h3>
+                                <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                                  {service.serviceName || '—'}
+                                </p>
+                                {containerMeta.length > 0 && (
+                                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground leading-tight">
+                                    {containerMeta.map((entry) => (
+                                      <span key={entry}>{entry}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-sm font-medium font-mono tabular-nums">
+                                  {container ? formatContainerCpu(container) : '—'}
+                                </span>
+                                {renderFlatBar(cpuBarPercent, getUsageTone(cpuBarPercent))}
+                              </div>
+                            </td>
+                            <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[11px] font-semibold font-mono tabular-nums whitespace-nowrap leading-tight">
+                                  {container ? formatContainerMemPair(container.mem) : '—'}
+                                </span>
+                                {renderFlatBar(memPercent, getUsageTone(memPercent))}
+                                <span className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap">
+                                  {memPercent !== null ? formatPercentShort(memPercent) : '—'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[11px] font-semibold font-mono tabular-nums whitespace-nowrap leading-tight">
+                                  {container ? formatContainerNet(container.net) : '—'}
+                                </span>
+                                {renderFlatBar(netBarPercent, 'bg-sky-500/70')}
+                                {netBarPercent !== null && (
+                                  <span className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap">
+                                    {formatPercentShort(netBarPercent)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[11px] font-semibold font-mono tabular-nums whitespace-nowrap leading-tight">
+                                  {blockRead !== null || blockWrite !== null
+                                    ? `R ${formatBytes(blockRead ?? undefined)} / W ${formatBytes(blockWrite ?? undefined)}`
+                                    : '—'}
+                                </span>
+                                {renderSplitBar(blockSplit.read, blockSplit.write)}
+                              </div>
+                            </td>
+                            <td className="border-l border-border/60 px-4 py-4 align-top text-right">
+                              <div className="flex justify-end">{renderServiceActionsMenu(service, { compact: true })}</div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="grid gap-3 lg:hidden">
+                {server.services.map((service) => {
+                  const container = getContainerForService(service, dockerStatus?.containers)
+                  const state = container?.state?.trim()
+                  const health = container?.health?.trim()
+                  const cpuPercent = container ? getContainerCpuPercent(container) : null
+                  const cpuBarPercent =
+                    cpuPercent !== null && cpuPercent > 0 && cpuPercent < 1 ? 1 : cpuPercent
+                  const memPercent = container ? getContainerMemPercent(container.mem) : null
+                  const netTotal = getTransferTotal(container?.net)
+                  const { read: blockRead, write: blockWrite } = getBlockReadWrite(container?.block)
+                  const netBarPercent = getRelativePercent(netTotal, trafficMax.maxNet)
+                  const blockSplit = getSplitPercents(blockRead, blockWrite)
+                  const statusSummary = getServiceStatusSummary(state, health)
+                  const statusStyles = SERVICE_STATUS_STYLES[statusSummary.tone]
+                  const containerMeta = getContainerMeta(container)
+                  return (
+                    <div
+                      key={service.serviceName || service.name}
+                      className="border border-border/60 bg-background/90 p-4 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold">{service.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                            {service.serviceName || '—'}
+                          </p>
+                          {containerMeta.length > 0 && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground leading-tight">
+                              {containerMeta.map((entry) => (
+                                <span key={entry}>{entry}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em]">
+                          <span className={cn('h-2 w-2 rounded-full', statusStyles.dot)} />
+                          <span className={cn('font-semibold', statusStyles.text)}>
+                            {statusSummary.label}
+                          </span>
+                        </div>
+                      </div>
+                      {!container && <p className="text-xs text-muted-foreground">No container data.</p>}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">CPU</p>
+                          <p className="text-sm font-medium font-mono tabular-nums">
+                            {container ? formatContainerCpu(container) : '—'}
+                          </p>
+                          {renderFlatBar(cpuBarPercent, getUsageTone(cpuBarPercent))}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
+                          <p className="text-[11px] font-semibold font-mono tabular-nums whitespace-nowrap leading-tight">
+                            {container ? formatContainerMemPair(container.mem) : '—'}
+                          </p>
+                          {renderFlatBar(memPercent, getUsageTone(memPercent))}
+                          <p className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap">
+                            {memPercent !== null ? formatPercentShort(memPercent) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span className="uppercase tracking-[0.2em]">Net I/O</span>
+                          <span className="text-[11px] font-mono tabular-nums whitespace-nowrap leading-tight">
+                            {container ? formatContainerNet(container.net) : '—'}
+                          </span>
+                        </div>
+                        {renderFlatBar(netBarPercent, 'bg-sky-500/70')}
+                        {netBarPercent !== null && (
+                          <span className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap">
+                            {formatPercentShort(netBarPercent)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span className="uppercase tracking-[0.2em]">Storage I/O</span>
+                          <span className="text-[11px] font-mono tabular-nums whitespace-nowrap leading-tight">
+                            {blockRead !== null || blockWrite !== null
+                              ? `R ${formatBytes(blockRead ?? undefined)} / W ${formatBytes(blockWrite ?? undefined)}`
+                              : '—'}
+                          </span>
+                        </div>
+                        {renderSplitBar(blockSplit.read, blockSplit.write)}
+                      </div>
+                      <div className="flex justify-end">{renderServiceActionsMenu(service)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {!showServicesSkeleton && server.services.length === 0 && (
+            <div className="border border-dashed border-border/60 p-10 text-center text-sm text-muted-foreground">
               No services configured yet.
             </div>
           )}

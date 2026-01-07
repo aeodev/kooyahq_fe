@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useUsers } from '@/hooks/user.hooks'
 import { useMeetInvitations } from '@/composables/meet/useMeetInvitations'
 import { useAuthStore } from '@/stores/auth.store'
+import { getInitialsFallback } from '@/utils/image.utils'
 import {
   Dialog,
   DialogContent,
@@ -105,6 +106,11 @@ export function InviteMemberButton({ meetId, className }: InviteMemberButtonProp
                       src={user.profilePic}
                       alt={user.name || 'User'}
                       className="h-10 w-10 rounded-full"
+                      onError={(e) => {
+                        const target = e.currentTarget
+                        target.onerror = null
+                        target.src = getInitialsFallback(user.name || user.email || 'U')
+                      }}
                     />
                   ) : (
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -131,4 +137,3 @@ export function InviteMemberButton({ meetId, className }: InviteMemberButtonProp
     </>
   )
 }
-
