@@ -9,5 +9,17 @@ export function formatTimeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
+const readableDateFormatter = new Intl.DateTimeFormat(undefined, {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+})
+
+export function formatReadableDate(date: Date | string | number | null | undefined): string {
+  if (!date) return ''
+  const value = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(value.getTime())) return ''
+  return readableDateFormatter.format(value)
+}
 
 

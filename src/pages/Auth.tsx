@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { useTheme } from '@/composables/useTheme'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function Auth() {
   const navigate = useNavigate()
   const loginWithGoogle = useAuthStore((state) => state.loginWithGoogle)
+  const { isDark } = useTheme()
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -39,50 +41,68 @@ export function Auth() {
 
   return (
     <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 py-12">
-      <div className="mx-auto w-full max-w-md">
-        <Card className="border border-border/80 bg-card/95 shadow-[0_10px_28px_rgba(0,0,0,0.22)]">
-          <CardHeader className="space-y-2 pb-4">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sign in</p>
-              <div className="text-2xl font-semibold leading-tight text-foreground">Welcome to KooyaHQ</div>
+      <div className="mx-auto w-full max-w-[420px]">
+        <Card className="border border-border/80 bg-card/95 text-card-foreground shadow-[0_12px_30px_rgba(0,0,0,0.12)] transition-none hover:shadow-[0_12px_30px_rgba(0,0,0,0.16)] dark:shadow-[0_12px_30px_rgba(0,0,0,0.5)] dark:hover:shadow-[0_12px_30px_rgba(0,0,0,0.65)]">
+          <CardContent className="space-y-7 p-8">
+            <div className="space-y-4">
+              <div className="flex justify-center sm:justify-start">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-background text-lg font-semibold text-primary font-[Poppins]">
+                  K
+                </div>
+              </div>
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="text-2xl font-semibold tracking-tight text-foreground">
+                  Log in to KooyaHQ
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Sign in with Google to continue to KooyaHQ.
+                </p>
+              </div>
             </div>
-          </CardHeader>
 
-          <CardContent className="space-y-5 pb-7">
-            {clientId ? (
-              <div
-                className={`rounded-2xl border border-border/70 bg-background/85 px-4 py-5 ${
-                  isSubmitting ? 'pointer-events-none opacity-70' : ''
-                }`}
-              >
-                <div className="flex justify-center">
+            <div className="space-y-3">
+              {clientId ? (
+                <div className={`flex justify-center ${isSubmitting ? 'pointer-events-none opacity-70' : ''}`}>
                   <GoogleLogin
                     onSuccess={handleSuccess}
                     onError={handleError}
                     shape="pill"
                     text="continue_with"
                     size="large"
+                    theme={isDark ? 'filled_black' : 'outline'}
                     width="340"
                   />
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                Google client ID missing. Set <code>VITE_GOOGLE_CLIENT_ID</code> to enable sign in.
-              </div>
-            )}
+              ) : (
+                <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  Google client ID missing. Set <code>VITE_GOOGLE_CLIENT_ID</code> to enable sign in.
+                </div>
+              )}
 
-            {error && (
-              <div className="rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-sm font-semibold text-destructive shadow-sm">
-                {error}
-              </div>
-            )}
+              {error && (
+                <div className="rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-sm font-semibold text-destructive">
+                  {error}
+                </div>
+              )}
 
-            <p className="text-xs text-muted-foreground text-center">
-              Your Google name and photo sync on each login.
-            </p>
+              <p className="text-xs text-center text-muted-foreground">
+                Secure connection via Google Auth.
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          By clicking continue, you agree to our{' '}
+          <a className="text-primary underline-offset-4 hover:underline" href="/terms">
+            Terms of Service
+          </a>{' '}
+          and{' '}
+          <a className="text-primary underline-offset-4 hover:underline" href="/privacy">
+            Privacy Policy
+          </a>
+          .
+        </div>
       </div>
     </div>
   )

@@ -29,10 +29,14 @@ const GLOBAL_WORKSPACE_ID = 'global' as const
 import {
   Search,
   ChevronDown,
+  ChevronUp,
   Settings2,
   User,
   CheckSquare,
   ChevronRight,
+  ChevronsUp,
+  ChevronsDown,
+  Minus,
   Plus,
   Bug,
   Bookmark,
@@ -83,6 +87,9 @@ import { ConfigureBoardModal } from './ConfigureBoardModal'
 import { TaskDetailModal } from './TaskDetailModal'
 import { CreateTaskModal } from './CreateTaskModal'
 import { FilterDropdown } from './FilterDropdown'
+import { AssigneeAvatar } from './AssigneeAvatar'
+import { TimelineView, type TimelineZoom } from './TimelineView'
+import { formatInputDate, parseInputDate } from './timeline.utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS } from '@/constants/permissions'
@@ -288,28 +295,23 @@ export function getPriorityIcon(priority: Priority) {
     low: 'text-blue-500',
     lowest: 'text-blue-400',
   }
-  
-  if (priority === 'highest') {
-    return (
-      <div className="flex">
-        <ChevronRight className={cn('h-3.5 w-3.5 -mr-2 rotate-[-90deg]', colors[priority])} />
-        <ChevronRight className={cn('h-3.5 w-3.5 rotate-[-90deg]', colors[priority])} />
-      </div>
-    )
+
+  const baseClass = cn('h-3.5 w-3.5', colors[priority])
+
+  switch (priority) {
+    case 'highest':
+      return <ChevronsUp className={baseClass} />
+    case 'high':
+      return <ChevronUp className={baseClass} />
+    case 'medium':
+      return <Minus className={baseClass} />
+    case 'low':
+      return <ChevronDown className={baseClass} />
+    case 'lowest':
+      return <ChevronsDown className={baseClass} />
+    default:
+      return <Minus className={baseClass} />
   }
-  
-  return (
-    <ChevronRight
-      className={cn(
-        'h-3.5 w-3.5',
-        colors[priority],
-        priority === 'high' && 'rotate-[-90deg]',
-        priority === 'medium' && 'rotate-0',
-        priority === 'low' && 'rotate-[90deg]',
-        priority === 'lowest' && 'rotate-[90deg]'
-      )}
-    />
-  )
 }
 
 export function getPriorityLabel(priority: Priority) {
@@ -360,6 +362,7 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'assignee', label: 'Assignee' },
   { value: 'type', label: 'Type' },
+  { value: 'tags', label: 'Tags' },
   { value: 'subtask', label: 'Subtask' },
   { value: 'epic', label: 'Epic' },
   { value: 'story', label: 'Story' },
@@ -404,6 +407,10 @@ export function BoardView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
+  const [timelineZoom, setTimelineZoom] = useState<TimelineZoom>('month')
+  const [timelineRangeStart, setTimelineRangeStart] = useState<Date | null>(null)
+  const [timelineRangeEnd, setTimelineRangeEnd] = useState<Date | null>(null)
+  const [timelineRangeLocked, setTimelineRangeLocked] = useState(false)
   const [configureModalOpen, setConfigureModalOpen] = useState(false)
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false)
   const [createTaskColumnId, setCreateTaskColumnId] = useState<string | null>(null)
@@ -479,7 +486,8 @@ export function BoardView() {
   const canTicketCreate =
     hasBoardFullAccess || boardRole === 'owner' || boardRole === 'admin' || boardRole === 'member'
   const canTicketRank = canTicketCreate
-  const showBoardControls = activeTab !== 'summary' && activeTab !== 'timeline' && activeTab !== 'development'
+  const showBoardControls = activeTab === 'board' || activeTab === 'list' || activeTab === 'archived'
+  const showTimelineControls = activeTab === 'timeline'
   const [isLoading, setIsLoading] = useState(true)
   const [boardError, setBoardError] = useState<{ statusCode?: number; message: string } | null>(null)
   const [apiTickets, setApiTickets] = useState<Ticket[]>([])
@@ -819,22 +827,6 @@ export function BoardView() {
     }
   }, [apiBoard?.id]) // Only depend on board ID, not the entire board object
 
-  // Handle URL-based task selection
-  useEffect(() => {
-    const taskKey = searchParams.get('selectedTask')
-    if (taskKey && columns.length > 0) {
-      for (const column of columns) {
-        const task = column.tasks.find((t) => t.key === taskKey)
-        if (task) {
-          setSelectedTask(task)
-          break
-        }
-      }
-    } else if (!taskKey) {
-      setSelectedTask(null)
-    }
-  }, [searchParams, columns])
-
   // Helper to get user initials
   const getUserInitials = (name: string): string => {
     return name
@@ -861,6 +853,8 @@ export function BoardView() {
       }
     })
   }, [apiUsers])
+
+  const assigneesForDisplay = assigneesFromApi.length > 0 ? assigneesFromApi : MOCK_ASSIGNEES
 
   const columnNameById = useMemo(() => {
     return columns.reduce<Record<string, string>>((acc, column) => {
@@ -945,6 +939,21 @@ export function BoardView() {
       buildTaskFromTicket(ticket, columnNameById[ticket.columnId] || 'Unknown')
     )
   }, [archivedTickets, buildTaskFromTicket, columnNameById])
+
+  // Handle URL-based task selection
+  useEffect(() => {
+    const taskKey = searchParams.get('selectedTask')
+    if (!taskKey) {
+      setSelectedTask(null)
+      return
+    }
+
+    const activeTask = allTasks.find((task) => task.key === taskKey)
+    const archivedTask = archivedTasksFromTickets.find((task) => task.key === taskKey)
+    const nextTask = activeTask || archivedTask || null
+
+    setSelectedTask(nextTask)
+  }, [searchParams, allTasks, archivedTasksFromTickets])
 
   // Distribute tickets to columns based on columnId
   useEffect(() => {
@@ -1035,6 +1044,11 @@ export function BoardView() {
       tasks: column.tasks.filter(passesTaskFilters),
     }))
   }, [columns, passesTaskFilters])
+
+  const timelineTasks = useMemo(() => {
+    if (allTasksFromTickets.length === 0) return []
+    return allTasksFromTickets.filter(passesTaskFilters)
+  }, [allTasksFromTickets, passesTaskFilters])
 
   const filteredArchivedTasks = useMemo(() => {
     return archivedTasksFromTickets.filter(passesTaskFilters)
@@ -1254,6 +1268,70 @@ export function BoardView() {
       return { '': filteredColumns }
     }
 
+    if (groupBy === 'tags') {
+      const groups: Record<string, Column[]> = {}
+      const tagSet = new Set<string>()
+
+      filteredColumns.forEach((column) => {
+        column.tasks.forEach((task) => {
+          if (task.labels.length === 0) {
+            tagSet.add('No Tags')
+            return
+          }
+          task.labels.forEach((label) => {
+            const trimmed = label.trim()
+            if (trimmed) {
+              tagSet.add(trimmed)
+            }
+          })
+        })
+      })
+
+      const orderedTags = Array.from(tagSet).sort((a, b) => {
+        if (a === 'No Tags') return 1
+        if (b === 'No Tags') return -1
+        return a.localeCompare(b)
+      })
+
+      const columnIndexById = new Map<string, number>()
+      filteredColumns.forEach((column, index) => {
+        columnIndexById.set(column.id, index)
+      })
+
+      orderedTags.forEach((tag) => {
+        groups[tag] = filteredColumns.map((column) => ({
+          ...column,
+          tasks: [],
+        }))
+      })
+
+      filteredColumns.forEach((column) => {
+        const columnIndex = columnIndexById.get(column.id)
+        if (columnIndex === undefined) return
+
+        column.tasks.forEach((task) => {
+          const taskTags =
+            task.labels.length === 0
+              ? ['No Tags']
+              : Array.from(
+                  new Set(
+                    task.labels
+                      .map((label) => label.trim())
+                      .filter((label) => label.length > 0)
+                  )
+                )
+
+          taskTags.forEach((tag) => {
+            const groupColumns = groups[tag]
+            if (!groupColumns) return
+            groupColumns[columnIndex].tasks.push(task)
+          })
+        })
+      })
+
+      return groups
+    }
+
     const groups: Record<string, Column[]> = {}
     const groupValues = new Set<string>()
     
@@ -1283,7 +1361,9 @@ export function BoardView() {
       })
     })
 
-    groupValues.forEach((groupValue) => {
+    const orderedGroupValues = Array.from(groupValues)
+
+    orderedGroupValues.forEach((groupValue) => {
       groups[groupValue] = filteredColumns.map((column) => ({
         ...column,
         tasks: column.tasks.filter((task) => {
@@ -1359,26 +1439,57 @@ export function BoardView() {
   }
 
   const handleTaskClick = (task: Task) => {
-    setSelectedTask(task)
     setSearchParams({ selectedTask: task.key })
   }
 
   const handleNavigateToTask = (taskKey: string) => {
-    // Find the task by key in all columns
-    for (const column of columns) {
-      const task = column.tasks.find((t) => t.key === taskKey)
-      if (task) {
-        setSelectedTask(task)
-        setSearchParams({ selectedTask: taskKey })
-        break
-      }
-    }
+    setSearchParams({ selectedTask: taskKey })
   }
 
   const handleCloseTaskModal = () => {
-    setSelectedTask(null)
     setSearchParams({})
   }
+
+  const handleFilterByTag = (tag: string) => {
+    setSelectedFilters((prev) => ({
+      ...prev,
+      labels: [tag],
+    }))
+  }
+
+  const handleTimelineRangeStartChange = (value: string) => {
+    const next = parseInputDate(value)
+    if (!next) return
+    setTimelineRangeLocked(true)
+    setTimelineRangeStart(next)
+    if (timelineRangeEnd && next > timelineRangeEnd) {
+      setTimelineRangeEnd(next)
+    }
+  }
+
+  const handleTimelineRangeEndChange = (value: string) => {
+    const next = parseInputDate(value)
+    if (!next) return
+    setTimelineRangeLocked(true)
+    setTimelineRangeEnd(next)
+    if (timelineRangeStart && next < timelineRangeStart) {
+      setTimelineRangeStart(next)
+    }
+  }
+
+  const refreshBoardTickets = useCallback(() => {
+    if (!apiBoard || !isApiBoardType(apiBoard)) return
+    axiosInstance
+      .get<{ success: boolean; data: Ticket[] }>(GET_TICKETS_BY_BOARD(apiBoard.id))
+      .then((response) => {
+        if (response.data.success && response.data.data) {
+          setApiTickets(response.data.data)
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching tickets:', error)
+      })
+  }, [apiBoard])
 
   const handleUpdateTask = (updatedTask: Task) => {
     // Find the old task to check if status changed
@@ -1618,7 +1729,6 @@ export function BoardView() {
       }))
     )
     if (selectedTask?.id === ticketId) {
-      setSelectedTask(null)
       setSearchParams({})
     }
 
@@ -1629,7 +1739,6 @@ export function BoardView() {
         setArchivedTickets(previousArchived)
         setColumns(previousColumns)
         if (previousSelectedTask) {
-          setSelectedTask(previousSelectedTask)
           setSearchParams({ selectedTask: previousSelectedTask.key })
         }
         toast.error('Failed to delete ticket')
@@ -1640,7 +1749,6 @@ export function BoardView() {
       setArchivedTickets(previousArchived)
       setColumns(previousColumns)
       if (previousSelectedTask) {
-        setSelectedTask(previousSelectedTask)
         setSearchParams({ selectedTask: previousSelectedTask.key })
       }
       toast.error('Failed to delete ticket')
@@ -1730,6 +1838,51 @@ export function BoardView() {
       )
     }
   }
+
+  const handleUpdateTicketDates = useCallback(
+    async (
+      ticketId: string,
+      updates: { startDate?: Date | null; endDate?: Date | null; dueDate?: Date | null }
+    ) => {
+      if (!canTicketCreate) return
+      const ticket = apiTickets.find((t) => t.id === ticketId)
+      if (!ticket) return
+
+      const nextTicket = { ...ticket }
+      if (updates.startDate !== undefined) {
+        nextTicket.startDate = updates.startDate ? updates.startDate.toISOString() : undefined
+      }
+      if (updates.endDate !== undefined) {
+        nextTicket.endDate = updates.endDate ? updates.endDate.toISOString() : undefined
+      }
+      if (updates.dueDate !== undefined) {
+        nextTicket.dueDate = updates.dueDate ? updates.dueDate.toISOString() : undefined
+      }
+
+      setApiTickets((prev) => prev.map((t) => (t.id === ticketId ? nextTicket : t)))
+
+      const payload: { startDate?: string | null; endDate?: string | null; dueDate?: string | null } = {}
+      if (updates.startDate !== undefined) {
+        payload.startDate = updates.startDate ? updates.startDate.toISOString() : null
+      }
+      if (updates.endDate !== undefined) {
+        payload.endDate = updates.endDate ? updates.endDate.toISOString() : null
+      }
+      if (updates.dueDate !== undefined) {
+        payload.dueDate = updates.dueDate ? updates.dueDate.toISOString() : null
+      }
+
+      const updated = await updateTicketAPI(ticketId, payload)
+      if (!updated) {
+        setApiTickets((prev) => prev.map((t) => (t.id === ticketId ? ticket : t)))
+        toast.error('Failed to update ticket dates')
+        return
+      }
+
+      setApiTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)))
+    },
+    [apiTickets, canTicketCreate, updateTicketAPI]
+  )
 
   // Copy link to clipboard
   const handleCopyLink = async () => {
@@ -2300,18 +2453,14 @@ export function BoardView() {
                     <div className="flex -space-x-1">
                       {selectedUsers.length > 0 ? (
                         selectedUsers.slice(0, 3).map((userId) => {
-                          const user = MOCK_ASSIGNEES.find((a) => a.id === userId)
+                          const user = assigneesForDisplay.find((a) => a.id === userId)
                           return user ? (
-                            <div
+                            <AssigneeAvatar
                               key={user.id}
-                              className={cn(
-                                'h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white ring-2 ring-background',
-                                user.color
-                              )}
-                              title={user.name}
-                            >
-                              {user.initials}
-                            </div>
+                              assignee={user}
+                              size="xs"
+                              className="ring-2 ring-background"
+                            />
                           ) : null
                         })
                       ) : (
@@ -2324,21 +2473,14 @@ export function BoardView() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-52">
-                  {MOCK_ASSIGNEES.map((user) => (
+                  {assigneesForDisplay.map((user) => (
                     <DropdownMenuItem
                       key={user.id}
                       onClick={() => toggleUserFilter(user.id)}
                       className="cursor-pointer"
                     >
                       <div className="flex items-center gap-2 flex-1">
-                        <div
-                          className={cn(
-                            'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
-                            user.color
-                          )}
-                        >
-                          {user.initials}
-                        </div>
+                        <AssigneeAvatar assignee={user} size="sm" />
                         <span>{user.name}</span>
                       </div>
                       {selectedUsers.includes(user.id) && (
@@ -2363,7 +2505,7 @@ export function BoardView() {
               {/* Filters dropdown */}
               <FilterDropdown
                 tasks={allTasks}
-                assignees={assigneesFromApi.length > 0 ? assigneesFromApi : MOCK_ASSIGNEES}
+                assignees={assigneesForDisplay}
                 selectedFilters={selectedFilters}
                 onFiltersChange={(filters) => {
                   setSelectedFilters(filters)
@@ -2448,6 +2590,105 @@ export function BoardView() {
                 <span className="hidden sm:inline">Create</span>
               </Button>
               
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 px-2 sm:px-3"
+                onClick={() => setConfigureModalOpen(true)}
+                disabled={!canBoardUpdate}
+                title="Settings"
+                aria-label="Settings"
+              >
+                <Settings2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Settings</span>
+              </Button>
+            </div>
+          </div>
+        ) : showTimelineControls ? (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-56">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search timeline"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-9 pl-8"
+                  aria-label="Search timeline"
+                />
+              </div>
+              <select
+                value={timelineZoom}
+                onChange={(event) => setTimelineZoom(event.target.value as TimelineZoom)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                aria-label="Zoom"
+              >
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="quarter">Quarter</option>
+              </select>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={timelineRangeStart ? formatInputDate(timelineRangeStart) : ''}
+                  onChange={(event) => handleTimelineRangeStartChange(event.target.value)}
+                  className="h-9 w-[140px]"
+                  aria-label="Start date"
+                  disabled={!canTicketCreate}
+                />
+                <span className="text-xs text-muted-foreground">to</span>
+                <Input
+                  type="date"
+                  value={timelineRangeEnd ? formatInputDate(timelineRangeEnd) : ''}
+                  onChange={(event) => handleTimelineRangeEndChange(event.target.value)}
+                  className="h-9 w-[140px]"
+                  aria-label="End date"
+                  disabled={!canTicketCreate}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <FilterDropdown
+                tasks={allTasks}
+                assignees={assigneesForDisplay}
+                selectedFilters={selectedFilters}
+                onFiltersChange={(filters) => {
+                  setSelectedFilters(filters)
+                  setSelectedUsers(filters.assignee)
+                }}
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'h-9 gap-1.5 px-2 sm:px-3',
+                    (selectedFilters.type.length > 0 ||
+                      selectedFilters.assignee.length > 0 ||
+                      selectedFilters.labels.length > 0 ||
+                      selectedFilters.status.length > 0 ||
+                      selectedFilters.priority.length > 0) &&
+                      'bg-primary/10 border-primary'
+                  )}
+                  title="Filters"
+                  aria-label="Filters"
+                >
+                  <Filter className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filters</span>
+                  {(selectedFilters.type.length > 0 ||
+                    selectedFilters.assignee.length > 0 ||
+                    selectedFilters.labels.length > 0 ||
+                    selectedFilters.status.length > 0 ||
+                    selectedFilters.priority.length > 0) && (
+                    <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
+                      {selectedFilters.type.length +
+                        selectedFilters.assignee.length +
+                        selectedFilters.labels.length +
+                        selectedFilters.status.length +
+                        selectedFilters.priority.length}
+                    </span>
+                  )}
+                </Button>
+              </FilterDropdown>
               <Button
                 variant="outline"
                 size="sm"
@@ -2889,15 +3130,11 @@ export function BoardView() {
                                       className="flex-shrink-0"
                                     >
                                       {task.assignee ? (
-                                        <div
-                                          className={cn(
-                                            'h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all',
-                                            task.assignee.color
-                                          )}
-                                          title={task.assignee.name}
-                                        >
-                                          {task.assignee.initials}
-                                        </div>
+                                        <AssigneeAvatar
+                                          assignee={task.assignee}
+                                          size="xs"
+                                          className="cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                                        />
                                       ) : (
                                         <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
                                           <User className="h-3 w-3 text-muted-foreground" />
@@ -2918,15 +3155,7 @@ export function BoardView() {
                                       Unassigned
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    {(assigneesFromApi.length > 0
-                                      ? assigneesFromApi.map((u) => ({
-                                          id: u.id,
-                                          name: u.name,
-                                          initials: u.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase(),
-                                          color: MOCK_ASSIGNEES.find((m) => m.id === u.id)?.color || 'bg-blue-500',
-                                        }))
-                                      : MOCK_ASSIGNEES
-                                    ).map((assignee) => (
+                                    {assigneesForDisplay.map((assignee) => (
                                       <DropdownMenuItem
                                         key={assignee.id}
                                         onClick={(e) => {
@@ -2939,14 +3168,7 @@ export function BoardView() {
                                         className="cursor-pointer"
                                       >
                                         <div className="flex items-center gap-2">
-                                          <div
-                                            className={cn(
-                                              'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
-                                              assignee.color
-                                            )}
-                                          >
-                                            {assignee.initials}
-                                          </div>
+                                          <AssigneeAvatar assignee={assignee} size="sm" />
                                           <span>{assignee.name}</span>
                                         </div>
                                       </DropdownMenuItem>
@@ -3087,15 +3309,7 @@ export function BoardView() {
                       <td className="px-4 py-3">
                         {task.assignee ? (
                           <div className="flex items-center gap-2">
-                            <div
-                              className={cn(
-                                'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
-                                task.assignee.color
-                              )}
-                              title={task.assignee.name}
-                            >
-                              {task.assignee.initials}
-                            </div>
+                            <AssigneeAvatar assignee={task.assignee} size="sm" />
                             <span className="text-sm text-muted-foreground">
                               {task.assignee.name}
                             </span>
@@ -3123,15 +3337,22 @@ export function BoardView() {
       )}
 
       {activeTab === 'timeline' && (
-        <div className="flex flex-col items-center justify-center py-20 px-4">
-          <div className="text-center max-w-md">
-            <div className="text-6xl mb-4">📅</div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">Coming Soon</h3>
-            <p className="text-muted-foreground">
-              The timeline view is under development and will be available soon.
-            </p>
-          </div>
-        </div>
+        <TimelineView
+          tasks={timelineTasks}
+          allTasks={allTasks}
+          columns={columns}
+          searchQuery={searchQuery}
+          selectedFilters={selectedFilters}
+          onTaskClick={handleTaskClick}
+          onUpdateTaskDates={handleUpdateTicketDates}
+          canEdit={false}
+          zoom={timelineZoom}
+          rangeStart={timelineRangeStart}
+          rangeEnd={timelineRangeEnd}
+          rangeLocked={timelineRangeLocked}
+          onRangeStartChange={setTimelineRangeStart}
+          onRangeEndChange={setTimelineRangeEnd}
+        />
       )}
 
       {activeTab === 'development' && (
@@ -3403,15 +3624,7 @@ export function BoardView() {
                       <td className="px-4 py-3">
                         {task.assignee ? (
                           <div className="flex items-center gap-2">
-                            <div
-                              className={cn(
-                                'h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium text-white',
-                                task.assignee.color
-                              )}
-                              title={task.assignee.name}
-                            >
-                              {task.assignee.initials}
-                            </div>
+                            <AssigneeAvatar assignee={task.assignee} size="sm" />
                             <span className="text-sm text-muted-foreground">
                               {task.assignee.name}
                             </span>
@@ -3477,6 +3690,8 @@ export function BoardView() {
           onNavigateToTask={handleNavigateToTask}
           canEdit={canTicketCreate}
           canComment={canTicketCreate}
+          onRefreshBoardTickets={refreshBoardTickets}
+          onFilterByTag={handleFilterByTag}
         />
       )}
 
@@ -3488,23 +3703,10 @@ export function BoardView() {
           columns={columns}
           selectedColumnId={createTaskColumnId}
           boardId={apiBoard.id}
-          assignees={assigneesFromApi.length > 0 ? assigneesFromApi : MOCK_ASSIGNEES}
+          assignees={assigneesForDisplay}
           canCreate={canTicketCreate}
           canRead={hasBoardFullAccess || boardRole !== 'none'}
-          onSuccess={() => {
-            // Refetch tickets after creation
-            if (apiBoard && isApiBoardType(apiBoard)) {
-              axiosInstance.get<{ success: boolean; data: Ticket[] }>(
-                GET_TICKETS_BY_BOARD(apiBoard.id)
-              ).then((response) => {
-                if (response.data.success && response.data.data) {
-                  setApiTickets(response.data.data)
-                }
-              }).catch((error) => {
-                console.error('Error fetching tickets:', error)
-              })
-            }
-          }}
+          onSuccess={refreshBoardTickets}
         />
       )}
     </section>

@@ -8,6 +8,7 @@ import { CommentSection } from '@/components/posts/CommentSection'
 import { PostReactions } from '@/components/posts/PostReactions'
 import { Camera, Loader2, Image as ImageIcon, X, Edit2, Trash2 } from 'lucide-react'
 import { useProfile, useUserProfile, useProfilePosts } from '@/hooks/profile.hooks'
+import { DEFAULT_IMAGE_FALLBACK, getInitialsFallback } from '@/utils/image.utils'
 import type { Post } from '@/types/post'
 
 export function Profile() {
@@ -278,7 +279,9 @@ export function Profile() {
               alt="Banner"
               className="w-full h-full object-cover cursor-pointer"
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none'
+                const target = e.currentTarget
+                target.onerror = null
+                target.src = DEFAULT_IMAGE_FALLBACK
               }}
               onClick={() => handleImageClick(profileData.banner!)}
             />
@@ -425,7 +428,9 @@ export function Profile() {
                 alt={user.name}
                 className="h-12 w-12 rounded-2xl object-cover flex-shrink-0 ring-2 ring-border/50"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none'
+                  const target = e.currentTarget
+                  target.onerror = null
+                  target.src = getInitialsFallback(user.name)
                 }}
               />
             ) : (
@@ -455,6 +460,11 @@ export function Profile() {
                     src={postImagePreview}
                     alt="Preview"
                     className="w-full max-h-96 object-cover"
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      target.onerror = null
+                      target.src = DEFAULT_IMAGE_FALLBACK
+                    }}
                   />
                 </div>
               )}
@@ -538,7 +548,9 @@ export function Profile() {
                       alt={post.author.name}
                       className="h-12 w-12 rounded-2xl object-cover flex-shrink-0 ring-2 ring-border/50"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none'
+                        const target = e.currentTarget
+                        target.onerror = null
+                        target.src = getInitialsFallback(post.author.name)
                       }}
                     />
                   ) : (
@@ -607,7 +619,9 @@ export function Profile() {
                         alt="Post"
                         className="w-full max-h-[500px] object-cover"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none'
+                          const target = e.currentTarget
+                          target.onerror = null
+                          target.src = DEFAULT_IMAGE_FALLBACK
                         }}
                       />
                     </div>
@@ -670,6 +684,11 @@ export function Profile() {
               src={fullImageUrl}
               alt="Full size"
               className="w-full h-auto max-h-[90vh] object-contain rounded-lg"
+              onError={(e) => {
+                const target = e.currentTarget
+                target.onerror = null
+                target.src = DEFAULT_IMAGE_FALLBACK
+              }}
             />
           </div>
         </Modal>

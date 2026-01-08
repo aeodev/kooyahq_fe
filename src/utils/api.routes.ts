@@ -152,7 +152,24 @@ export const TOGGLE_POST_REACTION = (postId: string) => `/posts/${postId}/reacti
 export const DELETE_POST_REACTION = (reactionId: string) => `/posts/reactions/${reactionId}`
 
 // Notifications routes
-export const GET_NOTIFICATIONS = (unreadOnly?: boolean) => `/notifications${unreadOnly ? '?unreadOnly=true' : ''}`
+type NotificationQueryParams = {
+  unreadOnly?: boolean
+  page?: number
+  limit?: number
+}
+
+export const GET_NOTIFICATIONS = (options?: boolean | NotificationQueryParams) => {
+  if (typeof options === 'boolean') {
+    return `/notifications${options ? '?unreadOnly=true' : ''}`
+  }
+
+  const params = new URLSearchParams()
+  if (options?.unreadOnly) params.set('unreadOnly', 'true')
+  if (typeof options?.page === 'number') params.set('page', String(options.page))
+  if (typeof options?.limit === 'number') params.set('limit', String(options.limit))
+  const query = params.toString()
+  return `/notifications${query ? `?${query}` : ''}`
+}
 export const GET_UNREAD_COUNT = () => `/notifications/unread-count`
 export const MARK_NOTIFICATION_READ = (id: string) => `/notifications/${id}/read`
 export const MARK_ALL_NOTIFICATIONS_READ = () => `/notifications/read-all`

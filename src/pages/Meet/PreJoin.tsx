@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Video, VideoOff, Mic, MicOff, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS } from '@/constants/permissions'
+import { getInitialsFallback } from '@/utils/image.utils'
 
 export function PreJoin() {
   const { meetId } = useParams<{ meetId: string }>()
@@ -163,6 +164,11 @@ export function PreJoin() {
                     src={user.profilePic}
                     alt={user.name}
                     className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover"
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      target.onerror = null
+                      target.src = getInitialsFallback(user.name || 'U')
+                    }}
                   />
                 ) : (
                   <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-primary/20 flex items-center justify-center">
@@ -223,4 +229,3 @@ export function PreJoin() {
     </div>
   )
 }
-

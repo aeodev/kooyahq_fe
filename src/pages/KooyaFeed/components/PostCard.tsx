@@ -4,6 +4,7 @@ import { CommentSection } from '@/components/posts/CommentSection'
 import { PostReactions } from '@/components/posts/PostReactions'
 import { PollDisplay } from './PollDisplay'
 import { getUserInitials, isValidImageUrl, formatDate } from '@/utils/formatters'
+import { DEFAULT_IMAGE_FALLBACK, getInitialsFallback } from '@/utils/image.utils'
 import { useAuthStore } from '@/stores/auth.store'
 import { MoreHorizontal, Pencil, Trash2, X, Check } from 'lucide-react'
 import {
@@ -99,7 +100,9 @@ export function PostCard({ post, onDelete, onUpdate, onVote }: PostCardProps) {
                                     alt={post.author.name}
                                     className="h-12 w-12 rounded-2xl object-cover ring-2 ring-border/50 hover:ring-primary/50 transition-all"
                                     onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = 'none'
+                                        const target = e.currentTarget
+                                        target.onerror = null
+                                        target.src = getInitialsFallback(post.author.name)
                                     }}
                                 />
                             </button>
@@ -178,7 +181,9 @@ export function PostCard({ post, onDelete, onUpdate, onVote }: PostCardProps) {
                             alt="Post"
                             className="w-full max-h-[500px] object-cover"
                             onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none'
+                                const target = e.currentTarget
+                                target.onerror = null
+                                target.src = DEFAULT_IMAGE_FALLBACK
                             }}
                         />
                     </div>

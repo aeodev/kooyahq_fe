@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { cn } from '@/utils/cn'
 import type { Task, TaskType, Priority, Assignee } from './types'
 import { getTaskTypeIcon, getPriorityIcon } from './index'
+import { AssigneeAvatar } from './AssigneeAvatar'
 
 type FilterCategory = 'type' | 'labels' | 'status' | 'priority' | 'assignee'
 
@@ -33,7 +34,7 @@ type FilterModalProps = {
 const FILTER_CATEGORIES: { value: FilterCategory; label: string }[] = [
   { value: 'type', label: 'Type' },
   { value: 'assignee', label: 'Assignee' },
-  { value: 'labels', label: 'Labels' },
+  { value: 'labels', label: 'Tags' },
   { value: 'status', label: 'Status' },
   { value: 'priority', label: 'Priority' },
 ]
@@ -311,6 +312,10 @@ export function FilterModal({
                             {getTaskTypeIcon(option as TaskType, 'h-4 w-4')}
                           </span>
                         )}
+                        {activeCategory === 'assignee' && (() => {
+                          const assignee = assignees.find((a) => a.id === option)
+                          return assignee ? <AssigneeAvatar assignee={assignee} size="xs" /> : null
+                        })()}
                         {activeCategory === 'priority' && (
                           <span className="flex-shrink-0">
                             {getPriorityIcon(option as Priority)}
@@ -319,6 +324,11 @@ export function FilterModal({
                         <span className="truncate">
                           {activeCategory === 'type'
                             ? TASK_TYPE_LABELS[option as TaskType]
+                            : activeCategory === 'assignee'
+                            ? (() => {
+                                const assignee = assignees.find((a) => a.id === option)
+                                return assignee?.name || 'Unknown'
+                              })()
                             : activeCategory === 'priority'
                             ? PRIORITY_LABELS[option as Priority]
                             : String(option)}

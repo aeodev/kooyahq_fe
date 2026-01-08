@@ -5,6 +5,7 @@ import { Globe } from 'lucide-react'
 import { usePresenceStore } from '@/stores/presence.store'
 import { getCesiumViewer } from './CesiumPresence/hooks'
 import * as Cesium from 'cesium'
+import { getInitialsFallback } from '@/utils/image.utils'
 
 export function PresenceSidebar() {
   const users = usePresenceStore((state) => state.users)
@@ -83,16 +84,16 @@ function Avatar({ name, profilePic }: { name: string; profilePic?: string }) {
         alt={name}
         className="h-10 w-10 rounded-full object-cover ring-2 ring-background shadow-md"
         onError={(e) => {
-          e.currentTarget.style.display = 'none';
-          const sibling = e.currentTarget.nextSibling as HTMLElement;
-          if (sibling) sibling.style.display = 'flex';
+          const target = e.currentTarget
+          target.onerror = null
+          target.src = getInitialsFallback(name)
         }}
       />
     )
   }
 
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-2 ring-background shadow-md hidden">
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary ring-2 ring-background shadow-md">
       {getInitials(name)}
     </div>
   )
@@ -122,4 +123,3 @@ function EmptyState() {
     </div>
   )
 }
-

@@ -37,11 +37,14 @@ type TaskDetailModalProps = {
         fieldConfigs: Array<{ fieldName: string; isVisible: boolean; order: number }>
       }
     }
+    memberUsers?: Array<{ id: string; name: string; profilePic?: string }>
   }
   onNavigateToTask?: (taskKey: string) => void
   fullPage?: boolean
   canEdit: boolean
   canComment: boolean
+  onRefreshBoardTickets?: () => void
+  onFilterByTag?: (tag: string) => void
 }
 
 // Helper function to convert Ticket to Task
@@ -115,6 +118,8 @@ export function TaskDetailModal({
   fullPage = false,
   canEdit,
   canComment,
+  onRefreshBoardTickets,
+  onFilterByTag,
 }: TaskDetailModalProps) {
   // UI State
   const [descriptionExpanded, setDescriptionExpanded] = useState(true)
@@ -122,7 +127,6 @@ export function TaskDetailModal({
   const [documentsExpanded, setDocumentsExpanded] = useState(true)
   const [subtasksExpanded, setSubtasksExpanded] = useState(true)
   const [activityTab, setActivityTab] = useState<'all' | 'comments' | 'history'>('comments')
-  const [newComment, setNewComment] = useState('')
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [newTag, setNewTag] = useState('')
@@ -135,12 +139,22 @@ export function TaskDetailModal({
   const [users, setUsers] = useState<Array<{ id: string; name: string; profilePic?: string }>>([])
   // Track pending updates to prevent refetching stale data
   const pendingUpdateRef = useRef<{ columnId: string; timestamp: number } | null>(null)
+
+  useEffect(() => {
+    if (!board?.memberUsers?.length) return
+    setUsers(board.memberUsers.map((member) => ({
+      id: member.id,
+      name: member.name,
+      profilePic: member.profilePic,
+    })))
+  }, [board?.memberUsers])
   
   // Derived State - computed from ticketDetails
   const editedTask = useMemo(() => {
     if (!ticketDetails) return task
     return ticketToTask(ticketDetails.ticket, columns, users, task)
   }, [ticketDetails, columns, users, task])
+  const isSubtask = ticketDetails?.ticket.ticketType === 'subtask' || editedTask.type === 'subtask'
 
   // Related Data State
   const [epicTicket, setEpicTicket] = useState<Ticket | null>(null)
@@ -152,6 +166,26 @@ export function TaskDetailModal({
   const [githubBranches, setGithubBranches] = useState<Array<{ name: string; status: GithubStatus; pullRequestUrl?: string }>>([])
   // Details settings are now read-only from board settings
   const detailsSettings = board?.settings?.ticketDetailsSettings || null
+
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    availableTickets.forEach((ticket) => {
+      if (!Array.isArray(ticket.tags)) return
+      ticket.tags.forEach((tag) => {
+        const trimmed = tag.trim()
+        if (trimmed) {
+          tagSet.add(trimmed)
+        }
+      })
+    })
+    editedTask.labels.forEach((tag) => {
+      const trimmed = tag.trim()
+      if (trimmed) {
+        tagSet.add(trimmed)
+      }
+    })
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+  }, [availableTickets, editedTask.labels])
   
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
@@ -928,12 +962,22 @@ export function TaskDetailModal({
     }
   }
 
-  const handleAddTag = () => {
+  const handleAddTag = (tag?: string) => {
     if (!canUpdateTicket) return
-    if (!newTag.trim()) return
-    const updatedTags = [...(ticketDetails?.ticket.tags || []), newTag.trim()]
+    const tagToAdd = (tag ?? newTag).trim()
+    if (!tagToAdd) return
+    const currentTags = ticketDetails?.ticket.tags || []
+    if (currentTags.includes(tagToAdd)) {
+      if (!tag) {
+        setNewTag('')
+      }
+      return
+    }
+    const updatedTags = [...currentTags, tagToAdd]
     handleUpdateTags(updatedTags)
-    setNewTag('')
+    if (!tag) {
+      setNewTag('')
+    }
   }
 
   const handleRemoveTag = (tagToRemove: string) => {
@@ -1131,17 +1175,14 @@ export function TaskDetailModal({
     }
   }
 
-  const handleAddComment = async () => {
-    if (!canCommentOnTicket) return
-    if (!newComment.trim() || !ticketDetails?.ticket.id) return
+  const handleAddComment = async (commentText: string): Promise<boolean> => {
+    if (!canCommentOnTicket) return false
+    if (!commentText.trim() || !ticketDetails?.ticket.id) return false
 
     const commentContent = {
       type: 'html',
-      content: newComment,
+      content: commentText,
     }
-
-    const commentText = newComment
-    setNewComment('')
 
     try {
       const response = await axiosInstance.post<{ success: boolean; data: any }>(
@@ -1150,28 +1191,27 @@ export function TaskDetailModal({
       )
 
       if (!response.data.success) {
-        setNewComment(commentText)
         toast.error('Failed to add comment')
+        return false
       } else {
         // Optimistically update ticketDetails with new comment
-        if (ticketDetails) {
-          const newCommentData = {
-            id: `comment-${Date.now()}`,
-            ticketId: ticketDetails.ticket.id,
-            userId: user?.id || '',
-            content: commentContent,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }
-          setTicketDetails({
-            ...ticketDetails,
-            comments: [...(ticketDetails.comments || []), newCommentData],
-          })
+        const newCommentData = {
+          id: `comment-${Date.now()}`,
+          ticketId: ticketDetails.ticket.id,
+          userId: user?.id || '',
+          content: commentContent,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         }
+        setTicketDetails((prev) => prev ? {
+          ...prev,
+          comments: [...(prev.comments || []), newCommentData],
+        } : prev)
+        return true
       }
     } catch (error) {
-      setNewComment(commentText)
       toast.error('Failed to add comment')
+      return false
     }
   }
 
@@ -1414,23 +1454,24 @@ export function TaskDetailModal({
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
-      const url = new URL(window.location.href)
-      url.searchParams.set('selectedTask', task.key)
-      window.history.replaceState({}, '', url.toString())
     } else {
       document.body.style.overflow = ''
     }
     return () => {
       document.body.style.overflow = ''
     }
-  }, [open, task.key])
+  }, [open])
 
   const handleClose = () => {
-    const url = new URL(window.location.href)
-    url.searchParams.delete('selectedTask')
-    window.history.replaceState({}, '', url.toString())
     onClose()
   }
+
+  const handleFilterByTag = onFilterByTag
+    ? (tag: string) => {
+        onFilterByTag(tag)
+        handleClose()
+      }
+    : undefined
 
   // Find current column by matching ticket's columnId with column id
   // Fallback to matching by column name (task.status) if ticketDetails is not loaded yet
@@ -1559,28 +1600,31 @@ export function TaskDetailModal({
                     onRemoveRelatedTicket={handleRemoveRelatedTicket}
                   />
 
-                  <TaskSubtasksSection
-                    editedTask={editedTask}
-                    subtasksExpanded={subtasksExpanded}
-                    subtasksProgress={subtasksProgress}
-                    ticketDetails={ticketDetails}
-                    boardId={boardId}
-                    columns={columns}
-                    onToggleSubtasks={() => setSubtasksExpanded(!subtasksExpanded)}
-                    onNavigateToTask={onNavigateToTask}
-                    onRefreshTicket={fetchTicketDetails}
-                    canCreateSubtask={canCreateTicket}
-                  />
+                  {!isSubtask && (
+                    <TaskSubtasksSection
+                      editedTask={editedTask}
+                      subtasksExpanded={subtasksExpanded}
+                      subtasksProgress={subtasksProgress}
+                      ticketDetails={ticketDetails}
+                      boardId={boardId}
+                      columns={columns}
+                      onToggleSubtasks={() => setSubtasksExpanded(!subtasksExpanded)}
+                      onNavigateToTask={onNavigateToTask}
+                      onRefreshTicket={fetchTicketDetails}
+                      onRefreshBoardTickets={onRefreshBoardTickets}
+                      canCreateSubtask={canCreateTicket}
+                    />
+                  )}
 
                   <TaskActivitySection
                     ticketDetails={ticketDetails}
                     loading={loading}
                     activityTab={activityTab}
-                    newComment={newComment}
                     onTabChange={setActivityTab}
-                    onCommentChange={setNewComment}
                     onAddComment={handleAddComment}
                     canComment={canCommentOnTicket}
+                    users={users}
+                    currentUser={user}
                   />
                 </>
               )}
@@ -1607,6 +1651,8 @@ export function TaskDetailModal({
                   title: t.title,
                   ticketType: t.ticketType,
                 })),
+                availableTags,
+                onFilterByTag: handleFilterByTag,
                 onStatusChange: handleUpdateStatus,
                 onUpdatePriority: handleUpdatePriority,
                 onUpdateField: handleUpdateField as any,
@@ -1750,28 +1796,31 @@ export function TaskDetailModal({
                 onRemoveRelatedTicket={handleRemoveRelatedTicket}
               />
 
-              <TaskSubtasksSection
-                editedTask={editedTask}
-                subtasksExpanded={subtasksExpanded}
-                subtasksProgress={subtasksProgress}
-                ticketDetails={ticketDetails}
-                boardId={boardId}
-                columns={columns}
-                onToggleSubtasks={() => setSubtasksExpanded(!subtasksExpanded)}
-                onNavigateToTask={onNavigateToTask}
-                onRefreshTicket={fetchTicketDetails}
-                canCreateSubtask={canCreateTicket}
-              />
+              {!isSubtask && (
+                <TaskSubtasksSection
+                  editedTask={editedTask}
+                  subtasksExpanded={subtasksExpanded}
+                  subtasksProgress={subtasksProgress}
+                  ticketDetails={ticketDetails}
+                  boardId={boardId}
+                  columns={columns}
+                  onToggleSubtasks={() => setSubtasksExpanded(!subtasksExpanded)}
+                  onNavigateToTask={onNavigateToTask}
+                  onRefreshTicket={fetchTicketDetails}
+                  onRefreshBoardTickets={onRefreshBoardTickets}
+                  canCreateSubtask={canCreateTicket}
+                />
+              )}
 
               <TaskActivitySection
                 ticketDetails={ticketDetails}
                 loading={loading}
                 activityTab={activityTab}
-                newComment={newComment}
                 onTabChange={setActivityTab}
-                onCommentChange={setNewComment}
                 onAddComment={handleAddComment}
                 canComment={canCommentOnTicket}
+                users={users}
+                currentUser={user}
               />
                 </>
               )}
@@ -1798,6 +1847,8 @@ export function TaskDetailModal({
                   title: t.title,
                   ticketType: t.ticketType,
                 })),
+                availableTags,
+                onFilterByTag: handleFilterByTag,
                 onStatusChange: handleUpdateStatus,
                 onUpdatePriority: handleUpdatePriority,
                 onUpdateField: handleUpdateField as any,

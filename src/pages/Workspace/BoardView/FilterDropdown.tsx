@@ -9,6 +9,7 @@ import {
 import { cn } from '@/utils/cn'
 import type { Task, TaskType, Priority, Assignee } from './types'
 import { getTaskTypeIcon, getPriorityIcon } from './index'
+import { AssigneeAvatar } from './AssigneeAvatar'
 
 type FilterCategory = 'type' | 'labels' | 'status' | 'priority' | 'assignee'
 
@@ -35,7 +36,7 @@ type FilterDropdownProps = {
 const FILTER_CATEGORIES: { value: FilterCategory; label: string }[] = [
   { value: 'type', label: 'Type' },
   { value: 'assignee', label: 'Assignee' },
-  { value: 'labels', label: 'Labels' },
+  { value: 'labels', label: 'Tags' },
   { value: 'status', label: 'Status' },
   { value: 'priority', label: 'Priority' },
 ]
@@ -357,17 +358,7 @@ export function FilterDropdown({
                           )}
                           {activeCategory === 'assignee' && (() => {
                             const assignee = assignees.find((a) => a.id === option)
-                            return assignee ? (
-                              <div
-                                className={cn(
-                                  'h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0',
-                                  assignee.color
-                                )}
-                                title={assignee.name}
-                              >
-                                {assignee.initials}
-                              </div>
-                            ) : null
+                            return assignee ? <AssigneeAvatar assignee={assignee} size="xs" /> : null
                           })()}
                           {activeCategory === 'priority' && (
                             <span className="flex-shrink-0">

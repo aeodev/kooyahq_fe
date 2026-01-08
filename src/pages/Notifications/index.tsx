@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Bell, CheckCheck } from 'lucide-react'
 import { useNotifications } from '@/hooks/notification.hooks'
 import { useNavigate } from 'react-router-dom'
@@ -21,6 +22,44 @@ function formatDate(dateString: string): string {
   if (hours < 24) return `${hours}h ago`
   if (days < 7) return `${days}d ago`
   return date.toLocaleDateString()
+}
+
+function formatTime(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+function getDateGroupLabel(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfYesterday = new Date(startOfToday)
+  startOfYesterday.setDate(startOfToday.getDate() - 1)
+
+  if (date >= startOfToday) return 'Today'
+  if (date >= startOfYesterday) return 'Yesterday'
+  return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+const notificationTypeLabels: Record<NotificationType['type'], string> = {
+  comment: 'Comment',
+  reaction: 'Reaction',
+  mention: 'Mention',
+  post_created: 'Post Created',
+  system: 'System',
+  card_assigned: 'Card Assigned',
+  card_comment: 'Card Comment',
+  card_moved: 'Card Moved',
+  board_member_added: 'Board Member Added',
+  game_invitation: 'Game Invitation',
+}
+
+function getNotificationReference(notification: NotificationType): string | null {
+  if (notification.cardId) return `Card ${notification.cardId}`
+  if (notification.postId) return `Post ${notification.postId}`
+  if (notification.boardId) return `Board ${notification.boardId}`
+  if (notification.commentId) return `Comment ${notification.commentId}`
+  return null
 }
 
 function getNotificationMessage(notification: NotificationType): string {
@@ -50,14 +89,32 @@ function getNotificationMessage(notification: NotificationType): string {
   }
 }
 
+function getNotificationSummary(notification: NotificationType): { title: string; description?: string } {
+  const message = getNotificationMessage(notification)
+  const title = notification.title?.trim()
+
+  if (title) {
+    if (message && message !== title && message !== 'System notification') {
+      return { title, description: message }
+    }
+    return { title }
+  }
+
+  return { title: message }
+}
+
 export function Notifications() {
   const user = useAuthStore((state) => state.user)
   const can = useAuthStore((state) => state.can)
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const {
     notifications,
     unreadCount,
     loading: isLoading,
+    page,
+    limit,
+    hasMore,
     fetchNotifications,
     markAsRead,
     markAllAsRead,
@@ -90,10 +147,47 @@ export function Notifications() {
     }
   }
 
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return
+    setIsLoadingMore(true)
+    try {
+      await fetchNotifications({
+        unreadOnly: showUnreadOnly,
+        page: page + 1,
+        limit,
+        append: true,
+      })
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
+
+  const groupedNotifications = useMemo(() => {
+    const sorted = [...notifications].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+    const grouped = new Map<string, NotificationType[]>()
+
+    sorted.forEach((notification) => {
+      const label = getDateGroupLabel(notification.createdAt)
+      const group = grouped.get(label)
+      if (group) {
+        group.push(notification)
+      } else {
+        grouped.set(label, [notification])
+      }
+    })
+
+    return Array.from(grouped.entries()).map(([label, items]) => ({
+      label,
+      items,
+    }))
+  }, [notifications])
+
   if (!user || !canViewNotifications) return null
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-8">
+    <div className="max-w-3xl mx-auto space-y-6 pb-8">
       <header className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-2">
@@ -102,28 +196,28 @@ export function Notifications() {
               {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <Tabs
+            value={showUnreadOnly ? 'unread' : 'all'}
+            onValueChange={(value) => setShowUnreadOnly(value === 'unread')}
+          >
+            <TabsList className="grid h-10 grid-cols-2">
+              <TabsTrigger value="all" className="text-sm">All</TabsTrigger>
+              <TabsTrigger value="unread" className="text-sm">Unread</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {unreadCount > 0 && canUpdateNotifications && (
             <Button
-              variant={showUnreadOnly ? 'default' : 'outline'}
               size="default"
-              onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+              variant="outline"
+              onClick={handleMarkAllAsRead}
               className="h-10 px-4 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
-              disabled={!canViewNotifications}
             >
-              {showUnreadOnly ? 'Show All' : 'Unread Only'}
+              <CheckCheck className="h-4 w-4 mr-2" />
+              Mark All Read
             </Button>
-            {unreadCount > 0 && canUpdateNotifications && (
-              <Button 
-                size="default" 
-                variant="outline" 
-                onClick={handleMarkAllAsRead}
-                className="h-10 px-4 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
-              >
-                <CheckCheck className="h-4 w-4 mr-2" />
-                Mark All Read
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </header>
 
@@ -139,43 +233,110 @@ export function Notifications() {
               <p>No notifications</p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {notifications.map((notification: NotificationType) => (
-                <div
-                  key={notification.id}
-                  className={`p-4 rounded-xl transition-all duration-300 ${
-                    !notification.read ? 'bg-primary/5 backdrop-blur-sm border-l-4 border-l-primary' : ''
-                  } ${notification.url ? 'hover:bg-accent/50 cursor-pointer' : ''}`}
-                  onClick={() => {
-                    if (notification.url) {
-                      navigate(notification.url)
-                    }
-                  }}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm">{getNotificationMessage(notification)}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{formatDate(notification.createdAt)}</p>
-                      {notification.url && (
-                        <p className="text-xs text-primary mt-2">View details →</p>
-                      )}
+            <>
+              <div className="divide-y divide-border">
+                {groupedNotifications.map((group) => (
+                  <div key={group.label}>
+                    <div className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30">
+                      {group.label}
                     </div>
-                    {!notification.read && canUpdateNotifications && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleMarkAsRead(notification.id)
-                        }}
-                      >
-                        Mark read
-                      </Button>
-                    )}
+                    <div className="divide-y divide-border">
+                      {group.items.map((notification: NotificationType) => {
+                        const { title, description } = getNotificationSummary(notification)
+                        const reference = getNotificationReference(notification)
+                        const actorName = notification.actor?.name ?? (notification.type === 'system' ? 'System' : null)
+                        const typeLabel = notificationTypeLabels[notification.type]
+
+                        return (
+                          <div
+                            key={notification.id}
+                            className={`flex items-start gap-4 px-6 py-4 transition-colors ${
+                              notification.url ? 'cursor-pointer hover:bg-muted/40' : ''
+                            } ${!notification.read ? 'bg-primary/5' : ''}`}
+                            onClick={() => {
+                              if (notification.url) {
+                                navigate(notification.url)
+                              }
+                            }}
+                          >
+                            <span
+                              className={`mt-2 h-2 w-2 rounded-full ${
+                                notification.read ? 'bg-transparent opacity-0' : 'bg-primary'
+                              }`}
+                            />
+                            <div className="flex-1 space-y-2">
+                              <div className="space-y-1">
+                                <p
+                                  className={`text-sm ${
+                                    notification.read ? 'text-foreground' : 'font-semibold text-foreground'
+                                  }`}
+                                >
+                                  {title}
+                                </p>
+                                {description && (
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                {!notification.read && (
+                                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                                    Unread
+                                  </span>
+                                )}
+                                <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-foreground">
+                                  {typeLabel}
+                                </span>
+                                {actorName && <span>{`Actor: ${actorName}`}</span>}
+                                {reference && <span>{`Ref: ${reference}`}</span>}
+                                {notification.url && <span className="text-primary">View details</span>}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-2 text-right">
+                              <div
+                                className="text-xs text-muted-foreground"
+                                title={new Date(notification.createdAt).toLocaleString()}
+                              >
+                                <div className="text-sm font-medium text-foreground">
+                                  {formatTime(notification.createdAt)}
+                                </div>
+                                <div>{formatDate(notification.createdAt)}</div>
+                              </div>
+                              {!notification.read && canUpdateNotifications && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleMarkAsRead(notification.id)
+                                  }}
+                                >
+                                  Mark read
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
+                ))}
+              </div>
+              {hasMore && (
+                <div className="flex justify-center border-t border-border px-6 py-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                  >
+                    {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    See more
+                  </Button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

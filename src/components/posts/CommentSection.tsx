@@ -6,6 +6,7 @@ import { Send, Loader2 } from 'lucide-react'
 import { usePostComments } from '@/hooks/post.hooks'
 import type { PostComment } from '@/types/post'
 import { getUserInitials, isValidImageUrl } from '@/utils/formatters'
+import { getInitialsFallback } from '@/utils/image.utils'
 import { toast } from 'sonner'
 import { PERMISSIONS } from '@/constants/permissions'
 
@@ -72,7 +73,9 @@ export function CommentSection({ postId, isExpanded = true }: CommentSectionProp
               alt={user.name}
               className="h-6 w-6 rounded-xl ring-1 ring-border/50 object-cover flex-shrink-0"
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none'
+                const target = e.currentTarget
+                target.onerror = null
+                target.src = getInitialsFallback(user.name)
               }}
             />
           ) : (

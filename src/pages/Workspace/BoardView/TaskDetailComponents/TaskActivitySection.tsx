@@ -1,45 +1,213 @@
-import { useState, useEffect } from 'react'
-import { Settings2, MessageSquare, History } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { RichTextDisplay } from '@/components/ui/rich-text-display'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/utils/cn'
+import { getUserInitials, isValidImageUrl } from '@/utils/formatters'
 import { richTextDocToHtml, hasRichTextContent } from '@/utils/rich-text'
 import type { TicketDetailResponse } from './types'
-import { MOCK_ASSIGNEES } from '../index'
+
+type UserSummary = {
+  id: string
+  name: string
+  profilePic?: string
+}
 
 type TaskActivitySectionProps = {
   ticketDetails: TicketDetailResponse | null
   loading: boolean
   activityTab: 'all' | 'comments' | 'history'
-  newComment: string
   onTabChange: (tab: 'all' | 'comments' | 'history') => void
-  onCommentChange: (comment: string) => void
-  onAddComment: () => void
+  onAddComment: (comment: string) => Promise<boolean> | boolean
   canComment: boolean
+  users: UserSummary[]
+  currentUser?: UserSummary | null
+}
+
+type CommentEditorProps = {
+  ticketId?: string
+  onAddComment: (comment: string) => Promise<boolean> | boolean
+  canComment: boolean
+  currentUser?: UserSummary | null
+}
+
+type UserAvatarProps = {
+  user?: UserSummary | null
+  size?: 'sm' | 'md'
+  className?: string
+}
+
+const formatRelativeTime = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return ''
+  const diffMs = Date.now() - date.getTime()
+  const minutes = Math.floor(diffMs / 60000)
+  const hours = Math.floor(diffMs / 3600000)
+  const days = Math.floor(diffMs / 86400000)
+
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`
+  if (hours < 24) return `${hours} hr${hours === 1 ? '' : 's'} ago`
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
+const formatActivityTimestamp = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return ''
+  const absolute = date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  return `${formatRelativeTime(dateStr)} | ${absolute}`
+}
+
+const sortByCreatedAtDesc = <T extends { createdAt: string }>(items: T[]): T[] =>
+  [...items].sort((a, b) => {
+    const aTime = new Date(a.createdAt).getTime()
+    const bTime = new Date(b.createdAt).getTime()
+    return bTime - aTime
+  })
+
+function UserAvatar({ user, size = 'md', className }: UserAvatarProps) {
+  const [imageFailed, setImageFailed] = useState(false)
+
+  useEffect(() => {
+    setImageFailed(false)
+  }, [user?.profilePic])
+
+  const sizeClasses = {
+    sm: 'h-6 w-6 text-[10px]',
+    md: 'h-8 w-8 text-xs',
+  }
+
+  if (user && isValidImageUrl(user.profilePic) && !imageFailed) {
+    return (
+      <img
+        src={user.profilePic}
+        alt={user.name}
+        className={cn(
+          'rounded-full object-cover ring-1 ring-border/50 flex-shrink-0',
+          sizeClasses[size],
+          className
+        )}
+        onError={() => setImageFailed(true)}
+      />
+    )
+  }
+
+  const initials = getUserInitials(user?.name || '?')
+  return (
+    <div
+      className={cn(
+        'rounded-full bg-primary/10 text-primary flex items-center justify-center font-medium ring-1 ring-border/50 flex-shrink-0',
+        sizeClasses[size],
+        className
+      )}
+      title={user?.name || 'Unknown user'}
+    >
+      {initials}
+    </div>
+  )
+}
+
+function CommentEditor({ ticketId, onAddComment, canComment, currentUser }: CommentEditorProps) {
+  const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [newComment, setNewComment] = useState('')
+  const previousTicketIdRef = useRef<string | undefined>(undefined)
+
+  // Reset draft when switching to a different ticket
+  useEffect(() => {
+    if (previousTicketIdRef.current && ticketId && previousTicketIdRef.current !== ticketId) {
+      setNewComment('')
+      setIsCommentEditorOpen(false)
+    }
+    previousTicketIdRef.current = ticketId
+  }, [ticketId])
+
+  if (!canComment) return null
+
+  return (
+    <div className="flex gap-3 mb-4">
+      <UserAvatar user={currentUser} />
+      <div className="flex-1">
+        {isCommentEditorOpen ? (
+          <>
+            <RichTextEditor
+              value={newComment}
+              onChange={setNewComment}
+              placeholder="Add a comment..."
+              className="min-h-[80px]"
+              autoFocus
+              onUploadingChange={setIsUploading}
+            />
+            <div className="flex items-center gap-2 mt-2">
+              {newComment && (
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    const didAdd = await onAddComment(newComment)
+                    if (didAdd) {
+                      setNewComment('')
+                      setIsCommentEditorOpen(false)
+                    }
+                  }}
+                  disabled={isUploading}
+                >
+                  {isUploading ? 'Uploading...' : 'Save'}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsCommentEditorOpen(false)
+                  setNewComment('')
+                }}
+                disabled={isUploading}
+              >
+                Cancel
+              </Button>
+            </div>
+            {isUploading && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Please wait for uploads to complete before saving
+              </p>
+            )}
+          </>
+        ) : (
+          <button
+            onClick={() => setIsCommentEditorOpen(true)}
+            className="w-full text-left px-3 py-2 text-sm text-muted-foreground border border-border/50 rounded-lg hover:border-border hover:bg-accent/30 transition-colors"
+          >
+            Add a comment...
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function TaskActivitySection({
   ticketDetails,
   loading,
   activityTab,
-  newComment,
   onTabChange,
-  onCommentChange,
   onAddComment,
   canComment,
+  users,
+  currentUser,
 }: TaskActivitySectionProps) {
-  const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
+  const resolveUser = (userId?: string | null): UserSummary | null => {
+    if (!userId) return null
+    return users.find((user) => user.id === userId) || (currentUser?.id === userId ? currentUser : null)
+  }
 
-  // Close editor when comment is cleared externally
-  useEffect(() => {
-    if (!newComment.trim() && isCommentEditorOpen) {
-      setIsCommentEditorOpen(false)
-    }
-  }, [newComment, isCommentEditorOpen])
+  const sortedComments = sortByCreatedAtDesc(ticketDetails?.comments ?? [])
+  const sortedHistory = sortByCreatedAtDesc(ticketDetails?.history ?? [])
 
   return (
     <div>
@@ -61,11 +229,6 @@ export function TaskActivitySection({
             {tab}
           </button>
         ))}
-        <div className="ml-auto">
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <Settings2 className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
 
       {loading && (
@@ -89,88 +252,30 @@ export function TaskActivitySection({
       )}
 
       {/* Comment input */}
-      {canComment && (
-      <div className="flex gap-3 mb-4">
-        <div className="h-8 w-8 rounded-full bg-cyan-500 flex items-center justify-center text-xs text-white font-medium flex-shrink-0">
-          SL
-        </div>
-        <div className="flex-1">
-          {isCommentEditorOpen ? (
-            <>
-              <RichTextEditor
-                value={newComment}
-                onChange={onCommentChange}
-                placeholder="Add a comment..."
-                className="min-h-[80px]"
-                autoFocus
-                onUploadingChange={setIsUploading}
-              />
-              <div className="flex items-center gap-2 mt-2">
-                {newComment && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      onAddComment()
-                      setIsCommentEditorOpen(false)
-                    }}
-                    disabled={isUploading}
-                  >
-                    {isUploading ? 'Uploading...' : 'Save'}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIsCommentEditorOpen(false)
-                    onCommentChange('')
-                  }}
-                  disabled={isUploading}
-                >
-                  Cancel
-                </Button>
-              </div>
-              {isUploading && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Please wait for uploads to complete before saving
-                </p>
-              )}
-            </>
-          ) : (
-            <button
-              onClick={() => setIsCommentEditorOpen(true)}
-              className="w-full text-left px-3 py-2 text-sm text-muted-foreground border border-border/50 rounded-lg hover:border-border hover:bg-accent/30 transition-colors"
-            >
-              Add a comment...
-            </button>
-          )}
-        </div>
-      </div>
-      )}
+      <CommentEditor
+        ticketId={ticketDetails?.ticket.id}
+        onAddComment={onAddComment}
+        canComment={canComment}
+        currentUser={currentUser}
+      />
 
       {/* Activity content based on tab */}
       {activityTab === 'comments' && (
         <>
           {/* Comments list */}
-          {ticketDetails?.comments && ticketDetails.comments.length > 0 ? (
-            <div className="space-y-4">
-              {ticketDetails.comments.map((comment) => {
-                const commentAuthor = MOCK_ASSIGNEES.find((a) => a.id === comment.userId) || MOCK_ASSIGNEES[0]
+          {sortedComments.length > 0 ? (
+            <div className="divide-y divide-border/60">
+              {sortedComments.map((comment) => {
+                const commentAuthor = resolveUser(comment.userId)
+                const commentAuthorName = commentAuthor?.name || 'Unknown user'
                 return (
-                  <div key={comment.id} className="flex gap-3">
-                    <div
-                      className={cn(
-                        'h-8 w-8 rounded-full flex items-center justify-center text-xs text-white font-medium flex-shrink-0',
-                        commentAuthor.color
-                      )}
-                    >
-                      {commentAuthor.initials}
-                    </div>
+                  <div key={comment.id} className="flex gap-3 py-4">
+                    <UserAvatar user={commentAuthor} />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">{commentAuthor.name}</span>
+                        <span className="font-medium text-sm">{commentAuthorName}</span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(comment.createdAt).toLocaleDateString()}
+                          {formatActivityTimestamp(comment.createdAt)}
                         </span>
                       </div>
                         <div className="text-sm">
@@ -197,25 +302,19 @@ export function TaskActivitySection({
       {activityTab === 'history' && (
         <>
           {/* History list */}
-          {ticketDetails?.history && ticketDetails.history.length > 0 ? (
-            <div className="space-y-3">
-              {ticketDetails.history.map((activity) => {
-                const actor = MOCK_ASSIGNEES.find((a) => a.id === activity.actorId) || MOCK_ASSIGNEES[0]
+          {sortedHistory.length > 0 ? (
+            <div className="divide-y divide-border/60">
+              {sortedHistory.map((activity) => {
+                const actor = resolveUser(activity.actorId)
+                const actorName = actor?.name || 'Unknown user'
                 return (
-                  <div key={activity.id} className="flex gap-3">
-                    <div
-                      className={cn(
-                        'h-8 w-8 rounded-full flex items-center justify-center text-xs text-white font-medium flex-shrink-0',
-                        actor.color
-                      )}
-                    >
-                      {actor.initials}
-                    </div>
+                  <div key={activity.id} className="flex gap-3 py-3">
+                    <UserAvatar user={actor} />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">{actor.name}</span>
+                        <span className="font-medium text-sm">{actorName}</span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(activity.createdAt).toLocaleDateString()}
+                          {formatActivityTimestamp(activity.createdAt)}
                         </span>
                         <Badge variant="outline" className="text-xs">
                           {activity.actionType}
@@ -240,83 +339,75 @@ export function TaskActivitySection({
       )}
 
       {activityTab === 'all' && (
-        <div className="space-y-4">
-          {/* Show both comments and history */}
-          {ticketDetails?.comments && ticketDetails.comments.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <h4 className="text-sm font-semibold">Comments</h4>
-              </div>
-              <div className="space-y-4 ml-6">
-                {ticketDetails.comments.map((comment) => {
-                  const commentAuthor = MOCK_ASSIGNEES.find((a) => a.id === comment.userId) || MOCK_ASSIGNEES[0]
-                  return (
-                    <div key={comment.id} className="flex gap-3">
-                      <div
-                        className={cn(
-                          'h-8 w-8 rounded-full flex items-center justify-center text-xs text-white font-medium flex-shrink-0',
-                          commentAuthor.color
-                        )}
-                      >
-                        {commentAuthor.initials}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{commentAuthor.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(comment.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="text-sm">
-                          {(() => {
-                            const htmlContent = richTextDocToHtml(comment.content)
-                            return hasRichTextContent(comment.content) ? (
-                              <RichTextDisplay content={htmlContent} />
-                            ) : (
-                              <p className="text-muted-foreground italic">Empty comment</p>
-                            )
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+        <div>
+          {(() => {
+            const allActivity = [
+              ...sortedComments.map((comment) => ({
+                type: 'comment' as const,
+                createdAt: comment.createdAt,
+                comment,
+              })),
+              ...sortedHistory.map((activity) => ({
+                type: 'history' as const,
+                createdAt: activity.createdAt,
+                activity,
+              })),
+            ].sort((a, b) => {
+              const aTime = new Date(a.createdAt).getTime()
+              const bTime = new Date(b.createdAt).getTime()
+              return bTime - aTime
+            })
 
-          {ticketDetails?.history && ticketDetails.history.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <History className="h-4 w-4 text-muted-foreground" />
-                <h4 className="text-sm font-semibold">History</h4>
-              </div>
-              <div className="space-y-3 ml-6">
-                {ticketDetails.history.map((activity) => {
-                  const actor = MOCK_ASSIGNEES.find((a) => a.id === activity.actorId) || MOCK_ASSIGNEES[0]
-                  return (
-                    <div key={activity.id} className="flex gap-3">
-                      <div
-                        className={cn(
-                          'h-8 w-8 rounded-full flex items-center justify-center text-xs text-white font-medium flex-shrink-0',
-                          actor.color
-                        )}
-                      >
-                        {actor.initials}
+            if (allActivity.length === 0) return null
+
+            return (
+              <div className="divide-y divide-border/60">
+                {allActivity.map((item) => {
+                  if (item.type === 'comment') {
+                    const commentAuthor = resolveUser(item.comment.userId)
+                    const commentAuthorName = commentAuthor?.name || 'Unknown user'
+                    return (
+                      <div key={`comment-${item.comment.id}`} className="flex gap-3 py-4">
+                        <UserAvatar user={commentAuthor} />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm">{commentAuthorName}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatActivityTimestamp(item.comment.createdAt)}
+                            </span>
+                          </div>
+                          <div className="text-sm">
+                            {(() => {
+                              const htmlContent = richTextDocToHtml(item.comment.content)
+                              return hasRichTextContent(item.comment.content) ? (
+                                <RichTextDisplay content={htmlContent} />
+                              ) : (
+                                <p className="text-muted-foreground italic">Empty comment</p>
+                              )
+                            })()}
+                          </div>
+                        </div>
                       </div>
+                    )
+                  }
+
+                  const actor = resolveUser(item.activity.actorId)
+                  const actorName = actor?.name || 'Unknown user'
+                  return (
+                    <div key={`history-${item.activity.id}`} className="flex gap-3 py-3">
+                      <UserAvatar user={actor} />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{actor.name}</span>
+                          <span className="font-medium text-sm">{actorName}</span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(activity.createdAt).toLocaleDateString()}
+                            {formatActivityTimestamp(item.activity.createdAt)}
                           </span>
                           <Badge variant="outline" className="text-xs">
-                            {activity.actionType}
+                            {item.activity.actionType}
                           </Badge>
                         </div>
                         <div className="space-y-1">
-                          {activity.changes.map((change, idx) => (
+                          {item.activity.changes.map((change, idx) => (
                             <p key={idx} className="text-sm text-muted-foreground">
                               {change.text}
                             </p>
@@ -327,8 +418,8 @@ export function TaskActivitySection({
                   )
                 })}
               </div>
-            </div>
-          )}
+            )
+          })()}
         </div>
       )}
     </div>

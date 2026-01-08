@@ -241,21 +241,24 @@
   .rich-text-display video,
   .rich-text-display iframe {
     max-width: 100%;
-    height: auto;
     border-radius: 0.375rem;
     margin: 0.75rem 0;
     display: block;
     border: 1px solid hsl(var(--border));
     background: hsl(var(--muted));
   }
-  .rich-text-display iframe {
-    aspect-ratio: 16 / 9;
+  .rich-text-display iframe:not([width]) {
     width: 100%;
+  }
+  .rich-text-display iframe:not([height]) {
+    aspect-ratio: 16 / 9;
     min-height: 300px;
   }
-  .rich-text-display video {
-    max-height: 500px;
+  .rich-text-display video:not([width]) {
     width: 100%;
+  }
+  .rich-text-display video:not([height]) {
+    max-height: 500px;
   }
   .rich-text-display .ql-align-center video,
   .rich-text-display .ql-align-center iframe {

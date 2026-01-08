@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { cn } from '@/utils/cn'
 import { richTextDocToHtml } from '@/utils/rich-text'
+import { DEFAULT_IMAGE_FALLBACK } from '@/utils/image.utils'
 import type { RichTextDoc } from '@/types/rich-text'
 
 type RichTextDisplayProps = {
@@ -21,13 +22,16 @@ export function RichTextDisplay({ content, className, onDoubleClick }: RichTextD
     const images = container.querySelectorAll('img')
     const handleImageError = (e: Event) => {
       const img = e.target as HTMLImageElement
-      img.style.display = 'none'
+      if (img.dataset.fallbackApplied) return
+      img.dataset.fallbackApplied = 'true'
+      img.src = DEFAULT_IMAGE_FALLBACK
     }
     images.forEach((img) => {
       img.addEventListener('error', handleImageError)
       // Also handle case where src is empty or invalid
       if (!img.src || img.src === window.location.href) {
-        img.style.display = 'none'
+        img.dataset.fallbackApplied = 'true'
+        img.src = DEFAULT_IMAGE_FALLBACK
       }
     })
 

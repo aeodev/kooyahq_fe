@@ -1,8 +1,13 @@
 import { type PropsWithChildren } from 'react'
 import { Link } from 'react-router-dom'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { cn } from '@/utils/cn'
 
-export function AuthLayout({ children }: PropsWithChildren) {
+type AuthLayoutProps = PropsWithChildren<{
+  align?: 'center' | 'top'
+}>
+
+export function AuthLayout({ children, align = 'center' }: AuthLayoutProps) {
   return (
     <div className="relative flex min-h-screen flex-col bg-background text-foreground overflow-hidden">
       {/* Deep layered gradient base */}
@@ -65,7 +70,12 @@ export function AuthLayout({ children }: PropsWithChildren) {
       </header>
 
       {/* Main content with better vertical centering */}
-      <main className="relative z-10 flex-1 overflow-y-auto flex items-center justify-center py-12 sm:py-16">
+      <main
+        className={cn(
+          'relative z-10 flex-1 overflow-y-auto flex py-12 sm:py-16',
+          align === 'center' ? 'items-center justify-center' : 'items-start justify-start',
+        )}
+      >
         {children}
       </main>
 

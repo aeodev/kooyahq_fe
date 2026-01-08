@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Image as ImageIcon, Loader2, X, BarChart2, Plus, Trash2 } from 'lucide-react'
 import { getUserInitials, isValidImageUrl } from '@/utils/formatters'
+import { DEFAULT_IMAGE_FALLBACK, getInitialsFallback } from '@/utils/image.utils'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -110,7 +111,9 @@ export function CreatePostCard({ user, onCreatePost }: CreatePostCardProps) {
                             alt={user.name}
                             className="h-12 w-12 rounded-2xl object-cover flex-shrink-0 ring-2 ring-border/50"
                             onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none'
+                                const target = e.currentTarget
+                                target.onerror = null
+                                target.src = getInitialsFallback(user.name)
                             }}
                         />
                     ) : (
@@ -203,6 +206,11 @@ export function CreatePostCard({ user, onCreatePost }: CreatePostCardProps) {
                                     src={postImagePreview}
                                     alt="Preview"
                                     className="w-full max-h-96 object-cover"
+                                    onError={(e) => {
+                                        const target = e.currentTarget
+                                        target.onerror = null
+                                        target.src = DEFAULT_IMAGE_FALLBACK
+                                    }}
                                 />
                             </div>
                         )}
@@ -264,4 +272,3 @@ export function CreatePostCard({ user, onCreatePost }: CreatePostCardProps) {
 }
 // Helper cn since I used it
 import { cn } from '@/utils/formatters'
-

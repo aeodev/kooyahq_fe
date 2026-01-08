@@ -6,6 +6,7 @@ import { Users, Plus, ArrowRight } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS } from '@/constants/permissions'
 import meetingIcon from '@/assets/icons8-meeting-100.png'
+import { DEFAULT_IMAGE_FALLBACK } from '@/utils/image.utils'
 
 export function MeetLanding() {
   const [meetId, setMeetId] = useState('')
@@ -39,7 +40,16 @@ export function MeetLanding() {
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="text-center space-y-3">
-          <img src={meetingIcon} alt="Meeting" className="w-24 h-24 mx-auto" />
+          <img
+            src={meetingIcon}
+            alt="Meeting"
+            className="w-24 h-24 mx-auto"
+            onError={(e) => {
+              const target = e.currentTarget
+              target.onerror = null
+              target.src = DEFAULT_IMAGE_FALLBACK
+            }}
+          />
           <h1 className="text-4xl font-medium text-foreground" style={{ fontFamily: "'Pacifico', cursive" }}>Video Meeting</h1>
           <p className="text-muted-foreground">Start or join a secure video call with your team</p>
         </div>

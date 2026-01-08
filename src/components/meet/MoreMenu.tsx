@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { useUsers } from '@/hooks/user.hooks'
 import { useMeetInvitations } from '@/composables/meet/useMeetInvitations'
 import { useAuthStore } from '@/stores/auth.store'
+import { getInitialsFallback } from '@/utils/image.utils'
 import type { MorganAIState } from '@/composables/meet/useMorganAI'
 
 interface MediaDevice {
@@ -288,6 +289,11 @@ export function MoreMenu({
                       src={user.profilePic}
                       alt={user.name || 'User'}
                       className="h-10 w-10 rounded-full"
+                      onError={(e) => {
+                        const target = e.currentTarget
+                        target.onerror = null
+                        target.src = getInitialsFallback(user.name || user.email || 'U')
+                      }}
                     />
                   ) : (
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -314,4 +320,3 @@ export function MoreMenu({
     </>
   )
 }
-
