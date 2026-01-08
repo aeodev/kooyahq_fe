@@ -18,6 +18,15 @@ import {
 import { normalizeError, type Errors } from '@/utils/error'
 import type { TimeEntry, StartTimerInput, UpdateTimeEntryInput, ManualEntryInput } from '@/types/time-entry'
 import { setPendingTimerStop, clearPendingTimerStop, hasPendingStop } from '@/utils/server-health'
+import { toastManager } from '@/components/ui/toast'
+
+function handleError(action: string, error: unknown): void {
+  const normalized = normalizeError(error)
+  const message = Array.isArray(normalized.message) 
+    ? normalized.message.join(', ') 
+    : normalized.message
+  toastManager.error(`Failed to ${action}: ${message}`)
+}
 
 type TimeEntryState = {
   activeTimer: TimeEntry | null
@@ -161,6 +170,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       set({ activeTimer: timer })
       return timer
     } catch (err) {
+      handleError('start timer', err)
       return null
     }
   },
@@ -175,6 +185,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       set({ activeTimer: timer })
       return timer
     } catch (err) {
+      handleError('add task', err)
       return null
     }
   },
@@ -186,6 +197,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       set({ activeTimer: timer })
       return timer
     } catch (err) {
+      handleError('pause timer', err)
       return null
     }
   },
@@ -199,6 +211,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       set({ activeTimer: timer })
       return timer
     } catch (err) {
+      handleError('resume timer', err)
       return null
     }
   },
@@ -213,6 +226,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
 
       return timer
     } catch (err) {
+      handleError('stop timer', err)
       return null
     }
   },
@@ -268,6 +282,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
 
       return entries
     } catch (err) {
+      handleError('end day', err)
       return []
     }
   },
@@ -293,6 +308,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
 
       return entry
     } catch (err) {
+      handleError('log manual entry', err)
       return null
     }
   },
@@ -315,6 +331,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
 
       return updatedEntry
     } catch (err) {
+      handleError('update time entry', err)
       return null
     }
   },
@@ -329,6 +346,7 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
 
       return true
     } catch (err) {
+      handleError('delete time entry', err)
       return false
     }
   },

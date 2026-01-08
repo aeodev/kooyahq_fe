@@ -12,6 +12,7 @@ type Entry = {
   time: string
   isOvertime?: boolean
   isActive?: boolean
+  isPaused?: boolean
 }
 
 type TodayOverviewProps = {
@@ -128,7 +129,13 @@ export function TodayOverview({
                         <span className="text-sm font-semibold text-foreground truncate">
                           {entry.project}
                         </span>
-                        {entry.isActive && (
+                        {entry.isPaused && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide rounded-md bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30">
+                            <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+                            Paused
+                          </span>
+                        )}
+                        {entry.isActive && !entry.isPaused && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Live

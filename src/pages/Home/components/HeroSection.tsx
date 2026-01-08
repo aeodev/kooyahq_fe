@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Play, Square, Clock, TrendingUp, ArrowRight, Sparkles } from 'lucide-react'
+import { Play, Square, Clock, TrendingUp, ArrowRight, Sparkles, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useTimerDuration } from '@/hooks/time-entry.hooks'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 import { cn } from '@/utils/cn'
 import type { TimeEntry } from '@/types/time-entry'
 
@@ -36,6 +38,26 @@ export function HeroSection({
 }: HeroSectionProps) {
   const timerDuration = useTimerDuration(activeTimer)
   const stopTimer = useTimeEntryStore(state => state.stopTimer)
+  const pauseTimer = useTimeEntryStore(state => state.pauseTimer)
+  const resumeTimer = useTimeEntryStore(state => state.resumeTimer)
+  const can = useAuthStore(state => state.can)
+  const canUpdateEntries = can(PERMISSIONS.TIME_ENTRY_UPDATE) || can(PERMISSIONS.TIME_ENTRY_FULL_ACCESS)
+  
+  const isPaused = activeTimer?.isPaused || false
+  
+  const handlePause = async () => {
+    if (!canUpdateEntries) return
+    if (activeTimer && !activeTimer.isPaused) {
+      await pauseTimer()
+    }
+  }
+
+  const handleResume = async () => {
+    if (!canUpdateEntries) return
+    if (activeTimer && activeTimer.isPaused) {
+      await resumeTimer()
+    }
+  }
   
   // Show up to 4 recent sessions
   const recentEntries = todayEntries.filter(e => !e.isActive).slice(0, 4)
@@ -54,7 +76,9 @@ export function HeroSection({
               <div 
                 className="absolute inset-0 -z-10 opacity-50 dark:opacity-30"
                 style={{
-                  background: 'radial-gradient(ellipse at top left, hsl(var(--primary) / 0.08) 0%, transparent 50%)'
+                  background: isPaused
+                    ? 'radial-gradient(ellipse at top left, hsl(45 93% 47% / 0.08) 0%, transparent 50%)'
+                    : 'radial-gradient(ellipse at top left, hsl(var(--primary) / 0.08) 0%, transparent 50%)'
                 }}
               />
             )}
@@ -65,11 +89,24 @@ export function HeroSection({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      {isPaused ? (
+                        <>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-500"></span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </>
+                      )}
                     </span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.15em]">
-                      Tracking
+                    <span className={cn(
+                      "text-xs font-bold uppercase tracking-[0.15em]",
+                      isPaused 
+                        ? "text-yellow-600 dark:text-yellow-400" 
+                        : "text-emerald-600 dark:text-emerald-400"
+                    )}>
+                      {isPaused ? 'Paused' : 'Tracking'}
                     </span>
                   </div>
                   <Button 
@@ -86,7 +123,10 @@ export function HeroSection({
 
                 {/* Timer Display - NO SPACES around colon */}
                 <div className="space-y-3">
-                  <h2 className="text-5xl md:text-6xl font-black tracking-tighter tabular-nums text-foreground font-mono leading-none">
+                  <h2 className={cn(
+                    "text-5xl md:text-6xl font-black tracking-tighter tabular-nums font-mono leading-none",
+                    isPaused ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"
+                  )}>
                     {timerDuration}
                   </h2>
                   <div className="space-y-1">
@@ -99,15 +139,54 @@ export function HeroSection({
                   </div>
                 </div>
 
-                {/* Stop Button - RED for destructive action */}
-                <Button 
-                  size="default"
-                  className="h-10 px-6 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 transition-all"
-                  onClick={() => stopTimer()}
-                >
-                  <Square className="h-3.5 w-3.5 mr-2 fill-current" />
-                  Stop Timer
-                </Button>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3">
+                  {isPaused ? (
+                    <>
+                      <Button 
+                        size="default"
+                        className="flex-1 h-10 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 transition-all"
+                        onClick={handleResume}
+                        disabled={!canUpdateEntries}
+                      >
+                        <Play className="h-3.5 w-3.5 mr-2 fill-current" />
+                        Resume
+                      </Button>
+                      <Button 
+                        size="default"
+                        variant="outline"
+                        className="h-10 px-6 rounded-xl border-red-500/50 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-all"
+                        onClick={() => stopTimer()}
+                        disabled={!canUpdateEntries}
+                      >
+                        <Square className="h-3.5 w-3.5 mr-2 fill-current" />
+                        Stop
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button 
+                        size="default"
+                        variant="outline"
+                        className="flex-1 h-10 px-6 rounded-xl border-yellow-500/50 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/10 hover:border-yellow-500 transition-all"
+                        onClick={handlePause}
+                        disabled={!canUpdateEntries}
+                      >
+                        <Pause className="h-3.5 w-3.5 mr-2 fill-current" />
+                        Pause
+                      </Button>
+                      <Button 
+                        size="default"
+                        className="h-10 px-6 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 transition-all"
+                        onClick={() => stopTimer()}
+                        disabled={!canUpdateEntries}
+                      >
+                        <Square className="h-3.5 w-3.5 mr-2 fill-current" />
+                        Stop
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             ) : (
               /* Idle State */

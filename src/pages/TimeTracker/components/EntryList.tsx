@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Clock, ListTodo, ChevronDown, ChevronUp } from 'lucide-react'
 import type { TaskItem } from '@/types/time-entry'
@@ -12,6 +12,7 @@ type DisplayEntry = {
   time: string
   isOvertime?: boolean
   isActive?: boolean
+  isPaused?: boolean
 }
 
 type EntryListProps = {
@@ -21,29 +22,7 @@ type EntryListProps = {
 }
 
 function LiveTotalDuration({ entry, className }: { entry: DisplayEntry; className?: string }) {
-  const [liveDuration, setLiveDuration] = useState(entry.duration)
-
-  useEffect(() => {
-    if (!entry.isActive || entry.tasks.length === 0) {
-      setLiveDuration(entry.duration)
-      return
-    }
-
-    const calculateLiveDuration = () => {
-      const completedDuration = entry.tasks.slice(0, -1).reduce((sum, t) => sum + t.duration, 0)
-      const lastTask = entry.tasks[entry.tasks.length - 1]
-      const addedAt = new Date(lastTask.addedAt)
-      const now = new Date()
-      const lastTaskMinutes = Math.floor((now.getTime() - addedAt.getTime()) / 60000)
-      setLiveDuration(formatDuration(completedDuration + lastTaskMinutes))
-    }
-
-    calculateLiveDuration()
-    const interval = setInterval(calculateLiveDuration, 1000)
-    return () => clearInterval(interval)
-  }, [entry])
-
-  return <span className={className}>{liveDuration}</span>
+  return <span className={className}>{entry.duration}</span>
 }
 
 function EntryRow({ entry }: { entry: DisplayEntry }) {
@@ -58,14 +37,16 @@ function EntryRow({ entry }: { entry: DisplayEntry }) {
           flex items-center gap-4 px-4 py-4 
           transition-all duration-200 cursor-pointer
           hover:bg-accent/50
-          ${entry.isActive ? 'bg-emerald-500/5' : ''}
+          ${entry.isPaused ? 'bg-yellow-500/5' : entry.isActive ? 'bg-emerald-500/5' : ''}
           ${hasMultipleTasks ? 'cursor-pointer' : ''}
         `}
         onClick={() => hasMultipleTasks && setExpanded(!expanded)}
       >
         {/* Status indicator */}
         <div className="flex-shrink-0">
-          {entry.isActive ? (
+          {entry.isPaused ? (
+            <span className="flex h-3 w-3 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50" />
+          ) : entry.isActive ? (
             <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50" />
           ) : (
             <span className="flex h-2 w-2 rounded-full bg-muted-foreground/30 group-hover:bg-muted-foreground/50 transition-colors" />
@@ -81,7 +62,12 @@ function EntryRow({ entry }: { entry: DisplayEntry }) {
                 OT
               </Badge>
             )}
-            {entry.isActive && (
+            {entry.isPaused && (
+              <Badge className="text-xs py-0 px-2 bg-yellow-500/10 text-yellow-600 border-0">
+                Paused
+              </Badge>
+            )}
+            {entry.isActive && !entry.isPaused && (
               <Badge className="text-xs py-0 px-2 bg-emerald-500/10 text-emerald-600 border-0">
                 Active
               </Badge>
@@ -99,7 +85,7 @@ function EntryRow({ entry }: { entry: DisplayEntry }) {
         <div className="text-right flex-shrink-0 min-w-[64px]">
           <LiveTotalDuration 
             entry={entry} 
-            className={`text-sm font-semibold tabular-nums ${entry.isActive ? 'text-emerald-600' : 'text-foreground'}`} 
+            className={`text-sm font-semibold tabular-nums ${entry.isPaused ? 'text-yellow-600' : entry.isActive ? 'text-emerald-600' : 'text-foreground'}`} 
           />
         </div>
 

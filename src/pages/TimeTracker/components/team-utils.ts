@@ -14,6 +14,7 @@ export type TeamMember = {
     duration: string
     projects: string[]
     task: string
+    isPaused?: boolean
   }
   entries: Array<{
     id: string
@@ -75,13 +76,14 @@ export function transformEntriesToTeamMembers(
         duration: user.id === currentUserId ? timerDuration : calculateActiveDuration(activeEntry, now),
         projects: activeEntry.projects,
         task: activeEntry.tasks[activeEntry.tasks.length - 1]?.text || '',
+        isPaused: activeEntry.isPaused || false,
       } : undefined,
       entries: userEntries.map((e) => ({
         id: e.id,
         project: e.projects.join(', '),
         task: e.tasks[e.tasks.length - 1]?.text || '',
         duration: formatDuration(e.duration),
-        time: formatTimeRange(e.startTime, e.endTime),
+        time: formatTimeRange(e.startTime, e.endTime, e.isPaused, e.lastPausedAt),
       })),
     }
   }).sort((a, b) => {
