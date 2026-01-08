@@ -13,6 +13,7 @@ type TeamMember = {
     duration: string
     projects: string[]
     task: string
+    isPaused?: boolean
   }
   entries: Array<{
     id: string
@@ -34,7 +35,7 @@ export function TeamMemberCard({ member }: TeamMemberCardProps) {
     <Card className={`
       border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden
       hover:shadow-lg hover:border-border transition-all duration-300
-      max-h-[340px] flex flex-col
+      h-[340px] flex flex-col
       ${isActive ? 'ring-1 ring-emerald-500/20' : ''}
     `}>
       <CardContent className="p-4 flex flex-col flex-1 overflow-hidden">
@@ -63,7 +64,7 @@ export function TeamMemberCard({ member }: TeamMemberCardProps) {
               </div>
             )}
             <div>
-              <p className="text-sm font-semibold text-foreground">{member.name}</p>
+              <p className="text-base font-semibold text-foreground">{member.name}</p>
               {member.position && (
                 <p className="text-xs text-muted-foreground">{member.position}</p>
               )}
@@ -77,26 +78,76 @@ export function TeamMemberCard({ member }: TeamMemberCardProps) {
 
         {/* Active Timer */}
         {member.activeTimer && (
-          <div className="mb-4 p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 flex-shrink-0">
-            <div className="flex items-center justify-between mb-2">
+          <div className={`mb-4 rounded-lg border flex-shrink-0 overflow-hidden ${
+            member.activeTimer.isPaused 
+              ? 'bg-yellow-500/5 border-yellow-500/20' 
+              : 'bg-emerald-500/5 border-emerald-500/20'
+          }`}>
+            {/* Header Bar */}
+            <div className={`px-3 py-2 border-b flex items-center justify-between ${
+               member.activeTimer.isPaused 
+                 ? 'bg-yellow-500/10 border-yellow-500/20' 
+                 : 'bg-emerald-500/10 border-emerald-500/20'
+            }`}>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-xs font-medium text-emerald-600">Recording</p>
+                <span className={`h-2 w-2 rounded-full ${
+                  member.activeTimer.isPaused 
+                    ? 'bg-yellow-500' 
+                    : 'bg-emerald-500 animate-pulse'
+                }`} />
+                <p className={`text-xs font-medium ${
+                  member.activeTimer.isPaused 
+                    ? 'text-yellow-600 dark:text-yellow-400' 
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }`}>
+                  {member.activeTimer.isPaused ? 'Paused' : 'Recording'}
+                </p>
               </div>
-              <p className="text-lg font-bold text-emerald-600 tabular-nums">{member.activeTimer.duration}</p>
+              <p className={`text-base font-bold tabular-nums ${
+                member.activeTimer.isPaused 
+                  ? 'text-yellow-600 dark:text-yellow-400' 
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                {member.activeTimer.duration}
+              </p>
             </div>
-            <p className="text-sm text-foreground truncate">{member.activeTimer.task}</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {member.activeTimer.projects.slice(0, 2).map((project) => (
-                <Badge key={project} className="text-xs px-2 py-0 bg-emerald-500/10 text-emerald-600 border-0">
-                  {project}
-                </Badge>
-              ))}
-              {member.activeTimer.projects.length > 2 && (
-                <Badge className="text-xs px-2 py-0 bg-emerald-500/10 text-emerald-600 border-0">
-                  +{member.activeTimer.projects.length - 2}
-                </Badge>
-              )}
+
+            {/* Content Body */}
+            <div className="p-3 space-y-3">
+              {/* Task Description with Border */}
+               <div className={`border rounded-md px-3 py-2 ${
+                 member.activeTimer.isPaused
+                   ? 'bg-yellow-500/5 border-yellow-500/20'
+                   : 'bg-emerald-500/5 border-emerald-500/20'
+               }`}>
+                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">Current Task</p>
+                 <p className="text-sm font-medium text-foreground truncate">{member.activeTimer.task}</p>
+               </div>
+
+              {/* Projects */}
+              <div className="flex flex-wrap gap-2">
+                {member.activeTimer.projects.slice(0, 2).map((project) => (
+                  <Badge 
+                    key={project} 
+                    className={`text-xs px-2 py-0 border-0 ${
+                      member.activeTimer?.isPaused
+                        ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
+                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
+                    {project}
+                  </Badge>
+                ))}
+                {member.activeTimer.projects.length > 2 && (
+                  <Badge className={`text-xs px-2 py-0 border-0 ${
+                    member.activeTimer?.isPaused
+                      ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
+                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    +{member.activeTimer.projects.length - 2}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
         )}

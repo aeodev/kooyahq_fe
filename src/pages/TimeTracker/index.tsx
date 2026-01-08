@@ -14,7 +14,7 @@ import { AnalyticsView } from './components/AnalyticsView'
 import { ManualEntryModal } from './components/ManualEntryModal'
 import { EndDayModal } from './components/EndDayModal'
 import { OvertimeConfirmationModal } from './components/OvertimeConfirmationModal'
-import { formatDuration, formatTimeRange } from './components/utils'
+import { formatDuration, formatTimeRange, calculateEntryDurationMinutes } from './components/utils'
 import { transformEntriesToTeamMembers } from './components/team-utils'
 import { PERMISSIONS } from '@/constants/permissions'
 import { Card, CardContent } from '@/components/ui/card'
@@ -270,9 +270,10 @@ export function TimeTracker() {
   const handleEndDaySubmit = async () => {
     if (!canUpdateEntries) return
     await endDay()
+    clearAll()
     setShowEndDayModal(false)
     setDayEndedToday(true)
-    fetchAllEntries() // Still need to fetch all entries for analytics
+    fetchAllEntries()
 
   }
 
@@ -309,11 +310,18 @@ export function TimeTracker() {
       return entryDate.toDateString() === today.toDateString()
     })
     
-    // Add active timer if it exists and isn't already in the list
-    if (activeTimer && !filtered.some(e => e.id === activeTimer.id)) {
+    // If active timer exists, replace the entry in filtered list with activeTimer (to get latest paused state)
+    if (activeTimer) {
       const timerDate = new Date(activeTimer.createdAt)
       if (timerDate.toDateString() === today.toDateString()) {
-        return [activeTimer, ...filtered]
+        const existingIndex = filtered.findIndex(e => e.id === activeTimer.id)
+        if (existingIndex >= 0) {
+          // Replace existing entry with activeTimer to get latest state
+          filtered[existingIndex] = activeTimer
+        } else {
+          // Add active timer if it doesn't exist in the list
+          return [activeTimer, ...filtered]
+        }
       }
     }
     
@@ -359,33 +367,27 @@ export function TimeTracker() {
   }
 
   const todayTotalMinutes = todayMyEntries.reduce((sum, entry) => {
-    if (entry.isActive && entry.startTime) {
-      const start = new Date(entry.startTime)
-      const now = new Date()
-      let diffMs = now.getTime() - start.getTime()
-      // Subtract paused duration
-      diffMs -= entry.pausedDuration || 0
-      // If currently paused, subtract current pause time too
-      if (entry.isPaused && entry.lastPausedAt) {
-        diffMs -= now.getTime() - new Date(entry.lastPausedAt).getTime()
-      }
-      return sum + Math.max(0, Math.floor(diffMs / 60000))
-    }
-    return sum + entry.duration
+    return sum + calculateEntryDurationMinutes(entry)
   }, 0)
 
   const todayTotal = formatDuration(todayTotalMinutes)
 
   // Transform entries for display
-  const displayEntries = todayMyEntries.map((entry) => ({
-    id: entry.id,
-    project: entry.projects.join(', '),
-    tasks: entry.tasks || [],
-    duration: formatDuration(entry.duration),
-    time: formatTimeRange(entry.startTime, entry.endTime),
-    isOvertime: entry.isOvertime,
-    isActive: entry.isActive,
-  }))
+  const displayEntries = todayMyEntries.map((entry) => {
+    // Calculate duration for active/paused timers (excludes paused time)
+    const displayDuration = calculateEntryDurationMinutes(entry)
+    
+    return {
+      id: entry.id,
+      project: entry.projects.join(', '),
+      tasks: entry.tasks || [],
+      duration: formatDuration(displayDuration),
+      time: formatTimeRange(entry.startTime, entry.endTime, entry.isPaused, entry.lastPausedAt),
+      isOvertime: entry.isOvertime,
+      isActive: entry.isActive,
+      isPaused: entry.isPaused,
+    }
+  })
 
   // Calculate analytics data
   const allTodayEntries = allEntries.filter((entry) => {
