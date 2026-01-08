@@ -224,6 +224,8 @@ export const SocketServerManagementEvents = {
   RUN_OUTPUT: 'server-management:run-output',
   RUN_COMPLETED: 'server-management:run-completed',
   RUN_ERROR: 'server-management:run-error',
+  STATUS_UPDATE: 'server-management:status-update',
+  STATUS_ERROR: 'server-management:status-error',
 } as const
 
 export type SocketServerManagementEventsEnum =

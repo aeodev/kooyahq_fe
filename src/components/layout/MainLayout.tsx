@@ -20,7 +20,7 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
       <Sidebar />
       <AISpotlight />
 
-      <div className="flex h-screen flex-1 flex-col overflow-hidden">
+      <div className="flex h-screen flex-1 min-h-0 flex-col overflow-hidden">
         {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-background/95 backdrop-blur-sm px-4">
           <Button
@@ -41,7 +41,7 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
           {children}
         </main>
 

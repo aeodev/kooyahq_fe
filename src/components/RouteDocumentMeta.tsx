@@ -108,6 +108,11 @@ const META: Record<string, PageMeta> = {
     description: 'Platform settings and system controls.',
     tagline: 'Keep it running.',
   },
+  adminLogs: {
+    title: 'Admin Logs | KooyaHQ',
+    description: 'Audit history for system changes and administrative actions.',
+    tagline: 'See what changed.',
+  },
   meet: {
     title: 'Meet | KooyaHQ',
     description: 'Start or join meetings fast.',
@@ -152,6 +157,7 @@ const ROUTE_META: Array<{ pattern: string; meta: PageMeta }> = [
   { pattern: '/server-management/projects/:projectId', meta: META.serverManagement },
   { pattern: '/server-management', meta: META.serverManagement },
   { pattern: '/system-management', meta: META.systemManagement },
+  { pattern: '/admin-logs', meta: META.adminLogs },
   { pattern: '/meet/files', meta: META.meetFiles },
   { pattern: '/meet/:meetId/join', meta: META.meetJoin },
   { pattern: '/meet/:meetId', meta: META.meetPreJoin },

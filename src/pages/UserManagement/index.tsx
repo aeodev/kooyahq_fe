@@ -4,10 +4,9 @@ import { useAuthStore } from '@/stores/auth.store'
 import { UsersSection } from './components/UsersSection'
 import { ProjectsSection } from './components/ProjectsSection'
 import { DashboardSection } from './components/DashboardSection'
-import { ActivityLogSection } from './components/ActivityLogSection'
 import { PERMISSIONS } from '@/constants/permissions'
 
-type TabType = 'dashboard' | 'users' | 'projects' | 'activity'
+type TabType = 'dashboard' | 'users' | 'projects'
 
 export function UserManagement() {
   const user = useAuthStore((state) => state.user)
@@ -23,10 +22,7 @@ export function UserManagement() {
     [can]
   )
   const canManageProjects = useMemo(() => can(PERMISSIONS.PROJECTS_MANAGE), [can])
-  const canViewActivity = useMemo(
-    () => can(PERMISSIONS.SYSTEM_LOGS),
-    [can]
-  )
+  const canViewActivity = useMemo(() => can(PERMISSIONS.SYSTEM_LOGS), [can])
   const canAccessUserManagement = useMemo(
     () => canViewUsers || canViewProjects || canViewActivity,
     [canViewUsers, canViewProjects, canViewActivity]
@@ -36,9 +32,8 @@ export function UserManagement() {
     const tabs: TabType[] = ['dashboard']
     if (canViewUsers) tabs.push('users')
     if (canViewProjects) tabs.push('projects')
-    if (canViewActivity) tabs.push('activity')
     return tabs
-  }, [canViewUsers, canViewProjects, canViewActivity])
+  }, [canViewUsers, canViewProjects])
 
   useEffect(() => {
     if (!availableTabs.includes(activeTab)) {
@@ -63,7 +58,7 @@ export function UserManagement() {
     <section className="space-y-4 sm:space-y-6">
       <header className="space-y-1 sm:space-y-2">
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">User Management</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">Manage users, projects, and audit logs</p>
+        <p className="text-sm sm:text-base text-muted-foreground">Manage users and projects</p>
       </header>
 
       {/* Tabs - Mobile-first with horizontal scroll */}
@@ -102,18 +97,6 @@ export function UserManagement() {
             Projects
           </button>
         )}
-        {canViewActivity && (
-          <button
-            onClick={() => setActiveTab('activity')}
-            className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-300 whitespace-nowrap ${
-              activeTab === 'activity'
-                ? 'bg-primary/10 text-primary border border-primary/50 shadow-md'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-transparent'
-            }`}
-          >
-            Activity Log
-          </button>
-        )}
       </div>
 
       {/* Tab Content */}
@@ -131,7 +114,6 @@ export function UserManagement() {
         {activeTab === 'projects' && canViewProjects && (
           <ProjectsSection canManageProjects={canManageProjects} canViewProjects={canViewProjects} />
         )}
-        {activeTab === 'activity' && canViewActivity && <ActivityLogSection canViewActivity={canViewActivity} />}
         {!availableTabs.includes(activeTab) && (
           <Card className="mt-4">
             <CardHeader>

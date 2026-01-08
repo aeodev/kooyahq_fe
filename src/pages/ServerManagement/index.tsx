@@ -13,6 +13,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -37,7 +38,6 @@ import {
   DELETE_SERVER_MANAGEMENT_PROJECT,
   DELETE_SERVER_MANAGEMENT_SERVER,
   GET_SERVER_MANAGEMENT_PROJECTS,
-  GET_SERVER_STATUS,
   RUN_SERVER_MANAGEMENT_ACTION,
   SocketServerManagementEvents,
   UPDATE_SERVER_MANAGEMENT_PROJECT,
@@ -137,6 +137,17 @@ type RunErrorPayload = {
   message?: string
 }
 
+type StatusUpdatePayload = {
+  serverId?: string
+  status?: Record<string, unknown>
+  rawOutput?: string
+}
+
+type StatusErrorPayload = {
+  serverId?: string
+  message?: string
+}
+
 type StatusUsage = {
   usage_bytes?: number
   limit_bytes?: number
@@ -147,13 +158,64 @@ type StatusUsage = {
 type StatusTransfer = {
   rx_bytes?: number
   tx_bytes?: number
+  in_bps?: number
+  out_bps?: number
   raw?: string
 }
 
 type StatusBlock = {
   read_bytes?: number
   write_bytes?: number
+  read_bps?: number
+  write_bps?: number
   raw?: string
+}
+
+type StatusCpuMetrics = {
+  total_percent?: number
+  used_percent?: number
+  free_percent?: number
+}
+
+type StatusStorageIo = {
+  read_bytes?: number
+  write_bytes?: number
+  read_bps?: number
+  write_bps?: number
+}
+
+type TrendSeriesBlock = {
+  cpu: number[]
+  memory: number[]
+  netIn: number[]
+  netOut: number[]
+  storageRead: number[]
+  storageWrite: number[]
+}
+
+type TrendSeriesState = {
+  instance: TrendSeriesBlock
+  services: Record<string, TrendSeriesBlock>
+}
+
+type TrendSeriesUpdate = {
+  cpu?: number | null
+  memory?: number | null
+  netIn?: number | null
+  netOut?: number | null
+  storageRead?: number | null
+  storageWrite?: number | null
+}
+
+type SparklineSeries = {
+  data: number[]
+  strokeClass: string
+}
+
+type SparklineDotProps = {
+  cx?: number
+  cy?: number
+  index?: number
 }
 
 type DockerContainerStatus = {
@@ -175,6 +237,7 @@ type DockerContainerStatus = {
 
 type StatusPayload = {
   timestamp?: string
+  health_status?: string
   instance?: {
     hostname?: string
     mem?: {
@@ -186,13 +249,21 @@ type StatusPayload = {
       loadavg_1m?: number
       loadavg_5m?: number
       loadavg_15m?: number
+      metrics?: StatusCpuMetrics
+      cores?: Record<string, number>
     }
     network?: Record<string, StatusTransfer>
+    network_speed?: {
+      in_bps?: number
+      out_bps?: number
+    }
     storage_root?: {
       total_bytes?: number
       used_bytes?: number
       available_bytes?: number
     }
+    storage_io?: StatusStorageIo
+    storage_speed?: StatusStorageIo
   }
   docker?: {
     compose_ps_error?: string | null
@@ -271,7 +342,118 @@ const getActionRisk = (action: { risk?: ActionRisk; dangerous?: boolean }): Acti
 
 const requiresConfirm = (risk: ActionRisk) => risk === 'dangerous'
 
-const formatBytes = (value?: number) => {
+const TREND_POINTS = 60
+
+const createTrendSeriesBlock = (): TrendSeriesBlock => ({
+  cpu: [],
+  memory: [],
+  netIn: [],
+  netOut: [],
+  storageRead: [],
+  storageWrite: [],
+})
+
+const emptyTrendSeriesBlock = createTrendSeriesBlock()
+
+const appendTrendPoint = (series: number[], value: number | null, maxPoints = TREND_POINTS) => {
+  if (value === null || !Number.isFinite(value)) {
+    if (series.length === 0) return series
+    value = series[series.length - 1]
+  }
+  const next = [...series, value]
+  if (next.length > maxPoints) {
+    next.splice(0, next.length - maxPoints)
+  }
+  return next
+}
+
+const updateTrendSeriesBlock = (block: TrendSeriesBlock, update: TrendSeriesUpdate) => ({
+  cpu: appendTrendPoint(block.cpu, update.cpu ?? null),
+  memory: appendTrendPoint(block.memory, update.memory ?? null),
+  netIn: appendTrendPoint(block.netIn, update.netIn ?? null),
+  netOut: appendTrendPoint(block.netOut, update.netOut ?? null),
+  storageRead: appendTrendPoint(block.storageRead, update.storageRead ?? null),
+  storageWrite: appendTrendPoint(block.storageWrite, update.storageWrite ?? null),
+})
+
+const getLastValue = (series: number[]) => (series.length > 0 ? series[series.length - 1] : null)
+
+const SparklineChart = ({
+  series,
+  height = 48,
+  className,
+}: {
+  series: SparklineSeries[]
+  height?: number
+  className?: string
+}) => {
+  const hasData = series.some((entry) => entry.data.length > 0)
+  if (!hasData) {
+    return (
+      <div
+        className={cn(
+          'flex items-center justify-center text-[10px] text-gray-400 dark:text-slate-500',
+          className
+        )}
+        style={{ height }}
+      >
+        No data
+      </div>
+    )
+  }
+
+  const maxLength = TREND_POINTS
+  const data = Array.from({ length: maxLength }, (_, index) => {
+    const row: Record<string, number | null> = { index }
+    series.forEach((entry, seriesIndex) => {
+      const trimmed = entry.data.slice(-maxLength)
+      const offset = maxLength - trimmed.length
+      const value = index < offset ? null : trimmed[index - offset]
+      row[`s${seriesIndex}`] = typeof value === 'number' && Number.isFinite(value) ? value : null
+    })
+    return row
+  })
+  const lastIndex = data.length - 1
+  const renderTailDot = (colorClass: string) => ({ cx, cy, index }: SparklineDotProps) => {
+    if (index !== lastIndex || cx === undefined || cy === undefined) return null
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={2.6}
+        fill="currentColor"
+        className={cn(colorClass, 'animate-pulse')}
+      />
+    )
+  }
+
+  return (
+    <div className={cn('w-full', className)} style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 6, right: 0, left: 0, bottom: 0 }}>
+          <XAxis hide dataKey="index" />
+          <YAxis hide domain={['dataMin', 'dataMax']} padding={{ top: 6, bottom: 6 }} />
+          {series.map((entry, index) => (
+            <Line
+              key={`sparkline-${index}`}
+              type="monotone"
+              dataKey={`s${index}`}
+              dot={renderTailDot(entry.strokeClass)}
+              activeDot={false}
+              stroke="currentColor"
+              className={entry.strokeClass}
+              strokeWidth={1.6}
+              isAnimationActive={false}
+              connectNulls={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+const formatBytes = (value?: number | null) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
   let size = Math.abs(value)
@@ -285,14 +467,42 @@ const formatBytes = (value?: number) => {
   return `${sign}${size.toFixed(decimals)} ${units[unitIndex]}`
 }
 
+const formatBitsPerSecond = (value?: number) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  const units = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps']
+  let rate = Math.abs(value)
+  let unitIndex = 0
+  while (rate >= 1000 && unitIndex < units.length - 1) {
+    rate /= 1000
+    unitIndex += 1
+  }
+  const decimals = rate >= 10 || unitIndex === 0 ? 0 : 1
+  const sign = value < 0 ? '-' : ''
+  return `${sign}${rate.toFixed(decimals)} ${units[unitIndex]}`
+}
+
+const formatBytesPerSecond = (value?: number) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s']
+  let rate = Math.abs(value)
+  let unitIndex = 0
+  while (rate >= 1024 && unitIndex < units.length - 1) {
+    rate /= 1024
+    unitIndex += 1
+  }
+  const decimals = rate >= 10 || unitIndex === 0 ? 0 : 1
+  const sign = value < 0 ? '-' : ''
+  return `${sign}${rate.toFixed(decimals)} ${units[unitIndex]}`
+}
+
 const formatPercent = (value?: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
   return `${value.toFixed(2)}%`
 }
 
-const formatLoadAvg = (value?: number) => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
-  return value.toFixed(2)
+const formatPercentOne = (value?: number | null) => {
+  if (value === null || typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  return `${value.toFixed(1)}%`
 }
 
 const formatContainerMemPair = (mem?: StatusUsage) => {
@@ -314,11 +524,17 @@ const formatPercentShort = (value: number | null) => {
   return `${Math.round(value)}%`
 }
 
+const formatTimestampTime = (value?: string) => {
+  if (!value) return '—'
+  const match = value.match(/T(\d{2}:\d{2}:\d{2})/)
+  return match ? match[1] : value
+}
+
 const getUsageTone = (percent: number | null) => {
   if (percent === null) return 'bg-muted-foreground/30'
-  if (percent >= 80) return 'bg-rose-500/80'
-  if (percent >= 60) return 'bg-amber-500/80'
-  return 'bg-emerald-500/80'
+  if (percent >= 80) return 'bg-rose-500/80 dark:bg-rose-400/80'
+  if (percent >= 60) return 'bg-amber-500/80 dark:bg-amber-400/80'
+  return 'bg-emerald-500/80 dark:bg-emerald-400/80'
 }
 
 const formatContainerCpu = (container: DockerContainerStatus) => {
@@ -387,8 +603,16 @@ const getContainerForService = (
 const formatContainerNet = (net?: StatusTransfer) => {
   if (!net) return '—'
   if (net.raw) return net.raw
-  if (typeof net.rx_bytes === 'number' && typeof net.tx_bytes === 'number') {
-    return `${formatBytes(net.rx_bytes)} / ${formatBytes(net.tx_bytes)}`
+  if (typeof net.rx_bytes === 'number' || typeof net.tx_bytes === 'number') {
+    return `IN ${formatBytes(net.rx_bytes)} / OUT ${formatBytes(net.tx_bytes)}`
+  }
+  return '—'
+}
+
+const formatContainerNetSpeed = (net?: StatusTransfer) => {
+  if (!net) return '—'
+  if (typeof net.in_bps === 'number' || typeof net.out_bps === 'number') {
+    return `IN ${formatBitsPerSecond(net.in_bps)} / OUT ${formatBitsPerSecond(net.out_bps)}`
   }
   return '—'
 }
@@ -429,34 +653,11 @@ const parseSizeValue = (value: string) => {
   return amount * factor
 }
 
-const parseSizePair = (raw: string) => {
-  const parts = raw.split('/')
-  let total = 0
-  let parsedAny = false
-  parts.forEach((part) => {
-    const parsed = parseSizeValue(part)
-    if (parsed !== null) {
-      total += parsed
-      parsedAny = true
-    }
-  })
-  return parsedAny ? total : null
-}
-
 const parseSizePairParts = (raw: string) => {
   const parts = raw.split('/')
   const read = parts[0] ? parseSizeValue(parts[0]) : null
   const write = parts[1] ? parseSizeValue(parts[1]) : null
   return { read, write }
-}
-
-const getTransferTotal = (net?: StatusTransfer) => {
-  if (!net) return null
-  if (typeof net.rx_bytes === 'number' && typeof net.tx_bytes === 'number') {
-    return net.rx_bytes + net.tx_bytes
-  }
-  if (net.raw) return parseSizePair(net.raw)
-  return null
 }
 
 const getBlockReadWrite = (block?: StatusBlock) => {
@@ -471,6 +672,17 @@ const getBlockReadWrite = (block?: StatusBlock) => {
   return { read: null, write: null }
 }
 
+const getBlockSpeed = (block?: StatusBlock) => {
+  if (!block) return { read: null, write: null }
+  if (typeof block.read_bps === 'number' || typeof block.write_bps === 'number') {
+    return {
+      read: typeof block.read_bps === 'number' ? block.read_bps : null,
+      write: typeof block.write_bps === 'number' ? block.write_bps : null,
+    }
+  }
+  return { read: null, write: null }
+}
+
 const getUsagePercent = (used?: number, total?: number) => {
   if (typeof used !== 'number' || typeof total !== 'number' || !Number.isFinite(used) || !Number.isFinite(total)) {
     return null
@@ -479,10 +691,22 @@ const getUsagePercent = (used?: number, total?: number) => {
   return clampPercent((used / total) * 100)
 }
 
-const getRelativePercent = (value?: number | null, max?: number | null) => {
-  if (value === null || typeof value !== 'number' || !Number.isFinite(value)) return null
-  if (max === null || typeof max !== 'number' || !Number.isFinite(max) || max <= 0) return null
-  return clampPercent((value / max) * 100)
+const getActivityLabel = (totalBytes: number | null) => {
+  if (totalBytes === null) return '—'
+  const twoGb = 2 * 1024 * 1024 * 1024
+  const tenGb = 10 * 1024 * 1024 * 1024
+  if (totalBytes < twoGb) return 'Low'
+  if (totalBytes < tenGb) return 'Moderate'
+  return 'High'
+}
+
+const getSpeedActivityLabel = (bitsPerSecond: number | null) => {
+  if (bitsPerSecond === null) return '—'
+  const oneMbps = 1_000_000
+  const tenMbps = 10_000_000
+  if (bitsPerSecond < oneMbps) return 'Low'
+  if (bitsPerSecond < tenMbps) return 'Moderate'
+  return 'High'
 }
 
 const getContainerMemPercent = (mem?: StatusUsage) => {
@@ -491,19 +715,29 @@ const getContainerMemPercent = (mem?: StatusUsage) => {
   return getUsagePercent(mem.usage_bytes, mem.limit_bytes)
 }
 
-const renderPercentBar = (percent: number | null, toneClass: string) => {
+const renderPercentBar = (
+  percent: number | null,
+  toneClass: string,
+  options: { trackClass?: string } = {}
+) => {
   if (percent === null) return null
+  const trackClass = options.trackClass ?? 'bg-muted/60'
   return (
-    <div className="mt-2 h-1.5 w-full bg-muted/60">
+    <div className={cn('mt-2 h-1.5 w-full', trackClass)}>
       <div className={cn('h-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
     </div>
   )
 }
 
-const renderMiniBar = (percent: number | null, toneClass: string) => {
+const renderMiniBar = (
+  percent: number | null,
+  toneClass: string,
+  options: { trackClass?: string } = {}
+) => {
   if (percent === null) return null
+  const trackClass = options.trackClass ?? 'bg-muted/60'
   return (
-    <div className="h-1 w-full bg-muted/60">
+    <div className={cn('h-1 w-full', trackClass)}>
       <div className={cn('h-full transition-all', toneClass)} style={{ width: `${percent}%` }} />
     </div>
   )
@@ -529,7 +763,14 @@ const getSplitPercents = (read?: number | null, write?: number | null) => {
   }
 }
 
-const renderSplitBar = (readPercent: number | null, writePercent: number | null) => {
+const IO_READ_CLASS = 'bg-sky-500/80 dark:bg-sky-400/80'
+const IO_WRITE_CLASS = 'bg-amber-500/80 dark:bg-amber-400/80'
+
+const renderSplitBar = (
+  readPercent: number | null,
+  writePercent: number | null,
+  options: { readClass?: string; writeClass?: string; trackClass?: string } = {}
+) => {
   if (readPercent === null && writePercent === null) return null
   const safeRead = Math.max(0, readPercent ?? 0)
   const safeWrite = Math.max(0, writePercent ?? 0)
@@ -538,20 +779,37 @@ const renderSplitBar = (readPercent: number | null, writePercent: number | null)
   const readWidth = total > 0 ? (safeRead / total) * 100 : 0
   const writeWidth = total > 0 ? (safeWrite / total) * 100 : 0
   const hasBoth = readWidth > 0 && writeWidth > 0
+  const readClass = options.readClass ?? 'bg-primary'
+  const writeClass = options.writeClass ?? 'bg-muted-foreground/40'
+  const trackClass = options.trackClass ?? 'bg-muted/60'
   return (
-    <div className="mt-1.5 h-1.5 w-full overflow-hidden bg-muted/60">
+    <div className={cn('mt-1.5 h-1.5 w-full overflow-hidden', trackClass)}>
       <div className={cn('flex h-full w-full', hasBoth && 'gap-px')}>
-        <div className="h-full bg-teal-500/70" style={{ width: `${readWidth}%` }} />
-        <div className="h-full bg-amber-500/70" style={{ width: `${writeWidth}%` }} />
+        <div className={cn('h-full', readClass)} style={{ width: `${readWidth}%` }} />
+        <div className={cn('h-full', writeClass)} style={{ width: `${writeWidth}%` }} />
       </div>
     </div>
   )
 }
 
-const getLoadBarPercent = (value?: number, max?: number) => {
+const getCpuCoreEntries = (cores?: Record<string, number>) => {
+  if (!cores) return []
+  const entries = Object.entries(cores)
+    .map(([name, value]) => ({ name, value }))
+    .filter((entry) => typeof entry.value === 'number' && Number.isFinite(entry.value))
+  return entries.sort((a, b) => {
+    const aIndex = Number.parseInt(a.name.replace(/[^0-9]/g, ''), 10)
+    const bIndex = Number.parseInt(b.name.replace(/[^0-9]/g, ''), 10)
+    if (Number.isFinite(aIndex) && Number.isFinite(bIndex) && aIndex !== bIndex) {
+      return aIndex - bIndex
+    }
+    return a.name.localeCompare(b.name)
+  })
+}
+
+const getLoadPercent = (value?: number) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  if (typeof max !== 'number' || !Number.isFinite(max) || max <= 0) return null
-  return clampPercent((value / max) * 100)
+  return clampPercent(value * 100)
 }
 
 type ServiceStatusTone = 'good' | 'warning' | 'error' | 'stopped' | 'muted'
@@ -573,7 +831,8 @@ const getServiceStatusSummary = (state?: string, health?: string) => {
   }
 
   if (normalizedState === 'running') {
-    if (normalizedHealth && normalizedHealth !== 'healthy') {
+    const isHealthy = normalizedHealth === 'healthy' || normalizedHealth === 'ok'
+    if (normalizedHealth && !isHealthy) {
       const label = normalizedHealth === 'unhealthy' ? 'Unhealthy' : 'Degraded'
       const tone = normalizedHealth === 'unhealthy' ? 'error' : 'warning'
       return { label, tone: tone as ServiceStatusTone }
@@ -622,80 +881,6 @@ const summarizeNetwork = (network?: Record<string, StatusTransfer>): NetworkSumm
   return { totalRx, totalTx, interfaceCount }
 }
 
-type NetworkGroup = {
-  label: string
-  description?: string
-  entries: Array<{ name: string; stats: StatusTransfer }>
-  totalRx: number
-  totalTx: number
-}
-
-const groupNetworkInterfaces = (network?: Record<string, StatusTransfer>): NetworkGroup[] => {
-  if (!network) return []
-  const groups = new Map<string, NetworkGroup>()
-
-  const register = (label: string, description?: string) => {
-    if (!groups.has(label)) {
-      groups.set(label, {
-        label,
-        description,
-        entries: [],
-        totalRx: 0,
-        totalTx: 0,
-      })
-    }
-    return groups.get(label)!
-  }
-
-  const rules = [
-    {
-      label: 'Primary',
-      description: 'Physical or bonded interfaces',
-      match: (name: string) =>
-        name.startsWith('ens') ||
-        name.startsWith('eth') ||
-        name.startsWith('enp') ||
-        name.startsWith('eno') ||
-        name.startsWith('bond') ||
-        name.startsWith('wlan') ||
-        name.startsWith('wl'),
-    },
-    {
-      label: 'Docker / Bridge',
-      description: 'Container bridges and docker networks',
-      match: (name: string) => name === 'docker0' || name.startsWith('br-') || name.startsWith('docker'),
-    },
-    {
-      label: 'Container veth',
-      description: 'Virtual ethernet pairs created per container',
-      match: (name: string) => name.startsWith('veth'),
-    },
-    {
-      label: 'Tunnel / VPN',
-      description: 'Tunnel interfaces (VPN, WireGuard, etc.)',
-      match: (name: string) => name.startsWith('tun') || name.startsWith('tap') || name.startsWith('wg'),
-    },
-    {
-      label: 'Loopback',
-      description: 'Local host traffic only',
-      match: (name: string) => name === 'lo',
-    },
-  ]
-
-  Object.entries(network).forEach(([name, stats]) => {
-    const rule = rules.find((entry) => entry.match(name))
-    const group = rule ? register(rule.label, rule.description) : register('Other', 'Unclassified interfaces')
-    group.entries.push({ name, stats })
-    group.totalRx += typeof stats?.rx_bytes === 'number' ? stats.rx_bytes : 0
-    group.totalTx += typeof stats?.tx_bytes === 'number' ? stats.tx_bytes : 0
-  })
-
-  const orderedLabels = [...rules.map((rule) => rule.label), 'Other']
-  return orderedLabels
-    .map((label) => groups.get(label))
-    .filter((group): group is NetworkGroup => Boolean(group))
-}
-
 const formatStatusValue = (value: unknown) => {
   if (value === null || value === undefined) return ''
   if (typeof value === 'string') {
@@ -714,6 +899,320 @@ const formatStatusValue = (value: unknown) => {
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
+const toNumber = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+const normalizeContainerStatus = (key: string, raw: Record<string, unknown>): DockerContainerStatus => {
+  const container: DockerContainerStatus = {}
+
+  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : ''
+  if (name) {
+    container.name = name
+  } else if (key) {
+    container.name = key
+  }
+
+  if (typeof raw.container_id === 'string') container.container_id = raw.container_id
+  if (typeof raw.cpu_raw === 'string') container.cpu_raw = raw.cpu_raw
+  if (typeof raw.image === 'string') container.image = raw.image
+  if (typeof raw.ports === 'string') container.ports = raw.ports
+  if (typeof raw.pids === 'number') container.pids = raw.pids
+
+  if (typeof raw.state === 'string') container.state = raw.state
+  if (typeof raw.status === 'string') container.status = raw.status
+
+  const health =
+    (typeof raw.health === 'string' && raw.health) ||
+    (typeof raw.health_status === 'string' && raw.health_status) ||
+    ''
+  if (health) {
+    container.health = health
+  }
+
+  if (typeof raw.cpu_percent === 'number' || typeof raw.cpu_percent === 'string') {
+    container.cpu_percent = raw.cpu_percent
+  } else if (typeof raw.cpu === 'number' || typeof raw.cpu === 'string') {
+    container.cpu = raw.cpu
+  } else if (isPlainObject(raw.cpu)) {
+    const cpu = raw.cpu as Record<string, unknown>
+    const metrics = isPlainObject(cpu.metrics) ? (cpu.metrics as Record<string, unknown>) : undefined
+    const used = toNumber(cpu.used_percent ?? metrics?.used_percent)
+    const total = toNumber(cpu.total_percent ?? metrics?.total_percent)
+    if (used !== undefined) {
+      container.cpu_percent = used
+    } else if (total !== undefined) {
+      container.cpu_percent = total
+    }
+  }
+
+  if (isPlainObject(raw.mem)) {
+    container.mem = raw.mem as StatusUsage
+  } else if (isPlainObject(raw.memory)) {
+    const memory = raw.memory as Record<string, unknown>
+    const usage = toNumber(memory.used)
+    const limit = toNumber(memory.total)
+    const mem: StatusUsage = {}
+    if (usage !== undefined) mem.usage_bytes = usage
+    if (limit !== undefined) mem.limit_bytes = limit
+    if (usage !== undefined && limit !== undefined && limit > 0) {
+      mem.percent = (usage / limit) * 100
+    }
+    if (Object.keys(mem).length > 0) {
+      container.mem = mem
+    }
+  }
+
+  if (isPlainObject(raw.net)) {
+    container.net = raw.net as StatusTransfer
+  } else if (isPlainObject(raw.network)) {
+    const network = raw.network as Record<string, unknown>
+    const rx = toNumber(network.inbound_bytes ?? network.rx_bytes)
+    const tx = toNumber(network.outbound_bytes ?? network.tx_bytes)
+    const speed = isPlainObject(network.speed) ? (network.speed as Record<string, unknown>) : null
+    const inBps = toNumber(speed?.in_bps)
+    const outBps = toNumber(speed?.out_bps)
+    const net: StatusTransfer = {}
+    if (rx !== undefined) net.rx_bytes = rx
+    if (tx !== undefined) net.tx_bytes = tx
+    if (inBps !== undefined) net.in_bps = inBps
+    if (outBps !== undefined) net.out_bps = outBps
+    if (Object.keys(net).length > 0) {
+      container.net = net
+    }
+  }
+
+  if (isPlainObject(raw.block)) {
+    container.block = raw.block as StatusBlock
+  } else if (isPlainObject(raw.storage)) {
+    const storage = raw.storage as Record<string, unknown>
+    const read = toNumber(storage.read_bytes)
+    const write = toNumber(storage.write_bytes)
+    const speed = isPlainObject(storage.speed) ? (storage.speed as Record<string, unknown>) : null
+    const readBps = toNumber(speed?.read_bps)
+    const writeBps = toNumber(speed?.write_bps)
+    const block: StatusBlock = {}
+    if (read !== undefined) block.read_bytes = read
+    if (write !== undefined) block.write_bytes = write
+    if (readBps !== undefined) block.read_bps = readBps
+    if (writeBps !== undefined) block.write_bps = writeBps
+    if (Object.keys(block).length > 0) {
+      container.block = block
+    }
+  }
+
+  return container
+}
+
+const normalizeStatusPayload = (payload: Record<string, unknown>): StatusPayload | null => {
+  const normalized: StatusPayload = {}
+
+  if (typeof payload.timestamp === 'string') {
+    normalized.timestamp = payload.timestamp
+  }
+
+  if (typeof payload.health_status === 'string') {
+    normalized.health_status = payload.health_status
+  } else if (typeof payload.healthStatus === 'string') {
+    normalized.health_status = payload.healthStatus
+  }
+
+  if (isPlainObject(payload.instance)) {
+    const instanceRaw = payload.instance as Record<string, unknown>
+    const instance: NonNullable<StatusPayload['instance']> = {}
+
+    if (isPlainObject(instanceRaw.mem)) {
+      instance.mem = instanceRaw.mem as NonNullable<StatusPayload['instance']>['mem']
+    } else if (isPlainObject(instanceRaw.memory)) {
+      const memory = instanceRaw.memory as Record<string, unknown>
+      const mem = {
+        total_bytes: toNumber(memory.total),
+        used_bytes: toNumber(memory.used),
+        available_bytes: toNumber(memory.free),
+      }
+      if (Object.values(mem).some((value) => typeof value === 'number')) {
+        instance.mem = mem
+      }
+    }
+
+    if (isPlainObject(instanceRaw.cpu)) {
+      const cpuRaw = instanceRaw.cpu as Record<string, unknown>
+      const loadavg = isPlainObject(cpuRaw.loadavg) ? (cpuRaw.loadavg as Record<string, unknown>) : null
+      const cpu: NonNullable<StatusPayload['instance']>['cpu'] = {
+        loadavg_1m: toNumber(loadavg?.['1m'] ?? cpuRaw.loadavg_1m),
+        loadavg_5m: toNumber(loadavg?.['5m'] ?? cpuRaw.loadavg_5m),
+        loadavg_15m: toNumber(loadavg?.['15m'] ?? cpuRaw.loadavg_15m),
+      }
+
+      const metricsRaw = isPlainObject(cpuRaw.metrics) ? (cpuRaw.metrics as Record<string, unknown>) : null
+      const metrics: StatusCpuMetrics = {
+        total_percent: toNumber(metricsRaw?.total_percent ?? cpuRaw.total_percent),
+        used_percent: toNumber(metricsRaw?.used_percent ?? cpuRaw.used_percent),
+        free_percent: toNumber(metricsRaw?.free_percent ?? cpuRaw.free_percent),
+      }
+      if (Object.values(metrics).some((value) => typeof value === 'number')) {
+        cpu.metrics = metrics
+      }
+
+      if (isPlainObject(cpuRaw.cores)) {
+        const coresRaw = cpuRaw.cores as Record<string, unknown>
+        const cores: Record<string, number> = {}
+        Object.entries(coresRaw).forEach(([key, value]) => {
+          const parsed = toNumber(value)
+          if (parsed !== undefined) {
+            cores[key] = parsed
+          }
+        })
+        if (Object.keys(cores).length > 0) {
+          cpu.cores = cores
+        }
+      }
+
+      if (Object.values(cpu).some((value) => typeof value === 'number') || cpu.metrics || cpu.cores) {
+        instance.cpu = cpu
+      }
+    }
+
+    if (isPlainObject(instanceRaw.network)) {
+      const networkRaw = instanceRaw.network as Record<string, unknown>
+      const totalsBlock = isPlainObject(networkRaw.totals)
+        ? (networkRaw.totals as Record<string, unknown>)
+        : null
+      const interfacesRaw = isPlainObject(totalsBlock?.interfaces)
+        ? (totalsBlock?.interfaces as Record<string, unknown>)
+        : isPlainObject(networkRaw.interfaces)
+          ? (networkRaw.interfaces as Record<string, unknown>)
+          : null
+      const totalRaw = isPlainObject(totalsBlock?.total)
+        ? (totalsBlock?.total as Record<string, unknown>)
+        : isPlainObject(networkRaw.total)
+          ? (networkRaw.total as Record<string, unknown>)
+          : null
+
+      if (totalRaw) {
+        const rx = toNumber(totalRaw.inbound_bytes ?? totalRaw.rx_bytes)
+        const tx = toNumber(totalRaw.outbound_bytes ?? totalRaw.tx_bytes)
+        const entry: StatusTransfer = {}
+        if (rx !== undefined) entry.rx_bytes = rx
+        if (tx !== undefined) entry.tx_bytes = tx
+        if (Object.keys(entry).length > 0) {
+          instance.network = { total: entry }
+        }
+      } else if (interfacesRaw) {
+        const mapped: Record<string, StatusTransfer> = {}
+        Object.entries(interfacesRaw).forEach(([name, stats]) => {
+          if (!isPlainObject(stats)) return
+          const rx = toNumber((stats as Record<string, unknown>).inbound_bytes)
+          const tx = toNumber((stats as Record<string, unknown>).outbound_bytes)
+          const entry: StatusTransfer = {}
+          if (rx !== undefined) entry.rx_bytes = rx
+          if (tx !== undefined) entry.tx_bytes = tx
+          if (Object.keys(entry).length > 0) {
+            mapped[name] = entry
+          }
+        })
+        if (Object.keys(mapped).length > 0) {
+          instance.network = mapped
+        }
+      } else if (!('speed' in networkRaw) && !('totals' in networkRaw)) {
+        instance.network = networkRaw as Record<string, StatusTransfer>
+      }
+
+      if (isPlainObject(networkRaw.speed)) {
+        const speed = networkRaw.speed as Record<string, unknown>
+        const networkSpeed = {
+          in_bps: toNumber(speed.in_bps),
+          out_bps: toNumber(speed.out_bps),
+        }
+        if (Object.values(networkSpeed).some((value) => typeof value === 'number')) {
+          instance.network_speed = networkSpeed
+        }
+      }
+    }
+
+    if (isPlainObject(instanceRaw.storage_root)) {
+      instance.storage_root = instanceRaw.storage_root as NonNullable<StatusPayload['instance']>['storage_root']
+    } else if (isPlainObject(instanceRaw.storage)) {
+      const storage = instanceRaw.storage as Record<string, unknown>
+      const usage = isPlainObject(storage.usage) ? (storage.usage as Record<string, unknown>) : null
+      const io = isPlainObject(storage.io) ? (storage.io as Record<string, unknown>) : null
+      const totals = isPlainObject(storage.totals) ? (storage.totals as Record<string, unknown>) : null
+      const speed = isPlainObject(storage.speed) ? (storage.speed as Record<string, unknown>) : null
+      if (usage) {
+        const root = {
+          total_bytes: toNumber(usage.total),
+          used_bytes: toNumber(usage.used),
+          available_bytes: toNumber(usage.free),
+        }
+        if (Object.values(root).some((value) => typeof value === 'number')) {
+          instance.storage_root = root
+        }
+      }
+      if (io || totals) {
+        const source = totals ?? io ?? {}
+        const storageIo: StatusStorageIo = {
+          read_bytes: toNumber((source as Record<string, unknown>).read_bytes),
+          write_bytes: toNumber((source as Record<string, unknown>).write_bytes),
+        }
+        if (Object.values(storageIo).some((value) => typeof value === 'number')) {
+          instance.storage_io = storageIo
+        }
+      }
+      if (speed) {
+        const storageIo: StatusStorageIo = {
+          read_bps: toNumber(speed.read_bps),
+          write_bps: toNumber(speed.write_bps),
+        }
+        if (Object.values(storageIo).some((value) => typeof value === 'number')) {
+          instance.storage_speed = storageIo
+        }
+      }
+    }
+
+    if (Object.keys(instance).length > 0) {
+      normalized.instance = instance
+    }
+  }
+
+  if (isPlainObject(payload.docker)) {
+    const dockerRaw = payload.docker as Record<string, unknown>
+    const docker: NonNullable<StatusPayload['docker']> = {}
+
+    if (typeof dockerRaw.compose_ps_error === 'string' || dockerRaw.compose_ps_error === null) {
+      docker.compose_ps_error = dockerRaw.compose_ps_error as NonNullable<StatusPayload['docker']>['compose_ps_error']
+    } else if (typeof dockerRaw.compose_errors === 'string' || dockerRaw.compose_errors === null) {
+      docker.compose_ps_error = dockerRaw.compose_errors as NonNullable<StatusPayload['docker']>['compose_ps_error']
+    }
+
+    if (isPlainObject(dockerRaw.containers)) {
+      const containersRaw = dockerRaw.containers as Record<string, unknown>
+      const containers: Record<string, DockerContainerStatus> = {}
+      Object.entries(containersRaw).forEach(([key, value]) => {
+        if (!isPlainObject(value)) return
+        containers[key] = normalizeContainerStatus(key, value as Record<string, unknown>)
+      })
+      if (Object.keys(containers).length > 0) {
+        docker.containers = containers
+      }
+    }
+
+    if (Object.keys(docker).length > 0) {
+      normalized.docker = docker
+    }
+  }
+
+  if (!normalized.timestamp && !normalized.health_status && !normalized.instance && !normalized.docker) {
+    return null
+  }
+
+  return normalized
+}
+
 const isStatusInstance = (
   value: StatusPayload['instance'] | undefined
 ): value is NonNullable<StatusPayload['instance']> => isPlainObject(value)
@@ -723,6 +1222,24 @@ const isStatusDocker = (
 ): value is NonNullable<StatusPayload['docker']> => isPlainObject(value)
 
 const cardClassName = 'rounded-2xl border border-border/60 bg-background/90 p-5 shadow-sm'
+const statusCardClassName =
+  'flex h-full flex-col gap-2 border border-gray-200 bg-white p-3 text-xs text-gray-600 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
+const statusCardHeaderClass =
+  'text-xs font-bold uppercase text-gray-500 dark:text-slate-400'
+const statusCardValueClass =
+  'text-2xl font-mono font-semibold text-gray-800 dark:text-slate-100'
+const statusCardLabelClass =
+  'text-[11px] text-gray-400 dark:text-slate-500'
+const statusRowLabelClass =
+  'text-[11px] uppercase text-gray-500 dark:text-slate-400'
+const statusTrackClass = 'bg-gray-200 dark:bg-slate-800'
+const trendTileClassName =
+  'border border-gray-200 bg-white p-2 text-[11px] text-gray-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400'
+const trendTileValueClassName = 'font-mono font-semibold text-gray-800 dark:text-slate-100'
+const coreBarClasses = [
+  'bg-sky-500/80 dark:bg-sky-400/80',
+  'bg-orange-500/80 dark:bg-orange-400/80',
+]
 
 const fieldErrorClass = 'border-destructive/60 focus-visible:ring-destructive'
 
@@ -797,13 +1314,15 @@ export function ServerManagement() {
   const [actionRunPendingId, setActionRunPendingId] = useState<string | null>(null)
   const [cliOutput, setCliOutput] = useState<CliOutput | null>(null)
   const [statusLoading, setStatusLoading] = useState(false)
-  const [statusRefreshing, setStatusRefreshing] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [statusData, setStatusData] = useState<Record<string, string>>({})
   const [statusPayload, setStatusPayload] = useState<StatusPayload | null>(null)
+  const [trendSeries, setTrendSeries] = useState<TrendSeriesState>(() => ({
+    instance: createTrendSeriesBlock(),
+    services: {},
+  }))
   const cliOutputRef = useRef<HTMLPreElement | null>(null)
   const cliAutoScrollRef = useRef(true)
-  const statusPollInFlightRef = useRef(false)
   const ansiConverter = useMemo(
     () =>
       new AnsiToHtml({
@@ -855,26 +1374,18 @@ export function ServerManagement() {
   )
   const instanceStatus = isStatusInstance(statusPayload?.instance) ? statusPayload?.instance : undefined
   const dockerStatus = isStatusDocker(statusPayload?.docker) ? statusPayload?.docker : undefined
-  const networkGroups = useMemo(
-    () => groupNetworkInterfaces(instanceStatus?.network),
-    [instanceStatus?.network]
-  )
   const networkSummary = useMemo(
     () => summarizeNetwork(instanceStatus?.network),
     [instanceStatus?.network]
   )
-  const loadSeries = useMemo(() => {
-    const values = [
+  const loadSeries = useMemo(
+    () => [
       { label: '1m', value: instanceStatus?.cpu?.loadavg_1m },
       { label: '5m', value: instanceStatus?.cpu?.loadavg_5m },
       { label: '15m', value: instanceStatus?.cpu?.loadavg_15m },
-    ]
-    const max = Math.max(
-      0,
-      ...values.map((entry) => (typeof entry.value === 'number' && Number.isFinite(entry.value) ? entry.value : 0))
-    )
-    return { values, max }
-  }, [instanceStatus?.cpu?.loadavg_1m, instanceStatus?.cpu?.loadavg_5m, instanceStatus?.cpu?.loadavg_15m])
+    ],
+    [instanceStatus?.cpu?.loadavg_1m, instanceStatus?.cpu?.loadavg_5m, instanceStatus?.cpu?.loadavg_15m]
+  )
 
   useEffect(() => {
     if (!routeProjectId) return
@@ -1470,100 +1981,151 @@ export function ServerManagement() {
     }
   }
 
-  const fetchServerStatus = useCallback(
-    async (serverId: string, options: { initial?: boolean } = {}) => {
-      if (!canUse) return
-      const initial = options.initial ?? false
-      if (statusPollInFlightRef.current && !initial) return
-
-      statusPollInFlightRef.current = true
-      if (initial) {
-        setStatusLoading(true)
-      } else {
-        setStatusRefreshing(true)
-      }
-      setStatusError(null)
-
+  const applyStatusUpdate = useCallback((status: Record<string, unknown> | null, rawOutput?: string) => {
+    let parsedPayload: StatusPayload | null = null
+    if (typeof rawOutput === 'string') {
       try {
-        const response = await axiosInstance.post<{
-          status: string
-          data: { status?: Record<string, unknown>; rawOutput?: string }
-        }>(GET_SERVER_STATUS(serverId))
-        const status = response.data?.data?.status ?? {}
-        const rawOutput = response.data?.data?.rawOutput
-
-        let parsedPayload: StatusPayload | null = null
-        if (typeof rawOutput === 'string') {
-          try {
-            const parsed = JSON.parse(rawOutput.trim())
-            if (isPlainObject(parsed)) {
-              parsedPayload = parsed as StatusPayload
-            }
-          } catch {
-            // Fall back to status map
-          }
+        const parsed = JSON.parse(rawOutput.trim())
+        if (isPlainObject(parsed)) {
+          parsedPayload = normalizeStatusPayload(parsed)
         }
-        if (!parsedPayload && isPlainObject(status)) {
-          const candidate = status as StatusPayload
-          if (isStatusInstance(candidate.instance) || isStatusDocker(candidate.docker)) {
-            parsedPayload = candidate
-          }
-        }
-
-        setStatusPayload(parsedPayload)
-
-        const normalized: Record<string, string> = {}
-        if (status && typeof status === 'object' && !Array.isArray(status)) {
-          Object.entries(status as Record<string, unknown>).forEach(([key, value]) => {
-            const normalizedKey = key.trim().toLowerCase()
-            if (normalizedKey === 'host' || normalizedKey === 'hostname') {
-              return
-            }
-            const formatted = formatStatusValue(value)
-            if (formatted.length > 0) {
-              normalized[key] = formatted
-            }
-          })
-        }
-        setStatusData(normalized)
-      } catch (error) {
-        setStatusError(getErrorMessage(error, 'Unable to load server status'))
-      } finally {
-        statusPollInFlightRef.current = false
-        if (initial) {
-          setStatusLoading(false)
-        } else {
-          setStatusRefreshing(false)
-        }
+      } catch {
+        // Fall back to status map
       }
-    },
-    [canUse]
-  )
+    }
+    if (!parsedPayload && isPlainObject(status)) {
+      parsedPayload = normalizeStatusPayload(status)
+    }
+
+    setStatusPayload(parsedPayload)
+
+    const normalized: Record<string, string> = {}
+    if (status && typeof status === 'object' && !Array.isArray(status)) {
+      Object.entries(status as Record<string, unknown>).forEach(([key, value]) => {
+        const normalizedKey = key.trim().toLowerCase()
+        if (normalizedKey === 'host' || normalizedKey === 'hostname') {
+          return
+        }
+        const formatted = formatStatusValue(value)
+        if (formatted.length > 0) {
+          normalized[key] = formatted
+        }
+      })
+    }
+    setStatusData(normalized)
+  }, [])
 
   useEffect(() => {
     if (!selectedServer?.id || !canUse) {
       setStatusLoading(false)
-      setStatusRefreshing(false)
       setStatusError(null)
       setStatusData({})
       setStatusPayload(null)
       return
     }
 
-    setStatusError(null)
     setStatusData({})
     setStatusPayload(null)
-    void fetchServerStatus(selectedServer.id, { initial: true })
 
-    const intervalId = window.setInterval(() => {
-      void fetchServerStatus(selectedServer.id)
-    }, 2000)
+    if (!socket || !socketConnected) {
+      setStatusLoading(false)
+      setStatusError('Socket disconnected. Live updates paused.')
+      return
+    }
+
+    setStatusError(null)
+    setStatusLoading(true)
+    socket.emit('server-management:status-start', selectedServer.id)
 
     return () => {
-      window.clearInterval(intervalId)
-      statusPollInFlightRef.current = false
+      socket.emit('server-management:status-stop', selectedServer.id)
     }
-  }, [selectedServer?.id, canUse, fetchServerStatus])
+  }, [selectedServer?.id, canUse, socket, socketConnected])
+
+  useEffect(() => {
+    if (!socket) return
+
+    const handleStatusUpdate = (payload: StatusUpdatePayload) => {
+      if (!selectedServer?.id) return
+      if (payload?.serverId && payload.serverId !== selectedServer.id) return
+      applyStatusUpdate(payload.status ?? null, payload.rawOutput)
+      setStatusError(null)
+      setStatusLoading(false)
+    }
+
+    const handleStatusError = (payload: StatusErrorPayload) => {
+      if (!selectedServer?.id) return
+      if (payload?.serverId && payload.serverId !== selectedServer.id) return
+      setStatusError(payload.message || 'Unable to load server status')
+      setStatusLoading(false)
+    }
+
+    socket.on(SocketServerManagementEvents.STATUS_UPDATE, handleStatusUpdate)
+    socket.on(SocketServerManagementEvents.STATUS_ERROR, handleStatusError)
+
+    return () => {
+      socket.off(SocketServerManagementEvents.STATUS_UPDATE, handleStatusUpdate)
+      socket.off(SocketServerManagementEvents.STATUS_ERROR, handleStatusError)
+    }
+  }, [socket, selectedServer?.id, applyStatusUpdate])
+
+  useEffect(() => {
+    setTrendSeries({
+      instance: createTrendSeriesBlock(),
+      services: {},
+    })
+  }, [selectedServer?.id])
+
+  useEffect(() => {
+    if (!statusPayload || !selectedServer) return
+
+    setTrendSeries((prev) => {
+      const instanceCpu = clampPercent(instanceStatus?.cpu?.metrics?.used_percent)
+      const instanceMemory = getUsagePercent(
+        instanceStatus?.mem?.used_bytes,
+        instanceStatus?.mem?.total_bytes
+      )
+      const instanceNetIn = toNumber(instanceStatus?.network_speed?.in_bps) ?? null
+      const instanceNetOut = toNumber(instanceStatus?.network_speed?.out_bps) ?? null
+      const instanceStorageRead = toNumber(instanceStatus?.storage_speed?.read_bps) ?? null
+      const instanceStorageWrite = toNumber(instanceStatus?.storage_speed?.write_bps) ?? null
+
+      const nextInstance = updateTrendSeriesBlock(prev.instance, {
+        cpu: instanceCpu,
+        memory: instanceMemory,
+        netIn: instanceNetIn,
+        netOut: instanceNetOut,
+        storageRead: instanceStorageRead,
+        storageWrite: instanceStorageWrite,
+      })
+
+      const nextServices: Record<string, TrendSeriesBlock> = {}
+      selectedServer.services.forEach((service) => {
+        const key = service.serviceName || service.name
+        if (!key) return
+        const container = getContainerForService(service, dockerStatus?.containers)
+        const cpuPercent = container ? getContainerCpuPercent(container) : null
+        const memPercent = container ? getContainerMemPercent(container.mem) : null
+        const netIn = toNumber(container?.net?.in_bps) ?? null
+        const netOut = toNumber(container?.net?.out_bps) ?? null
+        const { read: blockRead, write: blockWrite } = getBlockSpeed(container?.block)
+        const serviceSeries = prev.services[key] ?? createTrendSeriesBlock()
+        nextServices[key] = updateTrendSeriesBlock(serviceSeries, {
+          cpu: cpuPercent,
+          memory: memPercent,
+          netIn,
+          netOut,
+          storageRead: blockRead,
+          storageWrite: blockWrite,
+        })
+      })
+
+      return {
+        instance: nextInstance,
+        services: nextServices,
+      }
+    })
+  }, [statusPayload, selectedServer?.id, selectedServer?.services, instanceStatus, dockerStatus?.containers])
 
   const openConfirmAction = (action: Action, server: Server, service: Service) => {
     if (!isActionRunnable(action)) return
@@ -1925,24 +2487,54 @@ export function ServerManagement() {
       instanceStatus?.storage_root?.used_bytes,
       instanceStatus?.storage_root?.total_bytes
     )
-    const cpuLoadPeak = loadSeries.max > 0 ? loadSeries.max : null
-    const cpuLoadPercent = getRelativePercent(instanceStatus?.cpu?.loadavg_1m ?? null, cpuLoadPeak)
+    const storageIo = instanceStatus?.storage_io
+    const storageIoSplit = getSplitPercents(storageIo?.read_bytes, storageIo?.write_bytes)
+    const storageSpeed = instanceStatus?.storage_speed
+    const storageSpeedSplit = getSplitPercents(storageSpeed?.read_bps, storageSpeed?.write_bps)
+    const instanceTrends = trendSeries.instance
+    const cpuMetrics = instanceStatus?.cpu?.metrics
+    const cpuCoreEntries = getCpuCoreEntries(instanceStatus?.cpu?.cores)
+    const healthStatus = statusPayload?.health_status?.trim()
+    const healthLower = healthStatus?.toLowerCase()
+    const isHealthy =
+      healthLower === 'ok' || healthLower === 'healthy' || healthLower === 'online'
+    const headerStatusTone =
+      (healthStatus ? isHealthy : socketConnected)
+        ? 'bg-emerald-500 dark:bg-emerald-400'
+        : 'bg-rose-500 dark:bg-rose-400'
+    const statusLabel = healthStatus
+      ? isHealthy
+        ? 'ONLINE'
+        : healthStatus.toUpperCase()
+      : socketConnected
+        ? 'ONLINE'
+        : 'OFFLINE'
+    const socketStatusLabel = socketConnected ? 'Socket Connected' : 'Socket Disconnected'
+    const updatedTime = formatTimestampTime(statusPayload?.timestamp)
+    const cpuUsagePercent = clampPercent(cpuMetrics?.used_percent)
+    const cpuStatusLabel =
+      cpuUsagePercent === null ? '—' : cpuUsagePercent >= 80 ? 'High' : 'Nominal'
+    const networkSplit = getSplitPercents(networkSummary?.totalRx, networkSummary?.totalTx)
     const networkTotal =
-      typeof networkSummary?.totalRx === 'number' && typeof networkSummary?.totalTx === 'number'
-        ? networkSummary.totalRx + networkSummary.totalTx
-        : null
-    const networkRxPercent = getRelativePercent(networkSummary?.totalRx ?? null, networkTotal)
-    const networkTxPercent = getRelativePercent(networkSummary?.totalTx ?? null, networkTotal)
-    const trafficMax = server.services.reduce(
-      (acc, service) => {
-        const container = getContainerForService(service, dockerStatus?.containers)
-        const netTotal = getTransferTotal(container?.net)
-        return {
-          maxNet: Math.max(acc.maxNet, netTotal ?? 0),
-        }
-      },
-      { maxNet: 0 }
-    )
+      networkSummary ? networkSummary.totalRx + networkSummary.totalTx : null
+    const networkSpeed = instanceStatus?.network_speed
+    const hasNetworkSpeed =
+      typeof networkSpeed?.in_bps === 'number' || typeof networkSpeed?.out_bps === 'number'
+    const networkSpeedInValue = toNumber(networkSpeed?.in_bps) ?? getLastValue(instanceTrends.netIn)
+    const networkSpeedOutValue = toNumber(networkSpeed?.out_bps) ?? getLastValue(instanceTrends.netOut)
+    const storageSpeedReadValue = toNumber(storageSpeed?.read_bps) ?? getLastValue(instanceTrends.storageRead)
+    const storageSpeedWriteValue = toNumber(storageSpeed?.write_bps) ?? getLastValue(instanceTrends.storageWrite)
+    const networkSpeedTotal = hasNetworkSpeed
+      ? (networkSpeed?.in_bps ?? 0) + (networkSpeed?.out_bps ?? 0)
+      : null
+    const networkActivityLabel =
+      networkSpeedTotal !== null ? getSpeedActivityLabel(networkSpeedTotal) : getActivityLabel(networkTotal)
+    const networkSpeedSplit = getSplitPercents(networkSpeed?.in_bps, networkSpeed?.out_bps)
+    const hasStorageSpeed =
+      typeof storageSpeed?.read_bps === 'number' || typeof storageSpeed?.write_bps === 'number'
+    const networkSplitForBar = hasNetworkSpeed ? networkSpeedSplit : networkSplit
+    const storageSplitForBar = hasStorageSpeed ? storageSpeedSplit : storageIoSplit
+    const trendWindowLabel = `${TREND_POINTS}s`
 
     const renderServiceActionsMenu = (
       service: Service,
@@ -2130,15 +2722,6 @@ export function ServerManagement() {
                 CPU, memory, storage, and network for this server.
               </p>
             </div>
-            {canUse && (
-              <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Live (2s)
-                </span>
-                {statusRefreshing && <span>Updating...</span>}
-              </div>
-            )}
           </div>
 
           {!canUse && (
@@ -2150,11 +2733,6 @@ export function ServerManagement() {
             <div className="border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
               {statusError}
             </div>
-          )}
-          {statusPayload?.timestamp && (
-            <p className="text-xs text-muted-foreground font-mono tabular-nums">
-              Last updated: {statusPayload.timestamp}
-            </p>
           )}
           {statusLoading && (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -2170,139 +2748,602 @@ export function ServerManagement() {
           )}
 
           {instanceStatus && (
-            <section className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="border border-border/60 bg-background/90 p-3 space-y-2">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">CPU Load</p>
-                  <p className="text-lg font-semibold font-mono tabular-nums">
-                    {formatLoadAvg(instanceStatus.cpu?.loadavg_1m)} /{' '}
-                    {formatLoadAvg(instanceStatus.cpu?.loadavg_5m)} /{' '}
-                    {formatLoadAvg(instanceStatus.cpu?.loadavg_15m)}
-                  </p>
-                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
-                    {formatLoadAvg(instanceStatus.cpu?.loadavg_1m)} /{' '}
-                    {cpuLoadPeak !== null ? formatLoadAvg(cpuLoadPeak) : '—'}{' '}
-                    {cpuLoadPercent !== null ? `(${formatPercentShort(cpuLoadPercent)})` : ''}
-                  </p>
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 border border-gray-200 bg-white p-3 text-[11px] uppercase text-gray-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>Server: {server.name}</span>
+                  <span className="text-gray-400 dark:text-slate-500">[{server.host || '—'}]</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 font-mono font-semibold text-gray-700 dark:text-slate-200">
+                    <span className={cn('h-2 w-2 rounded-full', headerStatusTone)} />
+                    <span>{statusLabel} ({socketStatusLabel})</span>
+                  </div>
+                  <span className="text-gray-400 dark:text-slate-500">Updated {updatedTime}</span>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className={statusCardClassName}>
+                  <div className="flex items-center justify-between">
+                    <p className={statusCardHeaderClass}>CPU Usage</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={statusCardValueClass}>{formatPercentOne(cpuUsagePercent)}</span>
+                    <span className={statusCardLabelClass}>Status {cpuStatusLabel}</span>
+                  </div>
+                  {renderPercentBar(cpuUsagePercent, getUsageTone(cpuUsagePercent), {
+                    trackClass: statusTrackClass,
+                  })}
+                  <div className="flex items-center justify-between">
+                    <span className={statusRowLabelClass}>Total</span>
+                    <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                      {formatPercent(cpuMetrics?.total_percent)}
+                    </span>
+                  </div>
+                  <div className="border-t border-dashed border-gray-200 dark:border-slate-800 my-2" />
+
                   <div className="space-y-1">
-                    {loadSeries.values.map((entry) => {
-                      const loadPercent = getLoadBarPercent(entry.value, loadSeries.max)
+                    <p className={statusCardHeaderClass}>Load Avg</p>
+                    {loadSeries.map((entry) => {
+                      const loadPercent = getLoadPercent(entry.value)
                       return (
-                        <div key={entry.label} className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="w-6 font-mono tabular-nums">{entry.label}</span>
-                          <div className="flex-1">{renderMiniBar(loadPercent, getUsageTone(loadPercent))}</div>
-                          <span className="w-10 text-right font-mono tabular-nums">
-                            {formatLoadAvg(entry.value)}
+                        <div key={entry.label} className="flex items-center gap-2">
+                          <span className="w-10 font-mono text-gray-500 dark:text-slate-400">
+                            {entry.label}
                           </span>
+                          <span className="w-12 text-right font-mono font-semibold text-gray-800 dark:text-slate-100">
+                            {formatPercentOne(loadPercent)}
+                          </span>
+                          <div className="flex-1">
+                            {renderMiniBar(loadPercent, getUsageTone(loadPercent), {
+                              trackClass: statusTrackClass,
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className={statusCardHeaderClass}>Active Cores</p>
+                    {cpuCoreEntries.length === 0 && (
+                      <p className={statusCardLabelClass}>No core data.</p>
+                    )}
+                    {cpuCoreEntries.map((core, index) => {
+                      const percent = clampPercent(core.value)
+                      const coreLabel = core.name.startsWith('cpu')
+                        ? `Core ${core.name.slice(3)}`
+                        : core.name
+                      const coreTone = coreBarClasses[index % coreBarClasses.length]
+                      return (
+                        <div key={core.name} className="flex items-center gap-2">
+                          <span className="w-14 font-mono text-gray-500 dark:text-slate-400">
+                            {coreLabel}
+                          </span>
+                          <span className="w-12 text-right font-mono font-semibold text-gray-800 dark:text-slate-100">
+                            {formatPercentOne(core.value)}
+                          </span>
+                          <div className="flex-1">
+                            {renderMiniBar(percent, coreTone, { trackClass: statusTrackClass })}
+                          </div>
                         </div>
                       )
                     })}
                   </div>
                 </div>
-                <div className="border border-border/60 bg-background/90 p-3 space-y-2">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Memory</p>
-                  <p className="text-lg font-semibold font-mono tabular-nums">
-                    {formatPercentShort(memoryPercent)}
-                  </p>
-                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
-                    {formatBytes(instanceStatus.mem?.used_bytes)} / {formatBytes(instanceStatus.mem?.total_bytes)}
-                  </p>
-                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
-                    {formatBytes(instanceStatus.mem?.available_bytes)} free
-                  </p>
-                  {renderPercentBar(memoryPercent, getUsageTone(memoryPercent))}
-                </div>
-                <div className="border border-border/60 bg-background/90 p-3 space-y-2">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Storage</p>
-                  <p className="text-lg font-semibold font-mono tabular-nums">
-                    {formatPercentShort(storagePercent)}
-                  </p>
-                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
-                    {formatBytes(instanceStatus.storage_root?.used_bytes)} /{' '}
-                    {formatBytes(instanceStatus.storage_root?.total_bytes)}
-                  </p>
-                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
-                    {formatBytes(instanceStatus.storage_root?.available_bytes)} free
-                  </p>
-                  {renderPercentBar(storagePercent, getUsageTone(storagePercent))}
-                </div>
-                <div className="border border-border/60 bg-background/90 p-3 space-y-3">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Network</p>
-                  <div className="space-y-2 text-sm">
+
+                <div className={statusCardClassName}>
+                  <div className="flex items-center justify-between">
+                    <p className={statusCardHeaderClass}>Memory</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={statusCardValueClass}>{formatPercentShort(memoryPercent)}</span>
+                    <span className={statusCardLabelClass}>Usage</span>
+                  </div>
+                  {renderPercentBar(memoryPercent, getUsageTone(memoryPercent), {
+                    trackClass: statusTrackClass,
+                  })}
+                  <div className="border-t border-dashed border-gray-200 dark:border-slate-800 my-2" />
+                  <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 font-mono tabular-nums text-emerald-700">
-                        <ArrowDownRight className="h-4 w-4" />
-                        {formatBytes(networkSummary?.totalRx)}
+                      <span className={statusRowLabelClass}>Used</span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(instanceStatus.mem?.used_bytes)}
                       </span>
-                      <span className="text-xs text-muted-foreground">RX</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 font-mono tabular-nums text-sky-700">
-                        <ArrowUpRight className="h-4 w-4" />
-                        {formatBytes(networkSummary?.totalTx)}
+                      <span className={statusRowLabelClass}>Free</span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(instanceStatus.mem?.available_bytes)}
                       </span>
-                      <span className="text-xs text-muted-foreground">TX</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={statusRowLabelClass}>Total</span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(instanceStatus.mem?.total_bytes)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={cn(statusRowLabelClass, 'text-gray-400 dark:text-slate-500')}>
+                        Cache
+                      </span>
+                      <span className="font-mono font-semibold text-gray-400 dark:text-slate-500">—</span>
                     </div>
                   </div>
-                  {networkTotal !== null && (
-                    <p className="text-xs text-muted-foreground font-mono tabular-nums">
-                      RX {networkRxPercent !== null ? formatPercentShort(networkRxPercent) : '—'} / TX{' '}
-                      {networkTxPercent !== null ? formatPercentShort(networkTxPercent) : '—'}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {networkSummary
-                      ? `${networkSummary.interfaceCount} interfaces reported.`
-                      : 'Network totals unavailable.'}
-                  </p>
+                </div>
+
+                <div className={statusCardClassName}>
+                  <div className="flex items-center justify-between">
+                    <p className={statusCardHeaderClass}>Storage</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={statusCardValueClass}>{formatPercentShort(storagePercent)}</span>
+                    <span className={statusCardLabelClass}>Usage</span>
+                  </div>
+                  {renderPercentBar(storagePercent, getUsageTone(storagePercent), {
+                    trackClass: statusTrackClass,
+                  })}
+                  <div className="border-t border-dashed border-gray-200 dark:border-slate-800 my-2" />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className={statusRowLabelClass}>Read</span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(storageIo?.read_bytes)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={statusRowLabelClass}>Write</span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(storageIo?.write_bytes)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={statusRowLabelClass}>Capacity</span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(instanceStatus.storage_root?.used_bytes)} /{' '}
+                        {formatBytes(instanceStatus.storage_root?.total_bytes)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={statusRowLabelClass}>Speed</span>
+                      <span className="flex flex-wrap items-center gap-3 text-[11px]">
+                        <span className="inline-flex items-center gap-1">
+                          <ArrowDownRight className="h-3 w-3 text-sky-500 dark:text-sky-400" />
+                          <span className="uppercase text-gray-500 dark:text-slate-400">Read</span>
+                          <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                            {formatBytesPerSecond(storageSpeed?.read_bps)}
+                          </span>
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <ArrowUpRight className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                          <span className="uppercase text-gray-500 dark:text-slate-400">Write</span>
+                          <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                            {formatBytesPerSecond(storageSpeed?.write_bps)}
+                          </span>
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  {renderSplitBar(storageSplitForBar.read, storageSplitForBar.write, {
+                    readClass: IO_READ_CLASS,
+                    writeClass: IO_WRITE_CLASS,
+                    trackClass: statusTrackClass,
+                  })}
+                </div>
+
+                <div className={statusCardClassName}>
+                  <div className="flex items-center justify-between">
+                    <p className={statusCardHeaderClass}>Network</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={statusCardValueClass}>{formatBytes(networkTotal)}</span>
+                    <span className={statusCardLabelClass}>Total</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 dark:text-slate-400">
+                    Activity: <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">{networkActivityLabel}</span>
+                  </div>
+                  <div className="border-t border-dashed border-gray-200 dark:border-slate-800 my-2" />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-[11px] uppercase text-gray-500 dark:text-slate-400">
+                        <ArrowDownRight className="h-3 w-3" />
+                        Inbound
+                      </span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(networkSummary?.totalRx)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-[11px] uppercase text-gray-500 dark:text-slate-400">
+                        <ArrowUpRight className="h-3 w-3" />
+                        Outbound
+                      </span>
+                      <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        {formatBytes(networkSummary?.totalTx)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={statusRowLabelClass}>Speed</span>
+                      <span className="flex flex-wrap items-center gap-3 text-[11px]">
+                        <span className="inline-flex items-center gap-1">
+                          <ArrowDownRight className="h-3 w-3 text-sky-500 dark:text-sky-400" />
+                          <span className="uppercase text-gray-500 dark:text-slate-400">In</span>
+                          <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                            {formatBitsPerSecond(networkSpeed?.in_bps)}
+                          </span>
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <ArrowUpRight className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                          <span className="uppercase text-gray-500 dark:text-slate-400">Out</span>
+                          <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                            {formatBitsPerSecond(networkSpeed?.out_bps)}
+                          </span>
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={statusRowLabelClass}>Status</span>
+                      <span className="flex items-center gap-2 font-mono font-semibold text-gray-800 dark:text-slate-100">
+                        <span
+                          className={cn(
+                            'h-2 w-2 rounded-full',
+                            socketConnected
+                              ? 'bg-emerald-500 dark:bg-emerald-400'
+                              : 'bg-amber-500 dark:bg-amber-400'
+                          )}
+                        />
+                        {socketConnected ? 'Active' : 'Paused'}
+                      </span>
+                    </div>
+                  </div>
+                  {renderSplitBar(networkSplitForBar.read, networkSplitForBar.write, {
+                    readClass: IO_READ_CLASS,
+                    writeClass: IO_WRITE_CLASS,
+                    trackClass: statusTrackClass,
+                  })}
                 </div>
               </div>
 
-              {networkGroups.length > 0 && (
-                <details className="border border-border/60 bg-background/90">
-                  <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
-                    Network interfaces
-                  </summary>
-                  <div className="border-t border-border/60 px-3 py-3">
-                    <p className="text-xs text-muted-foreground">Grouped by interface type.</p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      {networkGroups.map((group) => (
-                        <div
-                          key={group.label}
-                          className="border border-border/60 bg-background/95 p-4 space-y-3"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold">{group.label}</p>
-                              {group.description && (
-                                <p className="text-xs text-muted-foreground">{group.description}</p>
-                              )}
+              <details className="group border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+                <summary className="flex items-center justify-between px-3 py-2 text-[11px] uppercase text-gray-500 dark:text-slate-400 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                  <span>Detailed Summary</span>
+                  <span className="text-[10px] uppercase text-gray-400 dark:text-slate-500 group-open:hidden">
+                    Expand
+                  </span>
+                  <span className="text-[10px] uppercase text-gray-400 dark:text-slate-500 hidden group-open:inline">
+                    Collapse
+                  </span>
+                </summary>
+                <div className="border-t border-gray-200 dark:border-slate-800 p-3 space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[11px]">
+                    {[
+                      { label: 'CPU Used', value: formatPercentOne(cpuUsagePercent) },
+                      {
+                        label: 'Load 1m',
+                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.loadavg_1m)),
+                      },
+                      {
+                        label: 'Load 5m',
+                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.loadavg_5m)),
+                      },
+                      {
+                        label: 'Load 15m',
+                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.loadavg_15m)),
+                      },
+                      { label: 'Memory Used', value: formatBytes(instanceStatus.mem?.used_bytes) },
+                      { label: 'Memory Free', value: formatBytes(instanceStatus.mem?.available_bytes) },
+                      { label: 'Storage Used', value: formatBytes(instanceStatus.storage_root?.used_bytes) },
+                      { label: 'Storage Free', value: formatBytes(instanceStatus.storage_root?.available_bytes) },
+                      { label: 'Storage R Speed', value: formatBytesPerSecond(storageSpeed?.read_bps) },
+                      { label: 'Storage W Speed', value: formatBytesPerSecond(storageSpeed?.write_bps) },
+                      { label: 'Net In', value: formatBytes(networkSummary?.totalRx) },
+                      { label: 'Net Out', value: formatBytes(networkSummary?.totalTx) },
+                      { label: 'Net In Speed', value: formatBitsPerSecond(networkSpeed?.in_bps) },
+                      { label: 'Net Out Speed', value: formatBitsPerSecond(networkSpeed?.out_bps) },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between gap-2">
+                        <span className={statusRowLabelClass}>{item.label}</span>
+                        <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                          {item.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="border-t border-gray-200 dark:border-slate-800 pt-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] uppercase tracking-[0.2em] text-gray-500 dark:text-slate-400">
+                        Live Trends
+                      </span>
+                      <span className="text-[10px] uppercase text-gray-400 dark:text-slate-500">
+                        Last {trendWindowLabel}
+                      </span>
+                    </div>
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="space-y-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500 dark:text-slate-400">
+                          Instance
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className={trendTileClassName}>
+                            <div className="flex items-center justify-between">
+                              <span className={statusRowLabelClass}>CPU</span>
+                              <span className={trendTileValueClassName}>
+                                {formatPercentOne(cpuUsagePercent)}
+                              </span>
                             </div>
-                            <span className="text-xs text-muted-foreground">
-                              {group.entries.length} interfaces
-                            </span>
+                            <SparklineChart
+                              series={[
+                                {
+                                  data: instanceTrends.cpu,
+                                  strokeClass: 'text-emerald-500 dark:text-emerald-400',
+                                },
+                              ]}
+                            />
                           </div>
-                          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground font-mono tabular-nums">
-                            <span>RX: {formatBytes(group.totalRx)}</span>
-                            <span>TX: {formatBytes(group.totalTx)}</span>
+                          <div className={trendTileClassName}>
+                            <div className="flex items-center justify-between">
+                              <span className={statusRowLabelClass}>Memory</span>
+                              <span className={trendTileValueClassName}>
+                                {formatPercentOne(memoryPercent)}
+                              </span>
+                            </div>
+                            <SparklineChart
+                              series={[
+                                {
+                                  data: instanceTrends.memory,
+                                  strokeClass: 'text-sky-500 dark:text-sky-400',
+                                },
+                              ]}
+                            />
                           </div>
-                          <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                            {group.entries.map(({ name, stats }) => (
-                              <div key={name} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                                <span className="font-medium">{name}</span>
-                                <span className="text-muted-foreground font-mono tabular-nums">
-                                  {formatBytes(stats?.rx_bytes)} rx / {formatBytes(stats?.tx_bytes)} tx
+                          <div className={cn(trendTileClassName, 'sm:col-span-2')}>
+                            <div className="flex items-center justify-between">
+                              <span className={statusRowLabelClass}>Network In/Out</span>
+                              <span
+                                className={cn(
+                                  trendTileValueClassName,
+                                  'flex flex-wrap items-center justify-end gap-3 text-[11px]'
+                                )}
+                              >
+                                <span className="inline-flex items-center gap-1">
+                                  <ArrowDownRight className="h-3 w-3 text-sky-500 dark:text-sky-400" />
+                                  <span className="uppercase text-gray-500 dark:text-slate-400">In</span>
+                                  <span>{formatBitsPerSecond(networkSpeedInValue ?? undefined)}</span>
                                 </span>
-                              </div>
-                            ))}
+                                <span className="inline-flex items-center gap-1">
+                                  <ArrowUpRight className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                                  <span className="uppercase text-gray-500 dark:text-slate-400">Out</span>
+                                  <span>{formatBitsPerSecond(networkSpeedOutValue ?? undefined)}</span>
+                                </span>
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-3 text-[10px] uppercase text-gray-400 dark:text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full bg-sky-500 dark:bg-sky-400" />
+                                In
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
+                                Out
+                              </span>
+                            </div>
+                            <SparklineChart
+                              series={[
+                                {
+                                  data: instanceTrends.netIn,
+                                  strokeClass: 'text-sky-500 dark:text-sky-400',
+                                },
+                                {
+                                  data: instanceTrends.netOut,
+                                  strokeClass: 'text-amber-500 dark:text-amber-400',
+                                },
+                              ]}
+                            />
+                          </div>
+                          <div className={cn(trendTileClassName, 'sm:col-span-2')}>
+                            <div className="flex items-center justify-between">
+                              <span className={statusRowLabelClass}>Storage R/W</span>
+                              <span
+                                className={cn(
+                                  trendTileValueClassName,
+                                  'flex flex-wrap items-center justify-end gap-3 text-[11px]'
+                                )}
+                              >
+                                <span className="inline-flex items-center gap-1">
+                                  <ArrowDownRight className="h-3 w-3 text-sky-500 dark:text-sky-400" />
+                                  <span className="uppercase text-gray-500 dark:text-slate-400">Read</span>
+                                  <span>{formatBytesPerSecond(storageSpeedReadValue ?? undefined)}</span>
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  <ArrowUpRight className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                                  <span className="uppercase text-gray-500 dark:text-slate-400">Write</span>
+                                  <span>{formatBytesPerSecond(storageSpeedWriteValue ?? undefined)}</span>
+                                </span>
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-3 text-[10px] uppercase text-gray-400 dark:text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full bg-sky-500 dark:bg-sky-400" />
+                                Read
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
+                                Write
+                              </span>
+                            </div>
+                            <SparklineChart
+                              series={[
+                                {
+                                  data: instanceTrends.storageRead,
+                                  strokeClass: 'text-sky-500 dark:text-sky-400',
+                                },
+                                {
+                                  data: instanceTrends.storageWrite,
+                                  strokeClass: 'text-amber-500 dark:text-amber-400',
+                                },
+                              ]}
+                            />
                           </div>
                         </div>
-                      ))}
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500 dark:text-slate-400">
+                          Service Trends
+                        </p>
+                        {server.services.length === 0 && (
+                          <p className="text-[11px] text-gray-400 dark:text-slate-500">
+                            No services configured.
+                          </p>
+                        )}
+                        <div className="space-y-2">
+                          {server.services.map((service, index) => {
+                            const serviceKey =
+                              service.serviceName || service.name || `service-${index}`
+                            const trendBlock =
+                              trendSeries.services[serviceKey] ?? emptyTrendSeriesBlock
+                            const container = getContainerForService(service, dockerStatus?.containers)
+                            const cpuPercent = container ? getContainerCpuPercent(container) : null
+                            const memPercent = container ? getContainerMemPercent(container.mem) : null
+                            const netIn =
+                              toNumber(container?.net?.in_bps) ?? getLastValue(trendBlock.netIn)
+                            const netOut =
+                              toNumber(container?.net?.out_bps) ?? getLastValue(trendBlock.netOut)
+                            const { read: blockRead, write: blockWrite } = getBlockSpeed(container?.block)
+                            const storageRead =
+                              blockRead ?? getLastValue(trendBlock.storageRead)
+                            const storageWrite =
+                              blockWrite ?? getLastValue(trendBlock.storageWrite)
+                            const cpuValue = cpuPercent ?? getLastValue(trendBlock.cpu)
+                            const memValue = memPercent ?? getLastValue(trendBlock.memory)
+
+                            return (
+                              <div key={serviceKey} className={trendTileClassName}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-800 dark:text-slate-100">
+                                      {service.name}
+                                    </p>
+                                    <p className="text-[10px] font-mono text-gray-400 dark:text-slate-500">
+                                      {service.serviceName || '—'}
+                                    </p>
+                                  </div>
+                                  <span className="text-[10px] uppercase text-gray-400 dark:text-slate-500">
+                                    {container?.state ? container.state : 'No data'}
+                                  </span>
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className={statusRowLabelClass}>CPU/Mem</span>
+                                      <span className={trendTileValueClassName}>
+                                        {formatPercentOne(cpuValue)} / {formatPercentOne(memValue)}
+                                      </span>
+                                    </div>
+                                    <SparklineChart
+                                      height={40}
+                                      series={[
+                                        {
+                                          data: trendBlock.cpu,
+                                          strokeClass: 'text-emerald-500 dark:text-emerald-400',
+                                        },
+                                        {
+                                          data: trendBlock.memory,
+                                          strokeClass: 'text-sky-500 dark:text-sky-400',
+                                        },
+                                      ]}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className={statusRowLabelClass}>Net In/Out</span>
+                                      <span
+                                        className={cn(
+                                          trendTileValueClassName,
+                                          'flex flex-wrap items-center justify-end gap-3 text-[11px]'
+                                        )}
+                                      >
+                                        <span className="inline-flex items-center gap-1">
+                                          <ArrowDownRight className="h-3 w-3 text-sky-500 dark:text-sky-400" />
+                                          <span className="uppercase text-gray-500 dark:text-slate-400">
+                                            In
+                                          </span>
+                                          <span>{formatBitsPerSecond(netIn ?? undefined)}</span>
+                                        </span>
+                                        <span className="inline-flex items-center gap-1">
+                                          <ArrowUpRight className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                                          <span className="uppercase text-gray-500 dark:text-slate-400">
+                                            Out
+                                          </span>
+                                          <span>{formatBitsPerSecond(netOut ?? undefined)}</span>
+                                        </span>
+                                      </span>
+                                    </div>
+                                    <SparklineChart
+                                      height={40}
+                                      series={[
+                                        {
+                                          data: trendBlock.netIn,
+                                          strokeClass: 'text-sky-500 dark:text-sky-400',
+                                        },
+                                        {
+                                          data: trendBlock.netOut,
+                                          strokeClass: 'text-amber-500 dark:text-amber-400',
+                                        },
+                                      ]}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className={statusRowLabelClass}>Storage R/W</span>
+                                      <span
+                                        className={cn(
+                                          trendTileValueClassName,
+                                          'flex flex-wrap items-center justify-end gap-3 text-[11px]'
+                                        )}
+                                      >
+                                        <span className="inline-flex items-center gap-1">
+                                          <ArrowDownRight className="h-3 w-3 text-sky-500 dark:text-sky-400" />
+                                          <span className="uppercase text-gray-500 dark:text-slate-400">
+                                            Read
+                                          </span>
+                                          <span>{formatBytesPerSecond(storageRead ?? undefined)}</span>
+                                        </span>
+                                        <span className="inline-flex items-center gap-1">
+                                          <ArrowUpRight className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                                          <span className="uppercase text-gray-500 dark:text-slate-400">
+                                            Write
+                                          </span>
+                                          <span>{formatBytesPerSecond(storageWrite ?? undefined)}</span>
+                                        </span>
+                                      </span>
+                                    </div>
+                                    <SparklineChart
+                                      height={40}
+                                      series={[
+                                        {
+                                          data: trendBlock.storageRead,
+                                          strokeClass: 'text-sky-500 dark:text-sky-400',
+                                        },
+                                        {
+                                          data: trendBlock.storageWrite,
+                                          strokeClass: 'text-amber-500 dark:text-amber-400',
+                                        },
+                                      ]}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </details>
-              )}
-            </section>
+                </div>
+              </details>
+            </div>
           )}
 
           {!statusLoading && !statusError && !instanceStatus && Object.keys(statusData).length === 0 && canUse && (
@@ -2337,15 +3378,15 @@ export function ServerManagement() {
             <>
               <div className="hidden lg:block border border-border/60 bg-background/90">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1120px] table-fixed text-sm">
+                  <table className="w-full min-w-[960px] table-fixed text-sm">
                     <colgroup>
                       <col className="w-[56px]" />
-                      <col className="w-[260px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[100px]" />
+                      <col className="w-[220px]" />
+                      <col className="w-[130px]" />
+                      <col className="w-[130px]" />
+                      <col className="w-[140px]" />
+                      <col className="w-[140px]" />
+                      <col className="w-[90px]" />
                     </colgroup>
                     <thead className="bg-muted/40 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                       <tr className="border-b border-border/60">
@@ -2355,7 +3396,7 @@ export function ServerManagement() {
                         <th className="border-l border-border/60 px-4 py-3 text-left font-semibold">Service</th>
                         <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">CPU</th>
                         <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Memory</th>
-                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Net I/O</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Net In/Out</th>
                         <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">
                           Storage I/O
                         </th>
@@ -2446,15 +3487,15 @@ export function ServerManagement() {
             <>
               <div className="hidden lg:block border border-border/60 bg-background/90">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1120px] table-fixed text-sm">
+                  <table className="w-full min-w-[960px] table-fixed text-sm">
                     <colgroup>
                       <col className="w-[56px]" />
-                      <col className="w-[260px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[150px]" />
-                      <col className="w-[100px]" />
+                      <col className="w-[220px]" />
+                      <col className="w-[130px]" />
+                      <col className="w-[130px]" />
+                      <col className="w-[140px]" />
+                      <col className="w-[140px]" />
+                      <col className="w-[90px]" />
                     </colgroup>
                     <thead className="bg-muted/40 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                       <tr className="border-b border-border/60">
@@ -2464,7 +3505,7 @@ export function ServerManagement() {
                         <th className="border-l border-border/60 px-4 py-3 text-left font-semibold">Service</th>
                         <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">CPU</th>
                         <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Memory</th>
-                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Net I/O</th>
+                        <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">Net In/Out</th>
                         <th className="border-l border-border/60 px-4 py-3 text-right font-semibold">
                           Storage I/O
                         </th>
@@ -2480,10 +3521,19 @@ export function ServerManagement() {
                         const cpuBarPercent =
                           cpuPercent !== null && cpuPercent > 0 && cpuPercent < 1 ? 1 : cpuPercent
                         const memPercent = container ? getContainerMemPercent(container.mem) : null
-                        const netTotal = getTransferTotal(container?.net)
+                        const netIn = container?.net?.rx_bytes
+                        const netOut = container?.net?.tx_bytes
                         const { read: blockRead, write: blockWrite } = getBlockReadWrite(container?.block)
-                        const netBarPercent = getRelativePercent(netTotal, trafficMax.maxNet)
-                        const blockSplit = getSplitPercents(blockRead, blockWrite)
+                        const { read: blockSpeedRead, write: blockSpeedWrite } = getBlockSpeed(container?.block)
+                        const hasNetSpeed =
+                          typeof container?.net?.in_bps === 'number' ||
+                          typeof container?.net?.out_bps === 'number'
+                        const hasBlockSpeed =
+                          typeof blockSpeedRead === 'number' || typeof blockSpeedWrite === 'number'
+                        const netSpeedSplit = getSplitPercents(container?.net?.in_bps, container?.net?.out_bps)
+                        const blockSpeedSplit = getSplitPercents(blockSpeedRead, blockSpeedWrite)
+                        const netSplit = hasNetSpeed ? netSpeedSplit : getSplitPercents(netIn, netOut)
+                        const blockSplit = hasBlockSpeed ? blockSpeedSplit : getSplitPercents(blockRead, blockWrite)
                         const statusSummary = getServiceStatusSummary(state, health)
                         const statusStyles = SERVICE_STATUS_STYLES[statusSummary.tone]
                         const containerMeta = getContainerMeta(container)
@@ -2537,12 +3587,15 @@ export function ServerManagement() {
                                 <span className="text-[11px] font-semibold font-mono tabular-nums whitespace-nowrap leading-tight">
                                   {container ? formatContainerNet(container.net) : '—'}
                                 </span>
-                                {renderFlatBar(netBarPercent, 'bg-sky-500/70')}
-                                {netBarPercent !== null && (
-                                  <span className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap">
-                                    {formatPercentShort(netBarPercent)}
-                                  </span>
-                                )}
+                                <span className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap leading-tight">
+                                  {container && formatContainerNetSpeed(container.net) !== '—'
+                                    ? `Speed ${formatContainerNetSpeed(container.net)}`
+                                    : '—'}
+                                </span>
+                                {renderSplitBar(netSplit.read, netSplit.write, {
+                                  readClass: IO_READ_CLASS,
+                                  writeClass: IO_WRITE_CLASS,
+                                })}
                               </div>
                             </td>
                             <td className="border-l border-border/60 px-4 py-4 align-top text-right">
@@ -2552,7 +3605,15 @@ export function ServerManagement() {
                                     ? `R ${formatBytes(blockRead ?? undefined)} / W ${formatBytes(blockWrite ?? undefined)}`
                                     : '—'}
                                 </span>
-                                {renderSplitBar(blockSplit.read, blockSplit.write)}
+                                <span className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap leading-tight">
+                                  {blockSpeedRead !== null || blockSpeedWrite !== null
+                                    ? `Speed ${formatBytesPerSecond(blockSpeedRead ?? undefined)} / ${formatBytesPerSecond(blockSpeedWrite ?? undefined)}`
+                                    : '—'}
+                                </span>
+                                {renderSplitBar(blockSplit.read, blockSplit.write, {
+                                  readClass: IO_READ_CLASS,
+                                  writeClass: IO_WRITE_CLASS,
+                                })}
                               </div>
                             </td>
                             <td className="border-l border-border/60 px-4 py-4 align-top text-right">
@@ -2574,10 +3635,19 @@ export function ServerManagement() {
                   const cpuBarPercent =
                     cpuPercent !== null && cpuPercent > 0 && cpuPercent < 1 ? 1 : cpuPercent
                   const memPercent = container ? getContainerMemPercent(container.mem) : null
-                  const netTotal = getTransferTotal(container?.net)
+                  const netIn = container?.net?.rx_bytes
+                  const netOut = container?.net?.tx_bytes
                   const { read: blockRead, write: blockWrite } = getBlockReadWrite(container?.block)
-                  const netBarPercent = getRelativePercent(netTotal, trafficMax.maxNet)
-                  const blockSplit = getSplitPercents(blockRead, blockWrite)
+                  const { read: blockSpeedRead, write: blockSpeedWrite } = getBlockSpeed(container?.block)
+                  const hasNetSpeed =
+                    typeof container?.net?.in_bps === 'number' ||
+                    typeof container?.net?.out_bps === 'number'
+                  const hasBlockSpeed =
+                    typeof blockSpeedRead === 'number' || typeof blockSpeedWrite === 'number'
+                  const netSpeedSplit = getSplitPercents(container?.net?.in_bps, container?.net?.out_bps)
+                  const blockSpeedSplit = getSplitPercents(blockSpeedRead, blockSpeedWrite)
+                  const netSplit = hasNetSpeed ? netSpeedSplit : getSplitPercents(netIn, netOut)
+                  const blockSplit = hasBlockSpeed ? blockSpeedSplit : getSplitPercents(blockRead, blockWrite)
                   const statusSummary = getServiceStatusSummary(state, health)
                   const statusStyles = SERVICE_STATUS_STYLES[statusSummary.tone]
                   const containerMeta = getContainerMeta(container)
@@ -2629,17 +3699,19 @@ export function ServerManagement() {
                       </div>
                       <div className="space-y-1 text-xs text-muted-foreground">
                         <div className="flex items-center justify-between">
-                          <span className="uppercase tracking-[0.2em]">Net I/O</span>
+                          <span className="uppercase tracking-[0.2em]">Net In/Out</span>
                           <span className="text-[11px] font-mono tabular-nums whitespace-nowrap leading-tight">
                             {container ? formatContainerNet(container.net) : '—'}
                           </span>
                         </div>
-                        {renderFlatBar(netBarPercent, 'bg-sky-500/70')}
-                        {netBarPercent !== null && (
-                          <span className="text-[10px] text-muted-foreground font-mono tabular-nums whitespace-nowrap">
-                            {formatPercentShort(netBarPercent)}
-                          </span>
-                        )}
+                        <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-muted-foreground">
+                          <span className="uppercase tracking-[0.2em]">Speed</span>
+                          <span>{container ? formatContainerNetSpeed(container.net) : '—'}</span>
+                        </div>
+                        {renderSplitBar(netSplit.read, netSplit.write, {
+                          readClass: IO_READ_CLASS,
+                          writeClass: IO_WRITE_CLASS,
+                        })}
                       </div>
                       <div className="space-y-1 text-xs text-muted-foreground">
                         <div className="flex items-center justify-between">
@@ -2650,7 +3722,18 @@ export function ServerManagement() {
                               : '—'}
                           </span>
                         </div>
-                        {renderSplitBar(blockSplit.read, blockSplit.write)}
+                        <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-muted-foreground">
+                          <span className="uppercase tracking-[0.2em]">Speed</span>
+                          <span>
+                            {blockSpeedRead !== null || blockSpeedWrite !== null
+                              ? `R ${formatBytesPerSecond(blockSpeedRead ?? undefined)} / W ${formatBytesPerSecond(blockSpeedWrite ?? undefined)}`
+                              : '—'}
+                          </span>
+                        </div>
+                        {renderSplitBar(blockSplit.read, blockSplit.write, {
+                          readClass: IO_READ_CLASS,
+                          writeClass: IO_WRITE_CLASS,
+                        })}
                       </div>
                       <div className="flex justify-end">{renderServiceActionsMenu(service)}</div>
                     </div>

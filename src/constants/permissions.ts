@@ -15,6 +15,7 @@ export const PERMISSIONS = {
   SERVER_MANAGEMENT_ACTION_NORMAL: 'serverManagement:actionNormal',
   SERVER_MANAGEMENT_ACTION_WARNING: 'serverManagement:actionWarning',
   SERVER_MANAGEMENT_ACTION_DANGEROUS: 'serverManagement:actionDangerous',
+  SERVER_MANAGEMENT_STATUS_NOTIFY: 'serverManagement:statusNotify',
   SERVER_MANAGEMENT_MANAGE: 'serverManagement:manage',
 
   BOARD_FULL_ACCESS: 'board:fullAccess',
@@ -125,6 +126,11 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
     value: PERMISSIONS.SERVER_MANAGEMENT_ACTION_DANGEROUS,
     label: 'Server Management Actions (Dangerous)',
     description: 'Run all server actions, including dangerous ones',
+  },
+  {
+    value: PERMISSIONS.SERVER_MANAGEMENT_STATUS_NOTIFY,
+    label: 'Server Management Status Alerts',
+    description: 'Receive server status alert notifications and emails',
   },
   { value: PERMISSIONS.SERVER_MANAGEMENT_MANAGE, label: 'Server Management Manage' },
 

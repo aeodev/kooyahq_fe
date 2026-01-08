@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, FileVideo } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, FileVideo, ClipboardList } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -145,6 +145,12 @@ const MANAGEMENT_ITEMS: NavItem[] = [
     to: '/system-management',
     icon: Shield,
     requiredPermissions: [PERMISSIONS.SYSTEM_FULL_ACCESS],
+  },
+  {
+    name: 'Admin Logs',
+    to: '/admin-logs',
+    icon: ClipboardList,
+    requiredPermissions: [PERMISSIONS.SYSTEM_LOGS, PERMISSIONS.SYSTEM_FULL_ACCESS],
   },
 ]
 

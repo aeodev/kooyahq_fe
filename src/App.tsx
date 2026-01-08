@@ -29,6 +29,7 @@ import { KooyaFeed } from '@/pages/KooyaFeed'
 import { Games } from '@/pages/Games'
 import { PlayGame } from '@/pages/Games/PlayGame'
 import { UserManagement } from '@/pages/UserManagement'
+import { AdminLogs } from '@/pages/AdminLogs'
 import { ServerManagement } from '@/pages/ServerManagement'
 import { SystemManagement } from '@/pages/SystemManagement'
 import { Presence } from '@/pages/Presence'
@@ -292,6 +293,18 @@ function App() {
                     <UserManagement />
                   </DashboardLayout>
                 </UserManagementRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin-logs"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.SYSTEM_LOGS, PERMISSIONS.SYSTEM_FULL_ACCESS]}>
+                  <DashboardLayout>
+                    <AdminLogs />
+                  </DashboardLayout>
+                </PermissionGate>
               </PrivateRoute>
             }
           />
