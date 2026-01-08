@@ -254,3 +254,19 @@ export const EXPORT_USERS = (format: 'csv' | 'json') => `/user-management/export
 // Settings routes
 export const GET_THEME_SETTINGS = () => `/settings/theme`
 export const UPDATE_THEME_SETTINGS = () => `/settings/theme`
+
+// Cost Analytics routes (Super Admin only)
+export const GET_LIVE_COST = () => `/cost-analytics/live`
+export const GET_COST_SUMMARY = (startDate?: string, endDate?: string) => {
+  const params = new URLSearchParams()
+  if (startDate) params.append('startDate', startDate)
+  if (endDate) params.append('endDate', endDate)
+  return `/cost-analytics/summary${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const GET_PROJECT_LIST = () => `/cost-analytics/projects`
+export const GET_PROJECT_DETAIL = (projectName: string, startDate?: string, endDate?: string) => {
+  const params = new URLSearchParams()
+  if (startDate) params.append('startDate', startDate)
+  if (endDate) params.append('endDate', endDate)
+  return `/cost-analytics/project/${encodeURIComponent(projectName)}${params.toString() ? `?${params.toString()}` : ''}`
+}

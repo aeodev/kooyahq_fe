@@ -1,0 +1,159 @@
+import type {
+  CostSummaryData,
+  ProjectCostSummary,
+  LiveCostData,
+  CurrencyConfig,
+} from '@/types/cost-analytics'
+import { formatCurrency } from '@/stores/cost-analytics.store'
+import { formatHours } from './cost-analytics.utils'
+
+/**
+ * Escape CSV cell value (handles quotes and commas)
+ */
+function escapeCSV(value: string | number): string {
+  const str = String(value)
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
+/**
+ * Convert array of arrays to CSV string
+ */
+function arrayToCSV(rows: (string | number)[][]): string {
+  return rows.map((row) => row.map(escapeCSV).join(',')).join('\n')
+}
+
+/**
+ * Export summary data to CSV
+ */
+export function exportSummaryToCSV(
+  summaryData: CostSummaryData,
+  currencyConfig: CurrencyConfig
+): string {
+  const rows: (string | number)[][] = [
+    ['Project', 'Total Cost', 'Total Hours', 'Developers Count', 'Avg Hourly Rate'],
+  ]
+
+  summaryData.projectCosts.forEach((project) => {
+    rows.push([
+      project.project,
+      formatCurrency(project.totalCost, currencyConfig),
+      formatHours(project.totalHours),
+      project.developers.length,
+      `${currencyConfig.symbol}${project.avgHourlyRate.toFixed(2)}/hr`,
+    ])
+  })
+
+  return arrayToCSV(rows)
+}
+
+/**
+ * Export project detail to CSV
+ */
+export function exportProjectDetailToCSV(
+  projectDetail: ProjectCostSummary,
+  currencyConfig: CurrencyConfig
+): string {
+  const rows: (string | number)[][] = [
+    ['Developer', 'Hourly Rate', 'Hours', 'Cost'],
+  ]
+
+  projectDetail.developers.forEach((dev) => {
+    rows.push([
+      dev.userName,
+      `${currencyConfig.symbol}${dev.hourlyRate.toFixed(2)}/hr`,
+      formatHours(dev.hours),
+      formatCurrency(dev.cost, currencyConfig),
+    ])
+  })
+
+  // Add summary row
+  rows.push([])
+  rows.push([
+    'Total',
+    `${currencyConfig.symbol}${projectDetail.avgHourlyRate.toFixed(2)}/hr`,
+    formatHours(projectDetail.totalHours),
+    formatCurrency(projectDetail.totalCost, currencyConfig),
+  ])
+
+  return arrayToCSV(rows)
+}
+
+/**
+ * Export comparison data to CSV
+ */
+export function exportComparisonToCSV(
+  compareData: ProjectCostSummary[],
+  currencyConfig: CurrencyConfig
+): string {
+  const rows: (string | number)[][] = [
+    [
+      'Project',
+      'Total Cost',
+      'Total Hours',
+      'Developers',
+      'Avg Hourly Rate',
+    ],
+  ]
+
+  compareData.forEach((project) => {
+    rows.push([
+      project.project,
+      formatCurrency(project.totalCost, currencyConfig),
+      formatHours(project.totalHours),
+      project.developers.length,
+      `${currencyConfig.symbol}${project.avgHourlyRate.toFixed(2)}/hr`,
+    ])
+  })
+
+  return arrayToCSV(rows)
+}
+
+/**
+ * Export live cost data to CSV
+ */
+export function exportLiveDataToCSV(
+  liveData: LiveCostData,
+  currencyConfig: CurrencyConfig
+): string {
+  const rows: (string | number)[][] = [
+    ['Developer', 'Projects', 'Hourly Rate', 'Active Time', 'Live Cost', 'Status'],
+  ]
+
+  liveData.activeDevelopers.forEach((dev) => {
+    rows.push([
+      dev.userName,
+      dev.projects.join('; '),
+      `${currencyConfig.symbol}${dev.hourlyRate.toFixed(2)}/hr`,
+      formatHours(dev.activeMinutes / 60),
+      formatCurrency(dev.liveCost, currencyConfig),
+      dev.isPaused ? 'Paused' : 'Active',
+    ])
+  })
+
+  // Add summary rows
+  rows.push([])
+  rows.push(['Total Burn Rate', `${currencyConfig.symbol}${liveData.totalBurnRate.toFixed(2)}/hr`])
+  rows.push(['Total Live Cost', formatCurrency(liveData.totalLiveCost, currencyConfig)])
+  rows.push(['Active Hours', formatHours(liveData.activeHours)])
+  rows.push(['Active Developers', liveData.activeDevelopers.length])
+
+  return arrayToCSV(rows)
+}
+
+/**
+ * Download CSV file
+ */
+export function downloadCSV(csvContent: string, filename: string): void {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}

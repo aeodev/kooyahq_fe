@@ -212,12 +212,14 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     email: string
     position: string
     birthday: string
+    monthlySalary: string
     permissions: string[]
   }>({
     name: '',
     email: '',
     position: '',
     birthday: '',
+    monthlySalary: '',
     permissions: DEFAULT_NEW_USER_PERMISSIONS,
   })
   const [createValidationErrors, setCreateValidationErrors] = useState<Record<string, string>>({})
@@ -229,12 +231,14 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     email: string
     position: string
     birthday: string
+    monthlySalary: string
     permissions: string[]
   }>({
     name: '',
     email: '',
     position: '',
     birthday: '',
+    monthlySalary: '',
     permissions: [],
   })
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -516,6 +520,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       email: employee.email,
       position: employee.position || '',
       birthday: employee.birthday ? employee.birthday.split('T')[0] : '',
+      monthlySalary: employee.monthlySalary?.toString() || '',
       permissions: employee.permissions || [],
     })
     setValidationErrors({})
@@ -525,7 +530,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
 
   const closeEditModal = () => {
     setEditingEmployee(null)
-    setEditData({ name: '', email: '', position: '', birthday: '', permissions: [] })
+    setEditData({ name: '', email: '', position: '', birthday: '', monthlySalary: '', permissions: [] })
     setValidationErrors({})
   }
 
@@ -538,6 +543,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       email?: string
       position?: string
       birthday?: string
+      monthlySalary?: number
       permissions?: string[]
     } = {}
 
@@ -553,6 +559,12 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     const currentBirthday = editingEmployee.birthday ? editingEmployee.birthday.split('T')[0] : ''
     if (editData.birthday !== currentBirthday) {
       updates.birthday = editData.birthday ? editData.birthday : undefined
+    }
+    // Handle monthly salary update
+    const newSalary = editData.monthlySalary ? parseFloat(editData.monthlySalary) : 0
+    const currentSalary = editingEmployee.monthlySalary || 0
+    if (newSalary !== currentSalary) {
+      updates.monthlySalary = newSalary
     }
     const currentPerms = Array.isArray(editingEmployee.permissions) ? editingEmployee.permissions : []
     const newPerms = Array.isArray(editData.permissions) ? editData.permissions : []
@@ -665,6 +677,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       email: '',
       position: '',
       birthday: '',
+      monthlySalary: '',
       permissions: getDefaultCreatePermissions(),
     })
     setCreateValidationErrors({})
@@ -677,11 +690,13 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     if (!validateCreateUserForm()) return
 
     const normalizedPerms = normalizePermissionsWithDependencies(createUserData.permissions)
+    const monthlySalary = createUserData.monthlySalary ? parseFloat(createUserData.monthlySalary) : undefined
     const result = await createUser({
       name: createUserData.name.trim(),
       email: createUserData.email.trim(),
       position: createUserData.position.trim() || undefined,
       birthday: createUserData.birthday || undefined,
+      monthlySalary,
       permissions: normalizedPerms,
     })
 
@@ -744,6 +759,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                   email: '',
                   position: '',
                   birthday: '',
+                  monthlySalary: '',
                   permissions: getDefaultCreatePermissions(),
                 })
                 setCreateValidationErrors({})
@@ -1084,6 +1100,19 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 />
                 {createValidationErrors.birthday && <p className="text-xs text-destructive">{createValidationErrors.birthday}</p>}
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-monthlySalary">Monthly Salary</Label>
+                <Input
+                  id="create-monthlySalary"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={createUserData.monthlySalary}
+                  onChange={(e) => setCreateUserData({ ...createUserData, monthlySalary: e.target.value })}
+                  placeholder="e.g., 50000"
+                />
+                <p className="text-xs text-muted-foreground">Used for cost analytics (hourly rate = salary / 160hrs)</p>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Manage/update permissions automatically keep the matching view permission on.
               </p>
@@ -1334,6 +1363,19 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                     className={validationErrors.birthday ? 'border-destructive' : ''}
                   />
                   {validationErrors.birthday && <p className="text-xs text-destructive">{validationErrors.birthday}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-monthlySalary">Monthly Salary</Label>
+                  <Input
+                    id="edit-monthlySalary"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editData.monthlySalary}
+                    onChange={(e) => setEditData({ ...editData, monthlySalary: e.target.value })}
+                    placeholder="e.g., 50000"
+                  />
+                  <p className="text-xs text-muted-foreground">Used for cost analytics (hourly rate = salary / 160hrs)</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">
