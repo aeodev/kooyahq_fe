@@ -114,6 +114,7 @@ export function Notifications() {
     loading: isLoading,
     page,
     limit,
+    total,
     hasMore,
     fetchNotifications,
     markAsRead,
@@ -135,6 +136,21 @@ export function Notifications() {
     // Refresh notifications if showing unread only to update the list
     if (showUnreadOnly) {
       fetchNotifications(showUnreadOnly)
+    }
+  }
+
+  const handleNotificationClick = (notification: NotificationType) => {
+    const shouldMarkRead = !notification.read && canUpdateNotifications
+    if (shouldMarkRead) {
+      if (notification.url) {
+        void markAsRead(notification.id)
+      } else {
+        void handleMarkAsRead(notification.id)
+      }
+    }
+
+    if (notification.url) {
+      navigate(notification.url)
     }
   }
 
@@ -194,6 +210,7 @@ export function Notifications() {
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">Notifications</h1>
             <p className="text-base sm:text-lg text-muted-foreground font-normal">
               {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
+              {total > 0 && <span>{` • ${total} total`}</span>}
             </p>
           </div>
         </div>
@@ -246,18 +263,15 @@ export function Notifications() {
                         const reference = getNotificationReference(notification)
                         const actorName = notification.actor?.name ?? (notification.type === 'system' ? 'System' : null)
                         const typeLabel = notificationTypeLabels[notification.type]
+                        const isClickable = Boolean(notification.url) || (!notification.read && canUpdateNotifications)
 
                         return (
                           <div
                             key={notification.id}
                             className={`flex items-start gap-4 px-6 py-4 transition-colors ${
-                              notification.url ? 'cursor-pointer hover:bg-muted/40' : ''
+                              isClickable ? 'cursor-pointer hover:bg-muted/40' : ''
                             } ${!notification.read ? 'bg-primary/5' : ''}`}
-                            onClick={() => {
-                              if (notification.url) {
-                                navigate(notification.url)
-                              }
-                            }}
+                            onClick={() => handleNotificationClick(notification)}
                           >
                             <span
                               className={`mt-2 h-2 w-2 rounded-full ${

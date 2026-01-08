@@ -149,12 +149,17 @@ export const useNotifications = () => {
       const { notification, unreadCount } = customEvent.detail
       setUnreadCount(unreadCount)
       // Add new notification to the list if it's not already there
+      let didAdd = false
       setNotifications((prev) => {
         if (prev.find((n) => n.id === notification.id)) {
           return prev
         }
+        didAdd = true
         return [notification, ...prev]
       })
+      if (didAdd) {
+        setTotal((prev) => prev + 1)
+      }
     }
 
     const handleNotificationRead = (event: Event) => {
