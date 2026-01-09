@@ -28,17 +28,6 @@ export function BudgetCard({ comparison, currencyConfig, onEdit, onDelete }: Bud
     }
   }
 
-  const getProgressColor = () => {
-    switch (alertLevel) {
-      case 'critical':
-        return 'bg-red-500'
-      case 'warning':
-        return 'bg-amber-500'
-      default:
-        return 'bg-primary'
-    }
-  }
-
   return (
     <Card>
       <CardContent className="p-4">

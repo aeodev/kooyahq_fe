@@ -21,7 +21,6 @@ export function BudgetTracking({ currencyConfig, projectList, selectedProject }:
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null)
   
   const {
-    budgets,
     budgetsLoading,
     budgetComparisons,
     fetchBudgets,

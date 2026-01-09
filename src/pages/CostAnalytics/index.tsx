@@ -148,7 +148,6 @@ function CostAnalyticsContent() {
           <DeveloperSummaryView
             currencyConfig={currencyConfig}
             hasLoadedOnce={hasLoadedOnce}
-            onRefresh={handleRefresh}
           />
         </TabsContent>
       </Tabs>

@@ -113,7 +113,6 @@ export function ProjectSummaryView({
               projectListLoading={projectListLoading}
               selectedProject={selectedProject}
               viewMode={viewMode}
-              compareProjects={compareProjects}
               onSelectProject={onSelectProject}
               onClearProject={onClearProject}
               onEnterCompareMode={onEnterCompareMode}

@@ -32,7 +32,7 @@ export function usePolling({
   pauseOnHidden = true,
 }: UsePollingOptions): UsePollingReturn {
   const isVisible = useVisibility()
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const callbackRef = useRef(callback)
   const isPollingRef = useRef(false)
 

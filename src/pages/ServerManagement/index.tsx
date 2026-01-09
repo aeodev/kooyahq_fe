@@ -148,33 +148,96 @@ type StatusErrorPayload = {
   message?: string
 }
 
-type StatusUsage = {
-  usage_bytes?: number
-  limit_bytes?: number
-  percent?: number
-  raw?: string
-}
-
-type StatusTransfer = {
-  rx_bytes?: number
-  tx_bytes?: number
-  in_bps?: number
-  out_bps?: number
-  raw?: string
-}
-
-type StatusBlock = {
-  read_bytes?: number
-  write_bytes?: number
-  read_bps?: number
-  write_bps?: number
-  raw?: string
+// instancectl format types
+type StatusMemory = {
+  total_bytes?: number
+  used_bytes?: number
+  free_bytes?: number
 }
 
 type StatusCpuMetrics = {
   total_percent?: number
   used_percent?: number
   free_percent?: number
+  iowait_percent?: number
+}
+
+type StatusCpu = {
+  total_percent?: number
+  used_percent?: number
+  free_percent?: number
+  cores?: Record<string, number>
+  load_avg?: {
+    '1m_percent'?: number
+    '5m_percent'?: number
+    '15m_percent'?: number
+  }
+  iowait_percent?: number
+  // Normalized metrics wrapper for UI access
+  metrics?: StatusCpuMetrics
+}
+
+type StatusNetworkSpeed = {
+  rx_bytes?: number
+  tx_bytes?: number
+}
+
+type StatusNetwork = {
+  rx_total_bytes?: number
+  tx_total_bytes?: number
+  rx_total_errors?: number
+  tx_total_errors?: number
+  rx_total_drops?: number
+  tx_total_drops?: number
+  speed?: StatusNetworkSpeed
+  interfaces?: Record<string, { rx_bytes?: number; tx_bytes?: number }>
+}
+
+type StatusStorageSpeed = {
+  read_bytes?: number
+  write_bytes?: number
+}
+
+type StatusStorage = {
+  total_bytes?: number
+  used_bytes?: number
+  free_bytes?: number
+  read_total_bytes?: number
+  write_total_bytes?: number
+  speed?: StatusStorageSpeed
+}
+
+type StatusTemperature = {
+  zone?: string
+  label?: string
+  temperature_celsius?: number
+}
+
+type StatusFileDescriptors = {
+  allocated?: number
+  max?: number
+}
+
+type StatusGpu = {
+  index?: number
+  name?: string
+  memory?: StatusMemory
+  utilization?: { used_percent?: number; free_percent?: number }
+  temperature_celsius?: number
+  fan_percent?: number
+  power_watts?: number
+  power_limit_watts?: number
+}
+
+type StatusContainerHealth = 'starting' | 'running' | 'stopped' | 'restarting' | 'exited' | 'dead' | 'paused'
+
+// For internal display normalization
+type StatusTransfer = {
+  rx_bytes?: number
+  tx_bytes?: number
+  in_bps?: number
+  out_bps?: number
+  raw?: string
 }
 
 type StatusStorageIo = {
@@ -218,55 +281,77 @@ type SparklineDotProps = {
   index?: number
 }
 
+// Container storage block type for normalized data
+type ContainerStorageBlock = {
+  read_total_bytes?: number
+  write_total_bytes?: number
+  speed?: { read_bytes?: number; write_bytes?: number }
+}
+
+// Container format from instancectl
 type DockerContainerStatus = {
-  container_id?: string
+  id?: string
   name?: string
-  cpu_percent?: number | string
-  cpu_raw?: string
-  cpu?: number | string
-  mem?: StatusUsage
-  net?: StatusTransfer
-  block?: StatusBlock
-  pids?: number
-  state?: string
+  health?: StatusContainerHealth
   status?: string
-  health?: string
-  image?: string
-  ports?: string
+  cpu?: StatusCpu
+  memory?: StatusMemory
+  network?: {
+    rx_total_bytes?: number
+    tx_total_bytes?: number
+    speed?: StatusNetworkSpeed
+  }
+  storage?: {
+    read_total_bytes?: number
+    write_total_bytes?: number
+    speed?: StatusStorageSpeed
+  }
+  // Normalized fields for UI compatibility
+  state?: string
+  mem?: StatusMemory
+  net?: StatusTransfer
+  block?: ContainerStorageBlock
+}
+
+// Instance format from instancectl
+type StatusInstance = {
+  hostname?: string
+  status?: 'running' | 'down'
+  uptime_seconds?: number
+  process_count?: number
+  memory?: StatusMemory
+  swap?: StatusMemory
+  cpu?: StatusCpu
+  network?: StatusNetwork
+  storage?: StatusStorage
+  temperature?: StatusTemperature[]
+  file_descriptors?: StatusFileDescriptors
+  gpu?: StatusGpu[]
+  // Normalized fields for display
+  mem?: {
+    total_bytes?: number
+    used_bytes?: number
+    available_bytes?: number
+  }
+  network_speed?: {
+    in_bps?: number
+    out_bps?: number
+  }
+  storage_root?: {
+    total_bytes?: number
+    used_bytes?: number
+    available_bytes?: number
+  }
+  storage_io?: StatusStorageIo
+  storage_speed?: StatusStorageIo
 }
 
 type StatusPayload = {
   timestamp?: string
   health_status?: string
-  instance?: {
-    hostname?: string
-    mem?: {
-      total_bytes?: number
-      used_bytes?: number
-      available_bytes?: number
-    }
-    cpu?: {
-      loadavg_1m?: number
-      loadavg_5m?: number
-      loadavg_15m?: number
-      metrics?: StatusCpuMetrics
-      cores?: Record<string, number>
-    }
-    network?: Record<string, StatusTransfer>
-    network_speed?: {
-      in_bps?: number
-      out_bps?: number
-    }
-    storage_root?: {
-      total_bytes?: number
-      used_bytes?: number
-      available_bytes?: number
-    }
-    storage_io?: StatusStorageIo
-    storage_speed?: StatusStorageIo
-  }
+  instance?: StatusInstance
   docker?: {
-    compose_ps_error?: string | null
+    compose_errors?: string | null
     containers?: Record<string, DockerContainerStatus>
   }
 }
@@ -453,6 +538,20 @@ const SparklineChart = ({
   )
 }
 
+const formatUptime = (seconds?: number | null) => {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return '—'
+  if (seconds < 60) return `${Math.floor(seconds)}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    return `${hours}h ${minutes}m`
+  }
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  return `${days}d ${hours}h`
+}
+
 const formatBytes = (value?: number | null) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
@@ -505,11 +604,10 @@ const formatPercentOne = (value?: number | null) => {
   return `${value.toFixed(1)}%`
 }
 
-const formatContainerMemPair = (mem?: StatusUsage) => {
+const formatContainerMemPair = (mem?: StatusMemory) => {
   if (!mem) return '—'
-  if (mem.raw) return mem.raw
-  if (typeof mem.usage_bytes === 'number' && typeof mem.limit_bytes === 'number') {
-    return `${formatBytes(mem.usage_bytes)} / ${formatBytes(mem.limit_bytes)}`
+  if (typeof mem.used_bytes === 'number' && typeof mem.total_bytes === 'number') {
+    return `${formatBytes(mem.used_bytes)} / ${formatBytes(mem.total_bytes)}`
   }
   return '—'
 }
@@ -538,29 +636,17 @@ const getUsageTone = (percent: number | null) => {
 }
 
 const formatContainerCpu = (container: DockerContainerStatus) => {
-  if (typeof container.cpu_raw === 'string' && container.cpu_raw.trim()) return container.cpu_raw.trim()
-  if (typeof container.cpu_percent === 'number') return formatPercent(container.cpu_percent)
-  if (typeof container.cpu_percent === 'string' && container.cpu_percent.trim()) return container.cpu_percent.trim()
-  if (typeof container.cpu === 'number') return formatPercent(container.cpu)
-  if (typeof container.cpu === 'string' && container.cpu.trim()) return container.cpu.trim()
+  if (container.cpu?.used_percent !== undefined) {
+    return formatPercent(container.cpu.used_percent)
+  }
   return '—'
 }
 
-const parseCpuPercent = (value?: number | string) => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value)
-    if (Number.isFinite(parsed)) return parsed
+const getContainerCpuPercent = (container: DockerContainerStatus) => {
+  if (container.cpu?.used_percent !== undefined && Number.isFinite(container.cpu.used_percent)) {
+    return clampPercent(container.cpu.used_percent)
   }
   return null
-}
-
-const getContainerCpuPercent = (container: DockerContainerStatus) => {
-  const percent =
-    parseCpuPercent(container.cpu_percent) ??
-    parseCpuPercent(container.cpu) ??
-    parseCpuPercent(container.cpu_raw)
-  return clampPercent(percent ?? undefined)
 }
 
 const normalizeContainerKey = (value?: string) => (value ?? '').trim().toLowerCase()
@@ -617,70 +703,20 @@ const formatContainerNetSpeed = (net?: StatusTransfer) => {
   return '—'
 }
 
-const SIZE_UNIT_FACTORS: Record<string, number> = {
-  B: 1,
-  KB: 1024,
-  KIB: 1024,
-  MB: 1024 ** 2,
-  MIB: 1024 ** 2,
-  GB: 1024 ** 3,
-  GIB: 1024 ** 3,
-  TB: 1024 ** 4,
-  TIB: 1024 ** 4,
-  PB: 1024 ** 5,
-  PIB: 1024 ** 5,
-}
-
-const normalizeSizeUnit = (unit?: string) => {
-  if (!unit) return 'B'
-  const upper = unit.toUpperCase()
-  if (upper === 'K') return 'KB'
-  if (upper === 'M') return 'MB'
-  if (upper === 'G') return 'GB'
-  if (upper === 'T') return 'TB'
-  if (upper === 'P') return 'PB'
-  return upper
-}
-
-const parseSizeValue = (value: string) => {
-  const match = value.trim().replace(/,/g, '').match(/([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)?/)
-  if (!match) return null
-  const amount = Number.parseFloat(match[1])
-  if (!Number.isFinite(amount)) return null
-  const unit = normalizeSizeUnit(match[2])
-  const factor = SIZE_UNIT_FACTORS[unit]
-  if (!factor) return null
-  return amount * factor
-}
-
-const parseSizePairParts = (raw: string) => {
-  const parts = raw.split('/')
-  const read = parts[0] ? parseSizeValue(parts[0]) : null
-  const write = parts[1] ? parseSizeValue(parts[1]) : null
-  return { read, write }
-}
-
-const getBlockReadWrite = (block?: StatusBlock) => {
+const getBlockReadWrite = (block?: ContainerStorageBlock) => {
   if (!block) return { read: null, write: null }
-  if (typeof block.read_bytes === 'number' || typeof block.write_bytes === 'number') {
-    return {
-      read: typeof block.read_bytes === 'number' ? block.read_bytes : null,
-      write: typeof block.write_bytes === 'number' ? block.write_bytes : null,
-    }
+  return {
+    read: typeof block.read_total_bytes === 'number' ? block.read_total_bytes : null,
+    write: typeof block.write_total_bytes === 'number' ? block.write_total_bytes : null,
   }
-  if (block.raw) return parseSizePairParts(block.raw)
-  return { read: null, write: null }
 }
 
-const getBlockSpeed = (block?: StatusBlock) => {
-  if (!block) return { read: null, write: null }
-  if (typeof block.read_bps === 'number' || typeof block.write_bps === 'number') {
-    return {
-      read: typeof block.read_bps === 'number' ? block.read_bps : null,
-      write: typeof block.write_bps === 'number' ? block.write_bps : null,
-    }
+const getBlockSpeed = (block?: ContainerStorageBlock) => {
+  if (!block?.speed) return { read: null, write: null }
+  return {
+    read: typeof block.speed.read_bytes === 'number' ? block.speed.read_bytes : null,
+    write: typeof block.speed.write_bytes === 'number' ? block.speed.write_bytes : null,
   }
-  return { read: null, write: null }
 }
 
 const getUsagePercent = (used?: number, total?: number) => {
@@ -709,10 +745,9 @@ const getSpeedActivityLabel = (bitsPerSecond: number | null) => {
   return 'High'
 }
 
-const getContainerMemPercent = (mem?: StatusUsage) => {
+const getContainerMemPercent = (mem?: StatusMemory) => {
   if (!mem) return null
-  if (typeof mem.percent === 'number') return clampPercent(mem.percent)
-  return getUsagePercent(mem.usage_bytes, mem.limit_bytes)
+  return getUsagePercent(mem.used_bytes, mem.total_bytes)
 }
 
 const renderPercentBar = (
@@ -868,16 +903,19 @@ type NetworkSummary = {
   interfaceCount: number
 }
 
-const summarizeNetwork = (network?: Record<string, StatusTransfer>): NetworkSummary | null => {
+const summarizeNetwork = (network?: StatusNetwork): NetworkSummary | null => {
   if (!network) return null
-  let totalRx = 0
-  let totalTx = 0
+  
+  // Use totals from instancectl format
+  const totalRx = typeof network.rx_total_bytes === 'number' ? network.rx_total_bytes : 0
+  const totalTx = typeof network.tx_total_bytes === 'number' ? network.tx_total_bytes : 0
+  
+  // Count interfaces
   let interfaceCount = 0
-  Object.values(network).forEach((stats) => {
-    interfaceCount += 1
-    totalRx += typeof stats?.rx_bytes === 'number' ? stats.rx_bytes : 0
-    totalTx += typeof stats?.tx_bytes === 'number' ? stats.tx_bytes : 0
-  })
+  if (network.interfaces) {
+    interfaceCount = Object.keys(network.interfaces).length
+  }
+  
   return { totalRx, totalTx, interfaceCount }
 }
 
@@ -911,98 +949,103 @@ const toNumber = (value: unknown) => {
 const normalizeContainerStatus = (key: string, raw: Record<string, unknown>): DockerContainerStatus => {
   const container: DockerContainerStatus = {}
 
-  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : ''
-  if (name) {
-    container.name = name
-  } else if (key) {
-    container.name = key
+  // Container ID
+  if (typeof raw.id === 'string') {
+    container.id = raw.id
   }
 
-  if (typeof raw.container_id === 'string') container.container_id = raw.container_id
-  if (typeof raw.cpu_raw === 'string') container.cpu_raw = raw.cpu_raw
-  if (typeof raw.image === 'string') container.image = raw.image
-  if (typeof raw.ports === 'string') container.ports = raw.ports
-  if (typeof raw.pids === 'number') container.pids = raw.pids
-
-  if (typeof raw.state === 'string') container.state = raw.state
-  if (typeof raw.status === 'string') container.status = raw.status
-
-  const health =
-    (typeof raw.health === 'string' && raw.health) ||
-    (typeof raw.health_status === 'string' && raw.health_status) ||
-    ''
-  if (health) {
-    container.health = health
+  // Health status
+  if (typeof raw.health === 'string') {
+    container.health = raw.health as StatusContainerHealth
   }
 
-  if (typeof raw.cpu_percent === 'number' || typeof raw.cpu_percent === 'string') {
-    container.cpu_percent = raw.cpu_percent
-  } else if (typeof raw.cpu === 'number' || typeof raw.cpu === 'string') {
-    container.cpu = raw.cpu
-  } else if (isPlainObject(raw.cpu)) {
+  // Status string
+  if (typeof raw.status === 'string') {
+    container.status = raw.status
+  }
+
+  // CPU metrics from instancectl format
+  if (isPlainObject(raw.cpu)) {
     const cpu = raw.cpu as Record<string, unknown>
-    const metrics = isPlainObject(cpu.metrics) ? (cpu.metrics as Record<string, unknown>) : undefined
-    const used = toNumber(cpu.used_percent ?? metrics?.used_percent)
-    const total = toNumber(cpu.total_percent ?? metrics?.total_percent)
-    if (used !== undefined) {
-      container.cpu_percent = used
-    } else if (total !== undefined) {
-      container.cpu_percent = total
+    container.cpu = {
+      total_percent: toNumber(cpu.total_percent),
+      used_percent: toNumber(cpu.used_percent),
+      free_percent: toNumber(cpu.free_percent),
     }
   }
 
-  if (isPlainObject(raw.mem)) {
-    container.mem = raw.mem as StatusUsage
-  } else if (isPlainObject(raw.memory)) {
+  // Memory metrics from instancectl format
+  if (isPlainObject(raw.memory)) {
     const memory = raw.memory as Record<string, unknown>
-    const usage = toNumber(memory.used)
-    const limit = toNumber(memory.total)
-    const mem: StatusUsage = {}
-    if (usage !== undefined) mem.usage_bytes = usage
-    if (limit !== undefined) mem.limit_bytes = limit
-    if (usage !== undefined && limit !== undefined && limit > 0) {
-      mem.percent = (usage / limit) * 100
-    }
-    if (Object.keys(mem).length > 0) {
-      container.mem = mem
+    container.memory = {
+      total_bytes: toNumber(memory.total_bytes),
+      used_bytes: toNumber(memory.used_bytes),
+      free_bytes: toNumber(memory.free_bytes),
     }
   }
 
-  if (isPlainObject(raw.net)) {
-    container.net = raw.net as StatusTransfer
-  } else if (isPlainObject(raw.network)) {
+  // Network metrics from instancectl format
+  if (isPlainObject(raw.network)) {
     const network = raw.network as Record<string, unknown>
-    const rx = toNumber(network.inbound_bytes ?? network.rx_bytes)
-    const tx = toNumber(network.outbound_bytes ?? network.tx_bytes)
-    const speed = isPlainObject(network.speed) ? (network.speed as Record<string, unknown>) : null
-    const inBps = toNumber(speed?.in_bps)
-    const outBps = toNumber(speed?.out_bps)
-    const net: StatusTransfer = {}
-    if (rx !== undefined) net.rx_bytes = rx
-    if (tx !== undefined) net.tx_bytes = tx
-    if (inBps !== undefined) net.in_bps = inBps
-    if (outBps !== undefined) net.out_bps = outBps
-    if (Object.keys(net).length > 0) {
-      container.net = net
+    container.network = {
+      rx_total_bytes: toNumber(network.rx_total_bytes),
+      tx_total_bytes: toNumber(network.tx_total_bytes),
+    }
+    if (isPlainObject(network.speed)) {
+      const speed = network.speed as Record<string, unknown>
+      container.network.speed = {
+        rx_bytes: toNumber(speed.rx_bytes),
+        tx_bytes: toNumber(speed.tx_bytes),
+      }
     }
   }
 
-  if (isPlainObject(raw.block)) {
-    container.block = raw.block as StatusBlock
-  } else if (isPlainObject(raw.storage)) {
+  // Storage metrics from instancectl format
+  if (isPlainObject(raw.storage)) {
     const storage = raw.storage as Record<string, unknown>
-    const read = toNumber(storage.read_bytes)
-    const write = toNumber(storage.write_bytes)
-    const speed = isPlainObject(storage.speed) ? (storage.speed as Record<string, unknown>) : null
-    const readBps = toNumber(speed?.read_bps)
-    const writeBps = toNumber(speed?.write_bps)
-    const block: StatusBlock = {}
-    if (read !== undefined) block.read_bytes = read
-    if (write !== undefined) block.write_bytes = write
-    if (readBps !== undefined) block.read_bps = readBps
-    if (writeBps !== undefined) block.write_bps = writeBps
-    if (Object.keys(block).length > 0) {
-      container.block = block
+    container.storage = {
+      read_total_bytes: toNumber(storage.read_total_bytes),
+      write_total_bytes: toNumber(storage.write_total_bytes),
+    }
+    if (isPlainObject(storage.speed)) {
+      const speed = storage.speed as Record<string, unknown>
+      container.storage.speed = {
+        read_bytes: toNumber(speed.read_bytes),
+        write_bytes: toNumber(speed.write_bytes),
+      }
+    }
+  }
+
+  // Add normalized fields for UI compatibility
+  // Store container name
+  container.name = key
+
+  // Map health to state for UI access (container?.state)
+  if (container.health) {
+    container.state = container.health
+  }
+
+  // Map memory to mem for UI access (container?.mem)
+  if (container.memory) {
+    container.mem = container.memory
+  }
+
+  // Map network to net for UI access (container?.net with in_bps, out_bps, rx_bytes, tx_bytes)
+  if (container.network) {
+    container.net = {
+      rx_bytes: container.network.rx_total_bytes,
+      tx_bytes: container.network.tx_total_bytes,
+      in_bps: container.network.speed?.rx_bytes,
+      out_bps: container.network.speed?.tx_bytes,
+    }
+  }
+
+  // Map storage to block for UI access (container?.block)
+  if (container.storage) {
+    container.block = {
+      read_total_bytes: container.storage.read_total_bytes,
+      write_total_bytes: container.storage.write_total_bytes,
+      speed: container.storage.speed,
     }
   }
 
@@ -1026,40 +1069,113 @@ const normalizeStatusPayload = (payload: Record<string, unknown>): StatusPayload
     const instanceRaw = payload.instance as Record<string, unknown>
     const instance: NonNullable<StatusPayload['instance']> = {}
 
-    if (isPlainObject(instanceRaw.mem)) {
-      instance.mem = instanceRaw.mem as NonNullable<StatusPayload['instance']>['mem']
-    } else if (isPlainObject(instanceRaw.memory)) {
+    // Handle hostname
+    if (typeof instanceRaw.hostname === 'string') {
+      instance.hostname = instanceRaw.hostname
+    }
+
+    // Handle new format fields
+    if (typeof instanceRaw.status === 'string') {
+      instance.status = instanceRaw.status as 'running' | 'down'
+    }
+    if (typeof instanceRaw.uptime_seconds === 'number') {
+      instance.uptime_seconds = instanceRaw.uptime_seconds
+    }
+    if (typeof instanceRaw.process_count === 'number') {
+      instance.process_count = instanceRaw.process_count
+    }
+
+    // Handle temperature array
+    if (Array.isArray(instanceRaw.temperature)) {
+      instance.temperature = instanceRaw.temperature as StatusTemperature[]
+    }
+
+    // Handle file descriptors
+    if (isPlainObject(instanceRaw.file_descriptors)) {
+      instance.file_descriptors = instanceRaw.file_descriptors as StatusFileDescriptors
+    }
+
+    // Handle GPU array
+    if (Array.isArray(instanceRaw.gpu)) {
+      instance.gpu = instanceRaw.gpu as StatusGpu[]
+    }
+
+    // Handle memory - instancectl format
+    if (isPlainObject(instanceRaw.memory)) {
       const memory = instanceRaw.memory as Record<string, unknown>
-      const mem = {
-        total_bytes: toNumber(memory.total),
-        used_bytes: toNumber(memory.used),
-        available_bytes: toNumber(memory.free),
+      instance.memory = {
+        total_bytes: toNumber(memory.total_bytes),
+        used_bytes: toNumber(memory.used_bytes),
+        free_bytes: toNumber(memory.free_bytes),
       }
-      if (Object.values(mem).some((value) => typeof value === 'number')) {
-        instance.mem = mem
+      // Also store in display format
+      instance.mem = {
+        total_bytes: toNumber(memory.total_bytes),
+        used_bytes: toNumber(memory.used_bytes),
+        available_bytes: toNumber(memory.free_bytes),
       }
+      
+      // Handle swap - instancectl nests it inside memory
+      if (isPlainObject(memory.swap)) {
+        const swap = memory.swap as Record<string, unknown>
+        instance.swap = {
+          total_bytes: toNumber(swap.total_bytes),
+          used_bytes: toNumber(swap.used_bytes),
+          free_bytes: toNumber(swap.free_bytes),
+        }
+      }
+    }
+
+    // Handle swap (fallback for old format with separate swap property)
+    if (!instance.swap && isPlainObject(instanceRaw.swap)) {
+      instance.swap = instanceRaw.swap as StatusMemory
     }
 
     if (isPlainObject(instanceRaw.cpu)) {
       const cpuRaw = instanceRaw.cpu as Record<string, unknown>
-      const loadavg = isPlainObject(cpuRaw.loadavg) ? (cpuRaw.loadavg as Record<string, unknown>) : null
-      const cpu: NonNullable<StatusPayload['instance']>['cpu'] = {
-        loadavg_1m: toNumber(loadavg?.['1m'] ?? cpuRaw.loadavg_1m),
-        loadavg_5m: toNumber(loadavg?.['5m'] ?? cpuRaw.loadavg_5m),
-        loadavg_15m: toNumber(loadavg?.['15m'] ?? cpuRaw.loadavg_15m),
+      
+      // instancectl format
+      instance.cpu = {
+        total_percent: toNumber(cpuRaw.total_percent),
+        used_percent: toNumber(cpuRaw.used_percent),
+        free_percent: toNumber(cpuRaw.free_percent),
+        iowait_percent: toNumber(cpuRaw.iowait_percent),
       }
 
-      const metricsRaw = isPlainObject(cpuRaw.metrics) ? (cpuRaw.metrics as Record<string, unknown>) : null
-      const metrics: StatusCpuMetrics = {
-        total_percent: toNumber(metricsRaw?.total_percent ?? cpuRaw.total_percent),
-        used_percent: toNumber(metricsRaw?.used_percent ?? cpuRaw.used_percent),
-        free_percent: toNumber(metricsRaw?.free_percent ?? cpuRaw.free_percent),
-      }
-      if (Object.values(metrics).some((value) => typeof value === 'number')) {
-        cpu.metrics = metrics
+      // Add metrics wrapper for UI access (cpu.metrics.used_percent etc)
+      instance.cpu.metrics = {
+        total_percent: toNumber(cpuRaw.total_percent),
+        used_percent: toNumber(cpuRaw.used_percent),
+        free_percent: toNumber(cpuRaw.free_percent),
+        iowait_percent: toNumber(cpuRaw.iowait_percent),
       }
 
-      if (isPlainObject(cpuRaw.cores)) {
+      // Handle load_avg
+      if (isPlainObject(cpuRaw.load_avg)) {
+        const loadAvg = cpuRaw.load_avg as Record<string, unknown>
+        instance.cpu.load_avg = {
+          '1m_percent': toNumber(loadAvg['1m_percent']),
+          '5m_percent': toNumber(loadAvg['5m_percent']),
+          '15m_percent': toNumber(loadAvg['15m_percent']),
+        }
+      }
+
+      // Handle cores - instancectl provides array [{name, used_percent}], convert to Record<string, number>
+      if (Array.isArray(cpuRaw.cores)) {
+        const coresArray = cpuRaw.cores as Array<{ name?: string; used_percent?: number }>
+        const cores: Record<string, number> = {}
+        coresArray.forEach((core) => {
+          const name = core?.name
+          const value = toNumber(core?.used_percent)
+          if (name && value !== undefined) {
+            cores[name] = value
+          }
+        })
+        if (Object.keys(cores).length > 0) {
+          instance.cpu.cores = cores
+        }
+      } else if (isPlainObject(cpuRaw.cores)) {
+        // Fallback for old format: Record<string, number>
         const coresRaw = cpuRaw.cores as Record<string, unknown>
         const cores: Record<string, number> = {}
         Object.entries(coresRaw).forEach(([key, value]) => {
@@ -1069,107 +1185,98 @@ const normalizeStatusPayload = (payload: Record<string, unknown>): StatusPayload
           }
         })
         if (Object.keys(cores).length > 0) {
-          cpu.cores = cores
+          instance.cpu.cores = cores
         }
-      }
-
-      if (Object.values(cpu).some((value) => typeof value === 'number') || cpu.metrics || cpu.cores) {
-        instance.cpu = cpu
       }
     }
 
     if (isPlainObject(instanceRaw.network)) {
       const networkRaw = instanceRaw.network as Record<string, unknown>
-      const totalsBlock = isPlainObject(networkRaw.totals)
-        ? (networkRaw.totals as Record<string, unknown>)
-        : null
-      const interfacesRaw = isPlainObject(totalsBlock?.interfaces)
-        ? (totalsBlock?.interfaces as Record<string, unknown>)
-        : isPlainObject(networkRaw.interfaces)
-          ? (networkRaw.interfaces as Record<string, unknown>)
-          : null
-      const totalRaw = isPlainObject(totalsBlock?.total)
-        ? (totalsBlock?.total as Record<string, unknown>)
-        : isPlainObject(networkRaw.total)
-          ? (networkRaw.total as Record<string, unknown>)
-          : null
 
-      if (totalRaw) {
-        const rx = toNumber(totalRaw.inbound_bytes ?? totalRaw.rx_bytes)
-        const tx = toNumber(totalRaw.outbound_bytes ?? totalRaw.tx_bytes)
-        const entry: StatusTransfer = {}
-        if (rx !== undefined) entry.rx_bytes = rx
-        if (tx !== undefined) entry.tx_bytes = tx
-        if (Object.keys(entry).length > 0) {
-          instance.network = { total: entry }
-        }
-      } else if (interfacesRaw) {
-        const mapped: Record<string, StatusTransfer> = {}
-        Object.entries(interfacesRaw).forEach(([name, stats]) => {
-          if (!isPlainObject(stats)) return
-          const rx = toNumber((stats as Record<string, unknown>).inbound_bytes)
-          const tx = toNumber((stats as Record<string, unknown>).outbound_bytes)
-          const entry: StatusTransfer = {}
-          if (rx !== undefined) entry.rx_bytes = rx
-          if (tx !== undefined) entry.tx_bytes = tx
-          if (Object.keys(entry).length > 0) {
-            mapped[name] = entry
+      // instancectl format with rx_total_bytes, tx_total_bytes
+      const rxTotal = toNumber(networkRaw.rx_total_bytes)
+      const txTotal = toNumber(networkRaw.tx_total_bytes)
+      
+      // Store network data
+      instance.network = {
+        rx_total_bytes: rxTotal,
+        tx_total_bytes: txTotal,
+        rx_total_errors: toNumber(networkRaw.rx_total_errors),
+        tx_total_errors: toNumber(networkRaw.tx_total_errors),
+        rx_total_drops: toNumber(networkRaw.rx_total_drops),
+        tx_total_drops: toNumber(networkRaw.tx_total_drops),
+      }
+      
+      // Handle interfaces - instancectl provides array [{name, rx_bytes, tx_bytes}], convert to Record
+      if (Array.isArray(networkRaw.interfaces)) {
+        const interfacesArray = networkRaw.interfaces as Array<{ name?: string; rx_bytes?: number; tx_bytes?: number }>
+        const interfaces: Record<string, { rx_bytes?: number; tx_bytes?: number }> = {}
+        interfacesArray.forEach((iface) => {
+          const name = iface?.name
+          if (name) {
+            interfaces[name] = {
+              rx_bytes: toNumber(iface?.rx_bytes),
+              tx_bytes: toNumber(iface?.tx_bytes),
+            }
           }
         })
-        if (Object.keys(mapped).length > 0) {
-          instance.network = mapped
+        if (Object.keys(interfaces).length > 0) {
+          instance.network.interfaces = interfaces
         }
-      } else if (!('speed' in networkRaw) && !('totals' in networkRaw)) {
-        instance.network = networkRaw as Record<string, StatusTransfer>
+      } else if (isPlainObject(networkRaw.interfaces)) {
+        // Fallback for old format: Record<string, {rx_bytes, tx_bytes}>
+        instance.network.interfaces = networkRaw.interfaces as Record<string, { rx_bytes?: number; tx_bytes?: number }>
       }
-
+      
+      // Handle speed
       if (isPlainObject(networkRaw.speed)) {
         const speed = networkRaw.speed as Record<string, unknown>
-        const networkSpeed = {
-          in_bps: toNumber(speed.in_bps),
-          out_bps: toNumber(speed.out_bps),
+        instance.network.speed = {
+          rx_bytes: toNumber(speed.rx_bytes),
+          tx_bytes: toNumber(speed.tx_bytes),
         }
-        if (Object.values(networkSpeed).some((value) => typeof value === 'number')) {
-          instance.network_speed = networkSpeed
+        // Also store in display format
+        instance.network_speed = {
+          in_bps: toNumber(speed.rx_bytes),
+          out_bps: toNumber(speed.tx_bytes),
         }
       }
     }
 
-    if (isPlainObject(instanceRaw.storage_root)) {
-      instance.storage_root = instanceRaw.storage_root as NonNullable<StatusPayload['instance']>['storage_root']
-    } else if (isPlainObject(instanceRaw.storage)) {
+    if (isPlainObject(instanceRaw.storage)) {
       const storage = instanceRaw.storage as Record<string, unknown>
-      const usage = isPlainObject(storage.usage) ? (storage.usage as Record<string, unknown>) : null
-      const io = isPlainObject(storage.io) ? (storage.io as Record<string, unknown>) : null
-      const totals = isPlainObject(storage.totals) ? (storage.totals as Record<string, unknown>) : null
-      const speed = isPlainObject(storage.speed) ? (storage.speed as Record<string, unknown>) : null
-      if (usage) {
-        const root = {
-          total_bytes: toNumber(usage.total),
-          used_bytes: toNumber(usage.used),
-          available_bytes: toNumber(usage.free),
-        }
-        if (Object.values(root).some((value) => typeof value === 'number')) {
-          instance.storage_root = root
-        }
+      
+      // instancectl format with total_bytes, used_bytes, free_bytes
+      instance.storage = {
+        total_bytes: toNumber(storage.total_bytes),
+        used_bytes: toNumber(storage.used_bytes),
+        free_bytes: toNumber(storage.free_bytes),
+        read_total_bytes: toNumber(storage.read_total_bytes),
+        write_total_bytes: toNumber(storage.write_total_bytes),
       }
-      if (io || totals) {
-        const source = totals ?? io ?? {}
-        const storageIo: StatusStorageIo = {
-          read_bytes: toNumber((source as Record<string, unknown>).read_bytes),
-          write_bytes: toNumber((source as Record<string, unknown>).write_bytes),
-        }
-        if (Object.values(storageIo).some((value) => typeof value === 'number')) {
-          instance.storage_io = storageIo
-        }
+      
+      // Also store in display format
+      instance.storage_root = {
+        total_bytes: toNumber(storage.total_bytes),
+        used_bytes: toNumber(storage.used_bytes),
+        available_bytes: toNumber(storage.free_bytes),
       }
-      if (speed) {
-        const storageIo: StatusStorageIo = {
-          read_bps: toNumber(speed.read_bps),
-          write_bps: toNumber(speed.write_bps),
+      
+      instance.storage_io = {
+        read_bytes: toNumber(storage.read_total_bytes),
+        write_bytes: toNumber(storage.write_total_bytes),
+      }
+      
+      // Handle speed
+      if (isPlainObject(storage.speed)) {
+        const speed = storage.speed as Record<string, unknown>
+        instance.storage.speed = {
+          read_bytes: toNumber(speed.read_bytes),
+          write_bytes: toNumber(speed.write_bytes),
         }
-        if (Object.values(storageIo).some((value) => typeof value === 'number')) {
-          instance.storage_speed = storageIo
+        instance.storage_speed = {
+          read_bps: toNumber(speed.read_bytes),
+          write_bps: toNumber(speed.write_bytes),
         }
       }
     }
@@ -1183,10 +1290,8 @@ const normalizeStatusPayload = (payload: Record<string, unknown>): StatusPayload
     const dockerRaw = payload.docker as Record<string, unknown>
     const docker: NonNullable<StatusPayload['docker']> = {}
 
-    if (typeof dockerRaw.compose_ps_error === 'string' || dockerRaw.compose_ps_error === null) {
-      docker.compose_ps_error = dockerRaw.compose_ps_error as NonNullable<StatusPayload['docker']>['compose_ps_error']
-    } else if (typeof dockerRaw.compose_errors === 'string' || dockerRaw.compose_errors === null) {
-      docker.compose_ps_error = dockerRaw.compose_errors as NonNullable<StatusPayload['docker']>['compose_ps_error']
+    if (typeof dockerRaw.compose_errors === 'string' || dockerRaw.compose_errors === null) {
+      docker.compose_errors = dockerRaw.compose_errors as NonNullable<StatusPayload['docker']>['compose_errors']
     }
 
     if (isPlainObject(dockerRaw.containers)) {
@@ -1380,11 +1485,11 @@ export function ServerManagement() {
   )
   const loadSeries = useMemo(
     () => [
-      { label: '1m', value: instanceStatus?.cpu?.loadavg_1m },
-      { label: '5m', value: instanceStatus?.cpu?.loadavg_5m },
-      { label: '15m', value: instanceStatus?.cpu?.loadavg_15m },
+      { label: '1m', value: instanceStatus?.cpu?.load_avg?.['1m_percent'] },
+      { label: '5m', value: instanceStatus?.cpu?.load_avg?.['5m_percent'] },
+      { label: '15m', value: instanceStatus?.cpu?.load_avg?.['15m_percent'] },
     ],
-    [instanceStatus?.cpu?.loadavg_1m, instanceStatus?.cpu?.loadavg_5m, instanceStatus?.cpu?.loadavg_15m]
+    [instanceStatus?.cpu?.load_avg?.['1m_percent'], instanceStatus?.cpu?.load_avg?.['5m_percent'], instanceStatus?.cpu?.load_avg?.['15m_percent']]
   )
 
   useEffect(() => {
@@ -2753,8 +2858,21 @@ export function ServerManagement() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span>Server: {server.name}</span>
                   <span className="text-gray-400 dark:text-slate-500">[{server.host || '—'}]</span>
+                  {instanceStatus?.hostname && instanceStatus.hostname !== server.name && (
+                    <span className="text-gray-400 dark:text-slate-500">({instanceStatus.hostname})</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  {instanceStatus?.uptime_seconds !== undefined && (
+                    <span className="text-gray-400 dark:text-slate-500">
+                      Uptime: {formatUptime(instanceStatus.uptime_seconds)}
+                    </span>
+                  )}
+                  {instanceStatus?.process_count !== undefined && (
+                    <span className="text-gray-400 dark:text-slate-500">
+                      Processes: {instanceStatus.process_count}
+                    </span>
+                  )}
                   <div className="flex items-center gap-2 font-mono font-semibold text-gray-700 dark:text-slate-200">
                     <span className={cn('h-2 w-2 rounded-full', headerStatusTone)} />
                     <span>{statusLabel} ({socketStatusLabel})</span>
@@ -3021,16 +3139,19 @@ export function ServerManagement() {
                       { label: 'CPU Used', value: formatPercentOne(cpuUsagePercent) },
                       {
                         label: 'Load 1m',
-                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.loadavg_1m)),
+                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.load_avg?.['1m_percent'])),
                       },
                       {
                         label: 'Load 5m',
-                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.loadavg_5m)),
+                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.load_avg?.['5m_percent'])),
                       },
                       {
                         label: 'Load 15m',
-                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.loadavg_15m)),
+                        value: formatPercentOne(getLoadPercent(instanceStatus.cpu?.load_avg?.['15m_percent'])),
                       },
+                      ...(instanceStatus.cpu?.iowait_percent !== undefined
+                        ? [{ label: 'I/O Wait', value: formatPercentOne(instanceStatus.cpu.iowait_percent) }]
+                        : []),
                       { label: 'Memory Used', value: formatBytes(instanceStatus.mem?.used_bytes) },
                       { label: 'Memory Free', value: formatBytes(instanceStatus.mem?.available_bytes) },
                       { label: 'Storage Used', value: formatBytes(instanceStatus.storage_root?.used_bytes) },
@@ -3041,6 +3162,15 @@ export function ServerManagement() {
                       { label: 'Net Out', value: formatBytes(networkSummary?.totalTx) },
                       { label: 'Net In Speed', value: formatBitsPerSecond(networkSpeed?.in_bps) },
                       { label: 'Net Out Speed', value: formatBitsPerSecond(networkSpeed?.out_bps) },
+                      ...(instanceStatus.uptime_seconds !== undefined
+                        ? [{ label: 'Uptime', value: formatUptime(instanceStatus.uptime_seconds) }]
+                        : []),
+                      ...(instanceStatus.process_count !== undefined
+                        ? [{ label: 'Processes', value: String(instanceStatus.process_count) }]
+                        : []),
+                      ...(instanceStatus.file_descriptors?.allocated !== undefined
+                        ? [{ label: 'Open FDs', value: `${instanceStatus.file_descriptors.allocated}/${instanceStatus.file_descriptors?.max || '—'}` }]
+                        : []),
                     ].map((item) => (
                       <div key={item.label} className="flex items-center justify-between gap-2">
                         <span className={statusRowLabelClass}>{item.label}</span>
@@ -3050,6 +3180,100 @@ export function ServerManagement() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Temperature Section */}
+                  {instanceStatus.temperature && instanceStatus.temperature.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-slate-800 pt-3">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500 dark:text-slate-400 mb-2">
+                        Temperature Sensors
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[11px]">
+                        {instanceStatus.temperature.map((sensor, idx) => (
+                          <div key={sensor.zone || idx} className="flex items-center justify-between gap-2">
+                            <span className={statusRowLabelClass}>
+                              {sensor.label || sensor.zone || `Sensor ${idx}`}
+                            </span>
+                            <span className={cn(
+                              'font-mono font-semibold',
+                              sensor.temperature_celsius !== undefined && sensor.temperature_celsius > 80
+                                ? 'text-red-600 dark:text-red-400'
+                                : sensor.temperature_celsius !== undefined && sensor.temperature_celsius > 60
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-gray-800 dark:text-slate-100'
+                            )}>
+                              {sensor.temperature_celsius !== undefined ? `${sensor.temperature_celsius.toFixed(1)}°C` : '—'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* GPU Section */}
+                  {instanceStatus.gpu && instanceStatus.gpu.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-slate-800 pt-3">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500 dark:text-slate-400 mb-2">
+                        GPU ({instanceStatus.gpu.length})
+                      </p>
+                      <div className="space-y-3">
+                        {instanceStatus.gpu.map((gpu, idx) => (
+                          <div key={gpu.index ?? idx} className="border border-gray-100 dark:border-slate-800/50 p-2 space-y-2">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-semibold text-gray-700 dark:text-slate-200">
+                                {gpu.name || `GPU ${gpu.index ?? idx}`}
+                              </span>
+                              {gpu.temperature_celsius !== undefined && (
+                                <span className={cn(
+                                  'font-mono',
+                                  gpu.temperature_celsius > 80
+                                    ? 'text-red-600 dark:text-red-400'
+                                    : gpu.temperature_celsius > 60
+                                      ? 'text-amber-600 dark:text-amber-400'
+                                      : 'text-gray-500 dark:text-slate-400'
+                                )}>
+                                  {gpu.temperature_celsius.toFixed(0)}°C
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[11px]">
+                              {gpu.utilization?.used_percent !== undefined && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={statusRowLabelClass}>Utilization</span>
+                                  <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                                    {formatPercentOne(gpu.utilization.used_percent)}
+                                  </span>
+                                </div>
+                              )}
+                              {gpu.memory?.used_bytes !== undefined && gpu.memory?.total_bytes !== undefined && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={statusRowLabelClass}>VRAM</span>
+                                  <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                                    {formatBytes(gpu.memory.used_bytes)} / {formatBytes(gpu.memory.total_bytes)}
+                                  </span>
+                                </div>
+                              )}
+                              {gpu.power_watts !== undefined && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={statusRowLabelClass}>Power</span>
+                                  <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                                    {gpu.power_watts.toFixed(0)}W{gpu.power_limit_watts ? ` / ${gpu.power_limit_watts.toFixed(0)}W` : ''}
+                                  </span>
+                                </div>
+                              )}
+                              {gpu.fan_percent !== undefined && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={statusRowLabelClass}>Fan</span>
+                                  <span className="font-mono font-semibold text-gray-800 dark:text-slate-100">
+                                    {formatPercentOne(gpu.fan_percent)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="border-t border-gray-200 dark:border-slate-800 pt-3 space-y-3">
                     <div className="flex items-center justify-between">
@@ -3368,9 +3592,9 @@ export function ServerManagement() {
               Docker status and actions grouped by service.
             </p>
           </div>
-          {dockerStatus?.compose_ps_error && (
+          {dockerStatus?.compose_errors && (
             <div className="border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-              {dockerStatus.compose_ps_error}
+              {dockerStatus.compose_errors}
             </div>
           )}
 

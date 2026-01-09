@@ -4,28 +4,17 @@ import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatHours } from '@/utils/cost-analytics.utils'
-import { formatCurrency } from '@/stores/cost-analytics.store'
-import type { TopPerformer, CostSummaryData, CurrencyConfig } from '@/types/cost-analytics'
+import type { TopPerformer, CostSummaryData } from '@/types/cost-analytics'
 import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
 
 interface ProjectImpactProps {
   topPerformers: TopPerformer[]
   summaryData: CostSummaryData | null
-  currencyConfig: CurrencyConfig
-}
-
-type DeveloperImpact = {
-  developer: TopPerformer
-  projectCount: number
-  totalContributions: number
-  avgContributionPerProject: number
-  projectDiversity: number // Unique projects / total projects ratio
 }
 
 export function ProjectImpact({
   topPerformers,
   summaryData,
-  currencyConfig,
 }: ProjectImpactProps) {
   const impactData = useMemo(() => {
     if (!summaryData) return []

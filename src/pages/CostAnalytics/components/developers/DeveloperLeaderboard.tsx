@@ -79,17 +79,6 @@ export function DeveloperLeaderboard({
     return 'bg-muted text-muted-foreground border-border'
   }
 
-  const getCategoryLabel = (category: LeaderboardCategory) => {
-    switch (category) {
-      case 'contributions':
-        return 'Most Hours'
-      case 'projects':
-        return 'Most Projects'
-      case 'collaboration':
-        return 'Best Collaborator'
-    }
-  }
-
   if (!summaryData || topPerformers.length === 0) return null
 
   return (

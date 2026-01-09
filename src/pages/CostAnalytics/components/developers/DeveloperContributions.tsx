@@ -14,7 +14,6 @@ import {
   transformToContributions,
   sortContributions,
   type SortOption,
-  type DeveloperContribution,
 } from '@/utils/developer-contributions.utils'
 import type { TopPerformer, CurrencyConfig, CostSummaryData } from '@/types/cost-analytics'
 import { DeveloperCard } from './shared/DeveloperCard'

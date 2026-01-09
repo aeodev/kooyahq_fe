@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Search, Code, Briefcase, Layers } from 'lucide-react'
+import { Search, Code, Layers } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +7,6 @@ import type { TopPerformer, CostSummaryData } from '@/types/cost-analytics'
 import {
   getDeveloperSkills,
   getAllTeamSkills,
-  type DeveloperSkills,
 } from '@/utils/skills-extraction.utils'
 import { motion } from 'framer-motion'
 import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
@@ -46,11 +45,6 @@ export function SkillsDiscovery({
         ds.projectTypes.some((type) => type.toLowerCase().includes(query))
     )
   }, [developerSkills, searchQuery])
-
-  const allProjects = useMemo(() => {
-    if (!summaryData) return []
-    return summaryData.projectCosts.map((p) => p.project)
-  }, [summaryData])
 
   if (!summaryData || topPerformers.length === 0) return null
 

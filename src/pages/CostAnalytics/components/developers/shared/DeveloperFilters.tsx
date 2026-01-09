@@ -9,10 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { TopPerformer, CostSummaryData } from '@/types/cost-analytics'
+import type { CostSummaryData } from '@/types/cost-analytics'
 
 interface DeveloperFiltersProps {
-  topPerformers: TopPerformer[]
   summaryData: CostSummaryData | null
   onFilterChange: (filters: DeveloperFilters) => void
 }
@@ -25,7 +24,6 @@ export type DeveloperFilters = {
 }
 
 export function DeveloperFiltersComponent({
-  topPerformers,
   summaryData,
   onFilterChange,
 }: DeveloperFiltersProps) {

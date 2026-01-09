@@ -2,25 +2,17 @@ import { useMemo } from 'react'
 import { Calendar, Clock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { LiveCostData, CostSummaryData } from '@/types/cost-analytics'
 import { useAllEntriesQuery } from '@/hooks/queries/time-entry.queries'
 import {
   calculateWeeklyPattern,
   calculateHourlyPattern,
   getActivityPercentage,
-  type WeeklyPattern,
-  type HourlyPattern,
 } from '@/utils/activity-patterns.utils'
 import { motion } from 'framer-motion'
 import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
 import { formatHours } from '@/utils/cost-analytics.utils'
 
-interface ActivityPatternsProps {
-  liveData: LiveCostData | null
-  summaryData: CostSummaryData | null
-}
-
-export function ActivityPatterns({ liveData, summaryData }: ActivityPatternsProps) {
+export function ActivityPatterns() {
   // Fetch time entries for activity patterns
   const { data: timeEntries = [], isLoading } = useAllEntriesQuery(true)
 

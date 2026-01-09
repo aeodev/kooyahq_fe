@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
-import { getDateRange } from '@/utils/date'
 import { DATE_RANGE_PRESETS } from '@/constants/cost-analytics.constants'
 import type { CostSummaryData, CurrencyConfig } from '@/types/cost-analytics'
 import { SummaryStatsSkeleton } from '../Skeletons'
@@ -36,7 +35,7 @@ export function HistoricalAnalysis({
   onQuickRange,
 }: HistoricalAnalysisProps) {
   const [comparePeriods, setComparePeriods] = useState(false)
-  const { comparePeriods: comparePeriodsFn, periodComparison, comparisonLoading } = usePeriodComparison()
+  const { comparePeriods: comparePeriodsFn, periodComparison } = usePeriodComparison()
   const { selectedProject } = useCostAnalyticsContext()
 
   // Calculate previous period dates

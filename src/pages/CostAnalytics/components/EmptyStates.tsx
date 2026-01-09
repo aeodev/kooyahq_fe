@@ -1,4 +1,5 @@
-import { AlertCircle, Activity, BarChart3, Clock } from 'lucide-react'
+import { isValidElement, type ElementType, type ReactNode } from 'react'
+import { AlertCircle, Activity, BarChart3 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -46,7 +47,7 @@ interface NoDataStateProps {
   title?: string
   message?: string
   suggestion?: string
-  icon?: React.ReactNode
+  icon?: ReactNode | ElementType<{ className?: string }>
 }
 
 export function NoDataState({
@@ -57,21 +58,17 @@ export function NoDataState({
 }: NoDataStateProps) {
   // Check if icon is a React element (already rendered JSX) or a component constructor
   const renderIcon = () => {
-    if (icon) {
-      // If icon is already a React element (JSX), render it directly
-      if (typeof icon === 'object' && icon !== null && '$$typeof' in icon) {
-        return icon
-      }
-      // If icon is a component constructor (function), render it with className
-      if (typeof icon === 'function') {
-        const IconComponent = icon
-        return <IconComponent className="h-12 w-12 text-muted-foreground/50" />
-      }
-      // Otherwise, render it as-is (string, number, etc.)
+    if (!icon) {
+      return <BarChart3 className="h-12 w-12 text-muted-foreground/50" />
+    }
+    if (isValidElement(icon)) {
       return icon
     }
-    // Default icon
-    return <BarChart3 className="h-12 w-12 text-muted-foreground/50" />
+    if (typeof icon === 'string' || typeof icon === 'number') {
+      return icon
+    }
+    const IconComponent = icon as ElementType<{ className?: string }>
+    return <IconComponent className="h-12 w-12 text-muted-foreground/50" />
   }
   
   return (

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Trophy, Medal, Award, Crown, Sparkles, Users, Heart, Zap, Target, Rocket } from 'lucide-react'
+import { Trophy, Medal, Award, Crown, Sparkles, Users, Zap, Target, Rocket } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

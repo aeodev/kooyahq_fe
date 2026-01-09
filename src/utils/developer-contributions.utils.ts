@@ -1,4 +1,4 @@
-import type { TopPerformer, ProjectCostSummary, CostSummaryData } from '@/types/cost-analytics'
+import type { TopPerformer, ProjectCostSummary } from '@/types/cost-analytics'
 
 export type DeveloperContribution = {
   userId: string

@@ -10,7 +10,7 @@ import {
   getUnderutilizedDevelopers,
 } from '@/utils/team-balance.utils'
 import { formatHours } from '@/utils/cost-analytics.utils'
-import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
+import { staggerContainer, staggerItem } from '@/utils/animations'
 
 interface TeamBalanceProps {
   topPerformers: TopPerformer[]

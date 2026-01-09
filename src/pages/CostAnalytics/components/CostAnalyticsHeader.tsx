@@ -1,4 +1,4 @@
-import { Download, FileDown, ChevronDown } from 'lucide-react'
+import { Download, FileDown, ChevronDown, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -30,6 +30,7 @@ interface CostAnalyticsHeaderProps {
   selectedProject: string | null
   activeTab: 'projects' | 'developers'
   onTabChange: (tab: 'projects' | 'developers') => void
+  lastUpdated?: Date | null
 }
 
 export function CostAnalyticsHeader({
@@ -45,8 +46,10 @@ export function CostAnalyticsHeader({
   selectedProject,
   activeTab,
   onTabChange,
+  lastUpdated,
 }: CostAnalyticsHeaderProps) {
   const currencyConfig = CURRENCIES[currency]
+  const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleString() : 'Not updated yet'
 
   const handleExportSummary = () => {
     if (!summaryData) return
@@ -113,6 +116,17 @@ export function CostAnalyticsHeader({
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isLoading ? 'Refreshing...' : 'Refresh'}</span>
+          </Button>
+
           {/* Export button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -159,6 +173,9 @@ export function CostAnalyticsHeader({
             <TabsTrigger value="developers" className="flex-1 sm:flex-none">Developers</TabsTrigger>
           </TabsList>
         </Tabs>
+        <div className="text-xs text-muted-foreground">
+          {isLoading ? 'Refreshing...' : `Last updated: ${lastUpdatedLabel}`}
+        </div>
       </div>
     </header>
   )

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Users, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { CostSummaryData, ProjectCostSummary, LiveCostData } from '@/types/cost-analytics'
 

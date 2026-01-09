@@ -32,13 +32,11 @@ import { NoDataState } from '../EmptyStates'
 interface DeveloperSummaryViewProps {
   currencyConfig: CurrencyConfig
   hasLoadedOnce: boolean
-  onRefresh: () => void
 }
 
 export function DeveloperSummaryView({
   currencyConfig,
   hasLoadedOnce,
-  onRefresh,
 }: DeveloperSummaryViewProps) {
   const { startDate, endDate, setStartDate, setEndDate, quickRange } = useCostAnalyticsContext()
 
@@ -234,7 +232,7 @@ export function DeveloperSummaryView({
             topPerformers={filteredPerformers}
             summaryData={summaryData}
           />
-          <ActivityPatterns liveData={liveData} summaryData={summaryData} />
+          <ActivityPatterns />
         </TabsContent>
 
         <TabsContent value="individual" className="space-y-6 mt-6">
@@ -253,7 +251,6 @@ export function DeveloperSummaryView({
           <ProjectImpact
             topPerformers={filteredPerformers}
             summaryData={summaryData}
-            currencyConfig={currencyConfig}
           />
         </TabsContent>
 

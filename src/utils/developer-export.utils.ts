@@ -1,6 +1,5 @@
 import type { TopPerformer, CostSummaryData, CurrencyConfig } from '@/types/cost-analytics'
 import { convertFromPHPSync } from './currency-converter'
-import { formatHours } from './cost-analytics.utils'
 
 /**
  * Export developer data to CSV

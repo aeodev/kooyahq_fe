@@ -84,8 +84,7 @@ export type DeveloperConnection = {
 }
 
 export function calculateDeveloperConnections(
-  performers: TopPerformer[],
-  projectCosts: ProjectCostSummary[]
+  performers: TopPerformer[]
 ): DeveloperConnection[] {
   const connections: DeveloperConnection[] = []
 

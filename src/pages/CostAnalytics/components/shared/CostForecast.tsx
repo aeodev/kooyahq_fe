@@ -11,7 +11,7 @@ interface CostForecastProps {
 }
 
 export function CostForecast({ forecast, currencyConfig }: CostForecastProps) {
-  const { projectedCost, projectedHours, daysRemaining, confidence, dailyAverage, trend } = forecast
+  const { projectedCost, daysRemaining, confidence, dailyAverage, trend } = forecast
 
   const getTrendIcon = () => {
     switch (trend) {

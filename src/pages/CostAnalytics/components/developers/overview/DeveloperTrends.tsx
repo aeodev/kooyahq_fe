@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { TrendingUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { TopPerformer, CostSummaryData, CurrencyConfig } from '@/types/cost-analytics'
@@ -77,11 +76,15 @@ export function DeveloperTrends({
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
                       }}
-                      formatter={(value: number, name: string) => {
-                        if (name === 'cost') {
-                          return [formatCurrency(value, currencyConfig), 'Cost']
+                      formatter={(value: number | undefined, name?: string) => {
+                        const label = name === 'cost' ? 'Cost' : 'Hours'
+                        if (typeof value !== 'number') {
+                          return ['-', label]
                         }
-                        return [formatHours(value), 'Hours']
+                        if (name === 'cost') {
+                          return [formatCurrency(value, currencyConfig), label]
+                        }
+                        return [formatHours(value), label]
                       }}
                     />
                     <Legend />
@@ -134,11 +137,15 @@ export function DeveloperTrends({
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
                       }}
-                      formatter={(value: number, name: string) => {
-                        if (name === 'cost') {
-                          return [formatCurrency(value, currencyConfig), 'Cost']
+                      formatter={(value: number | undefined, name?: string) => {
+                        const label = name === 'cost' ? 'Cost' : 'Hours'
+                        if (typeof value !== 'number') {
+                          return ['-', label]
                         }
-                        return [formatHours(value), 'Hours']
+                        if (name === 'cost') {
+                          return [formatCurrency(value, currencyConfig), label]
+                        }
+                        return [formatHours(value), label]
                       }}
                     />
                     <Legend />

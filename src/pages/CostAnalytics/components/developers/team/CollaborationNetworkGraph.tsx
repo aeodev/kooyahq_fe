@@ -5,10 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import ForceGraph2D from 'react-force-graph-2d'
 import type { TopPerformer, CostSummaryData } from '@/types/cost-analytics'
-import {
-  calculateDeveloperConnections,
-  type DeveloperConnection,
-} from '@/utils/developer-collaboration.utils'
+import { calculateDeveloperConnections } from '@/utils/developer-collaboration.utils'
 import { getUserInitials, isValidImageUrl } from '@/utils/formatters'
 
 interface CollaborationNetworkGraphProps {
@@ -23,14 +20,18 @@ type GraphNode = {
   profilePic?: string
   connectionCount: number
   size: number
+  x?: number
+  y?: number
 }
 
 type GraphLink = {
-  source: string
-  target: string
+  source: string | GraphNode
+  target: string | GraphNode
   value: number
   strength: number
 }
+
+const getNodeId = (node: string | GraphNode) => (typeof node === 'string' ? node : node.id)
 
 export function CollaborationNetworkGraph({
   topPerformers,
@@ -63,7 +64,7 @@ export function CollaborationNetworkGraph({
 
   const connections = useMemo(() => {
     if (!summaryData) return []
-    return calculateDeveloperConnections(topPerformers, summaryData.projectCosts)
+    return calculateDeveloperConnections(topPerformers)
   }, [topPerformers, summaryData])
 
   // Transform data for react-force-graph-2d
@@ -122,10 +123,34 @@ export function CollaborationNetworkGraph({
   // Filter links based on selected node
   const filteredLinks = useMemo(() => {
     if (!selectedNode) return links
-    return links.filter(
-      (link) => link.source === selectedNode || link.target === selectedNode
-    )
+    return links.filter((link) => {
+      const sourceId = getNodeId(link.source)
+      const targetId = getNodeId(link.target)
+      return sourceId === selectedNode || targetId === selectedNode
+    })
   }, [links, selectedNode])
+
+  useEffect(() => {
+    if (!graphRef.current) return
+
+    const linkForce = graphRef.current.d3Force?.('link')
+    if (linkForce?.distance) {
+      linkForce.distance((link: GraphLink) => {
+        const sourceId = getNodeId(link.source)
+        const targetId = getNodeId(link.target)
+        const sourceNode = nodes.find((n) => n.id === sourceId)
+        const targetNode = nodes.find((n) => n.id === targetId)
+        const baseDistance = 400
+        const sizeFactor = (sourceNode?.size || 40) + (targetNode?.size || 40)
+        return baseDistance + sizeFactor
+      })
+    }
+
+    const chargeForce = graphRef.current.d3Force?.('charge')
+    if (chargeForce?.strength) {
+      chargeForce.strength(-1200)
+    }
+  }, [nodes, filteredLinks])
 
   // Handle node click
   const handleNodeClick = useCallback((node: GraphNode) => {
@@ -145,13 +170,11 @@ export function CollaborationNetworkGraph({
   // Custom node rendering with profile pics/initials
   const paintNode = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D) => {
     const isSelected = selectedNode === node.id
-    const isConnected = selectedNode && filteredLinks.some(
-      (link) => {
-        const sourceId = typeof link.source === 'string' ? link.source : link.source.id
-        const targetId = typeof link.target === 'string' ? link.target : link.target.id
-        return (sourceId === node.id || targetId === node.id) && sourceId !== targetId
-      }
-    )
+    const isConnected = selectedNode && filteredLinks.some((link) => {
+      const sourceId = getNodeId(link.source)
+      const targetId = getNodeId(link.target)
+      return (sourceId === node.id || targetId === node.id) && sourceId !== targetId
+    })
 
     const radius = node.size
     const x = node.x || 0
@@ -238,7 +261,6 @@ export function CollaborationNetworkGraph({
                 ref={graphRef}
                 graphData={{ nodes, links: filteredLinks }}
                 nodeLabel={(node: GraphNode) => {
-                  const performer = topPerformers.find(p => p.userId === node.userId)
                   const connectionInfo = connections
                     .filter(c => c.developer1 === node.userId || c.developer2 === node.userId)
                     .map(c => {
@@ -256,16 +278,16 @@ export function CollaborationNetworkGraph({
                 nodeCanvasObject={paintNode}
                 linkWidth={(link: GraphLink) => link.strength * 2 + 1}
                 linkColor={(link: GraphLink) => {
-                  const sourceId = typeof link.source === 'string' ? link.source : link.source.id
-                  const targetId = typeof link.target === 'string' ? link.target : link.target.id
+                  const sourceId = getNodeId(link.source)
+                  const targetId = getNodeId(link.target)
                   if (selectedNode && (sourceId === selectedNode || targetId === selectedNode)) {
                     return 'rgb(59, 130, 246)'
                   }
                   return 'rgba(100, 100, 100, 0.3)'
                 }}
                 linkLabel={(link: GraphLink) => {
-                  const sourceId = typeof link.source === 'string' ? link.source : link.source.id
-                  const targetId = typeof link.target === 'string' ? link.target : link.target.id
+                  const sourceId = getNodeId(link.source)
+                  const targetId = getNodeId(link.target)
                   const connection = connections.find(
                     c => (c.developer1 === sourceId && c.developer2 === targetId) ||
                          (c.developer1 === targetId && c.developer2 === sourceId)
@@ -277,43 +299,15 @@ export function CollaborationNetworkGraph({
                 linkCurvature={0.2}
                 linkDirectionalArrowLength={0}
                 onNodeClick={handleNodeClick}
-                nodeDrag={false}
+                enableNodeDrag={false}
                 cooldownTicks={150}
                 onEngineStop={handleEngineStop}
                 width={dimensions.width}
                 height={dimensions.height}
                 backgroundColor="transparent"
-                linkOpacity={0.6}
-                nodeOpacity={1}
                 d3AlphaDecay={0.02}
                 d3VelocityDecay={0.4}
                 warmupTicks={30}
-                linkDistance={(link: GraphLink) => {
-                  // MASSIVE spacing between nodes
-                  const sourceId = typeof link.source === 'string' ? link.source : link.source.id
-                  const targetId = typeof link.target === 'string' ? link.target : link.target.id
-                  const sourceNode = nodes.find(n => n.id === sourceId)
-                  const targetNode = nodes.find(n => n.id === targetId)
-                  const baseDistance = 400
-                  const sizeFactor = (sourceNode?.size || 40) + (targetNode?.size || 40)
-                  return baseDistance + sizeFactor
-                }}
-                d3Force={(d3: any) => {
-                  // EXTREME repulsion to push nodes far apart
-                  return d3.forceManyBody().strength(-1200)
-                }}
-                d3ForceLink={(d3: any) => {
-                  // Maintain large distances
-                  return d3.forceLink().id((d: any) => d.id).distance((link: GraphLink) => {
-                    const sourceId = typeof link.source === 'string' ? link.source : link.source.id
-                    const targetId = typeof link.target === 'string' ? link.target : link.target.id
-                    const sourceNode = nodes.find(n => n.id === sourceId)
-                    const targetNode = nodes.find(n => n.id === targetId)
-                    const baseDistance = 400
-                    const sizeFactor = (sourceNode?.size || 40) + (targetNode?.size || 40)
-                    return baseDistance + sizeFactor
-                  })
-                }}
               />
               {/* Separate SVG layer for labels with proper collision detection */}
               {isLayoutReady && (() => {
@@ -455,7 +449,7 @@ export function CollaborationNetworkGraph({
           </div>
         ) : (
           <div className="space-y-2">
-            {connections.map((connection, i) => {
+            {connections.map((connection) => {
               const dev1 = topPerformers.find((p) => p.userId === connection.developer1)
               const dev2 = topPerformers.find((p) => p.userId === connection.developer2)
               if (!dev1 || !dev2) return null

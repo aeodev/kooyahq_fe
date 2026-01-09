@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Grid3x3, AlertTriangle, Users } from 'lucide-react'
+import { Grid3x3, AlertTriangle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -74,17 +74,6 @@ export function ExpertiseMatrix({
         isSinglePoint: p.developers.length === 1,
       }))
   }, [summaryData])
-
-  const filteredData = useMemo(() => {
-    let filtered = matrixData
-    if (selectedProject) {
-      filtered = filtered.filter((cell) => cell.project === selectedProject)
-    }
-    if (selectedDeveloper) {
-      filtered = filtered.filter((cell) => cell.developerId === selectedDeveloper)
-    }
-    return filtered
-  }, [matrixData, selectedProject, selectedDeveloper])
 
   if (!summaryData || topPerformers.length === 0) return null
 
@@ -168,7 +157,6 @@ export function ExpertiseMatrix({
             >
               {topPerformers.map((performer, i) => {
                 const developerCells = matrixData.filter((c) => c.developerId === performer.userId)
-                const hasData = developerCells.length > 0
 
                 return (
                   <motion.div
@@ -189,7 +177,6 @@ export function ExpertiseMatrix({
                     {projects.map((project) => {
                       const cell = developerCells.find((c) => c.project === project)
                       const intensity = cell?.intensity || 0
-                      const bgIntensity = Math.max(intensity * 100, 5)
 
                       const cellOpacity = cell ? Math.max(intensity, 0.2) : 0.1
                       const isHighContribution = intensity > 0.7

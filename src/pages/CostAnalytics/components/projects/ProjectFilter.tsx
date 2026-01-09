@@ -9,7 +9,6 @@ interface ProjectFilterProps {
   projectListLoading: boolean
   selectedProject: string | null
   viewMode: ViewMode
-  compareProjects: string[]
   onSelectProject: (project: string) => void
   onClearProject: () => void
   onEnterCompareMode: () => void
@@ -21,7 +20,6 @@ export function ProjectFilter({
   projectListLoading,
   selectedProject,
   viewMode,
-  compareProjects,
   onSelectProject,
   onClearProject,
   onEnterCompareMode,
