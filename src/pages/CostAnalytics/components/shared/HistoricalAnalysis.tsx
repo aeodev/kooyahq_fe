@@ -8,7 +8,7 @@ import { formatCompactCurrency } from '@/stores/cost-analytics.store'
 import { getDateRange } from '@/utils/date'
 import { DATE_RANGE_PRESETS } from '@/constants/cost-analytics.constants'
 import type { CostSummaryData, CurrencyConfig } from '@/types/cost-analytics'
-import { SummaryStatsSkeleton } from './Skeletons'
+import { SummaryStatsSkeleton } from '../Skeletons'
 
 interface HistoricalAnalysisProps {
   startDate: string

@@ -130,3 +130,50 @@ export function TopPerformersSkeleton() {
     </Card>
   )
 }
+
+export function ContributionsSkeleton() {
+  return (
+    <Card className="border-border/50 bg-card/50">
+      <div className="p-4 border-b border-border/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-4 w-4" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-5 w-16" />
+          </div>
+          <Skeleton className="h-8 w-32" />
+        </div>
+      </div>
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="p-4 rounded-lg border border-border/50 bg-background"
+            >
+              <div className="flex items-start gap-4">
+                <Skeleton className="w-10 h-10 rounded-full" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                  <Skeleton className="h-3 w-48 mb-2" />
+                  <div className="flex gap-1">
+                    <Skeleton className="h-5 w-16" />
+                    <Skeleton className="h-5 w-20" />
+                    <Skeleton className="h-5 w-18" />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <Skeleton className="h-4 w-20 mb-1" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}

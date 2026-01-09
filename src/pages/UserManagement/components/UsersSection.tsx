@@ -562,9 +562,9 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     }
     // Handle monthly salary update
     if (editData.monthlySalary) {
-      const salaryAmount = parseFloat(editData.monthlySalary)
-      if (!isNaN(salaryAmount) && salaryAmount >= 0) {
-        const currentSalary = editingEmployee.monthlySalary || 0
+        const salaryAmount = parseFloat(editData.monthlySalary)
+        if (!isNaN(salaryAmount) && salaryAmount >= 0) {
+          const currentSalary = editingEmployee.monthlySalary || 0
         // Only update if the amount differs from current (allowing for small floating point differences)
         if (Math.abs(salaryAmount - currentSalary) > 0.01) {
           updates.monthlySalary = salaryAmount
@@ -705,8 +705,8 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     // Parse salary if provided
     let monthlySalary: number | undefined = undefined
     if (createUserData.monthlySalary) {
-      const salaryAmount = parseFloat(createUserData.monthlySalary)
-      if (!isNaN(salaryAmount) && salaryAmount >= 0) {
+        const salaryAmount = parseFloat(createUserData.monthlySalary)
+        if (!isNaN(salaryAmount) && salaryAmount >= 0) {
         monthlySalary = salaryAmount
       }
     }
@@ -1123,19 +1123,19 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
               <div className="space-y-2">
                 <Label htmlFor="create-monthlySalary">Monthly Salary</Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
                     ₱
-                  </span>
-                  <Input
-                    id="create-monthlySalary"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={createUserData.monthlySalary}
-                    onChange={(e) => setCreateUserData({ ...createUserData, monthlySalary: e.target.value })}
-                    placeholder="e.g., 50000"
-                    className="pl-8"
-                  />
+                    </span>
+                    <Input
+                      id="create-monthlySalary"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={createUserData.monthlySalary}
+                      onChange={(e) => setCreateUserData({ ...createUserData, monthlySalary: e.target.value })}
+                      placeholder="e.g., 50000"
+                      className="pl-8"
+                    />
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -1392,19 +1392,19 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 <div className="space-y-2">
                   <Label htmlFor="edit-monthlySalary">Monthly Salary</Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
                       ₱
-                    </span>
-                    <Input
-                      id="edit-monthlySalary"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={editData.monthlySalary}
-                      onChange={(e) => setEditData({ ...editData, monthlySalary: e.target.value })}
-                      placeholder="e.g., 50000"
-                      className="pl-8"
-                    />
+                      </span>
+                      <Input
+                        id="edit-monthlySalary"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editData.monthlySalary}
+                        onChange={(e) => setEditData({ ...editData, monthlySalary: e.target.value })}
+                        placeholder="e.g., 50000"
+                        className="pl-8"
+                      />
                   </div>
                 </div>
                 <div className="space-y-1">

@@ -9,7 +9,7 @@ import { getChartColor } from '@/utils/cost-analytics.utils'
 import { CHART_COLORS, MAX_COMPARE_PROJECTS } from '@/constants/cost-analytics.constants'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import type { ProjectCostSummary, CurrencyConfig } from '@/types/cost-analytics'
-import { NoDataState } from './EmptyStates'
+import { NoDataState } from '../EmptyStates'
 import { staggerContainer, staggerItem, scaleIn, buttonScale, transitionNormal } from '@/utils/animations'
 
 interface ProjectComparisonViewProps {
@@ -158,7 +158,7 @@ export function ProjectComparisonView({
 
                 {/* Comparison Bar Chart */}
                 <motion.div
-                  className="h-64"
+                  className="h-64 min-h-[256px] w-full"
                   variants={scaleIn}
                   initial="initial"
                   animate="animate"

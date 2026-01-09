@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
 import type { TopPerformer, CurrencyConfig } from '@/types/cost-analytics'
-import { TopPerformersSkeleton } from './Skeletons'
+import { TopPerformersSkeleton } from '../Skeletons'
 import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
 
 interface TopPerformersProps {

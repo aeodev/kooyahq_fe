@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CURRENCIES } from '@/types/cost-analytics'
 import type { CostSummaryData, ProjectCostSummary, LiveCostData, ViewMode } from '@/types/cost-analytics'
 import {
@@ -15,6 +16,7 @@ import {
   exportLiveDataToCSV,
   downloadCSV,
 } from '@/utils/cost-analytics-export.utils'
+import { LastUpdated } from './shared/LastUpdated'
 
 interface CostAnalyticsHeaderProps {
   currency: keyof typeof CURRENCIES
@@ -27,6 +29,9 @@ interface CostAnalyticsHeaderProps {
   compareData: ProjectCostSummary[]
   liveData: LiveCostData | null
   selectedProject: string | null
+  activeTab: 'projects' | 'developers'
+  onTabChange: (tab: 'projects' | 'developers') => void
+  lastUpdated: Date | null
 }
 
 export function CostAnalyticsHeader({
@@ -40,6 +45,9 @@ export function CostAnalyticsHeader({
   compareData,
   liveData,
   selectedProject,
+  activeTab,
+  onTabChange,
+  lastUpdated,
 }: CostAnalyticsHeaderProps) {
   const currencyConfig = CURRENCIES[currency]
 
@@ -77,13 +85,14 @@ export function CostAnalyticsHeader({
   const canExportLive = liveData !== null
 
   return (
-    <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Cost Analytics</h1>
-        <p className="text-sm text-muted-foreground">Real-time business spending insights</p>
-      </div>
+    <header className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Cost Analytics</h1>
+          <p className="text-sm text-muted-foreground">Real-time business spending insights</p>
+        </div>
 
-      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
         <select
           value={currency}
           onChange={(e) => onCurrencyChange(e.target.value as keyof typeof CURRENCIES)}
@@ -131,9 +140,20 @@ export function CostAnalyticsHeader({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-        </Button>
+          <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as 'projects' | 'developers')}>
+          <TabsList>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="developers">Developers</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <LastUpdated timestamp={lastUpdated} />
       </div>
     </header>
   )

@@ -35,6 +35,9 @@ type CostAnalyticsState = {
 
   // Currency preference
   currency: keyof typeof CURRENCIES
+
+  // Last updated timestamp
+  lastUpdated: Date | null
 }
 
 type CostAnalyticsActions = {
@@ -76,6 +79,7 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
       compareData: [],
       compareLoading: false,
       currency: 'PHP',
+      lastUpdated: null,
 
       // Actions
       fetchLiveData: async () => {
@@ -84,10 +88,12 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
           const response = await axiosInstance.get<{ status: string; data: LiveCostData }>(
             GET_LIVE_COST()
           )
+          const now = new Date()
           set({
             liveData: response.data.data,
             liveLoading: false,
-            lastLiveUpdate: new Date().toISOString(),
+            lastLiveUpdate: now.toISOString(),
+            lastUpdated: now,
           })
         } catch (err) {
           const normalized = normalizeError(err)
@@ -104,9 +110,11 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
           const response = await axiosInstance.get<{ status: string; data: LiveCostData }>(
             GET_LIVE_COST()
           )
+          const now = new Date()
           set({
             liveData: response.data.data,
-            lastLiveUpdate: new Date().toISOString(),
+            lastLiveUpdate: now.toISOString(),
+            lastUpdated: now,
             // Don't set liveLoading - keep existing state
           })
         } catch (err) {
@@ -121,9 +129,11 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
           const response = await axiosInstance.get<{ status: string; data: CostSummaryData }>(
             GET_COST_SUMMARY(startDate, endDate)
           )
+          const now = new Date()
           set({
             summaryData: response.data.data,
             summaryLoading: false,
+            lastUpdated: now,
           })
         } catch (err) {
           const normalized = normalizeError(err)
@@ -216,7 +226,8 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
       },
 
       updateLiveData: (data) => {
-        set({ liveData: data, lastLiveUpdate: new Date().toISOString() })
+        const now = new Date()
+        set({ liveData: data, lastLiveUpdate: now.toISOString(), lastUpdated: now })
       },
 
       clearData: () => {

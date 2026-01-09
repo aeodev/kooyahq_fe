@@ -93,8 +93,8 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
               </div>
             </div>
             <CardContent className="p-4">
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-64 min-h-[256px] w-full">
+                <ResponsiveContainer width="100%" height={256} minWidth={0}>
                   <RechartsPie>
                     <Pie
                       data={pieData}
@@ -159,8 +159,8 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
               </div>
             </div>
             <CardContent className="p-4">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-72 min-h-[288px] w-full">
+                <ResponsiveContainer width="100%" height={288} minWidth={0}>
                   <BarChart data={barData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis
@@ -214,8 +214,8 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
             </div>
           </div>
           <CardContent className="p-4">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-64 min-h-[256px] w-full">
+              <ResponsiveContainer width="100%" height={256} minWidth={0}>
                 <AreaChart data={trendData}>
                   <defs>
                     <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">

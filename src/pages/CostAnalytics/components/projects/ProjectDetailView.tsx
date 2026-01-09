@@ -5,8 +5,8 @@ import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
 import { convertFromPHPSync } from '@/utils/currency-converter'
 import type { ProjectCostSummary, CurrencyConfig } from '@/types/cost-analytics'
-import { ErrorState } from './EmptyStates'
-import { SummaryStatsSkeleton, TableSkeleton } from './Skeletons'
+import { ErrorState } from '../EmptyStates'
+import { SummaryStatsSkeleton, TableSkeleton } from '../Skeletons'
 import { slideInRight, staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
 
 interface ProjectDetailViewProps {
