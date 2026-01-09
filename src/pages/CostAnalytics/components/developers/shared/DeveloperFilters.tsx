@@ -61,10 +61,7 @@ export function DeveloperFiltersComponent({
 
   const availableProjects = summaryData?.projectCosts.map((p) => p.project) || []
 
-  const activeFiltersCount =
-    (filters.project ? 1 : 0) +
-    (filters.minProjects !== null ? 1 : 0) +
-    (filters.maxProjects !== null ? 1 : 0)
+  const activeFiltersCount = filters.project ? 1 : 0
 
   const clearFilters = () => {
     setFilters({
@@ -116,35 +113,6 @@ export function DeveloperFiltersComponent({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Project Count Filter */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Filter className="h-3 w-3 mr-2" />
-            Project Count
-            {(filters.minProjects !== null || filters.maxProjects !== null) && (
-              <Badge variant="secondary" className="ml-2">
-                {filters.minProjects !== null ? filters.minProjects : '0'}-{filters.maxProjects !== null ? filters.maxProjects : '∞'}
-              </Badge>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setFilters({ ...filters, minProjects: null, maxProjects: null })}>
-            Any
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setFilters({ ...filters, minProjects: 1, maxProjects: 2 })}>
-            1-2 projects
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setFilters({ ...filters, minProjects: 3, maxProjects: 5 })}>
-            3-5 projects
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setFilters({ ...filters, minProjects: 6, maxProjects: null })}>
-            6+ projects
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
       {/* Clear Filters */}
       {activeFiltersCount > 0 && (
         <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -154,36 +122,14 @@ export function DeveloperFiltersComponent({
       )}
 
       {/* Active Filter Badges */}
-      {activeFiltersCount > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {filters.project && (
-            <Badge
-              variant="secondary"
-              className="cursor-pointer"
-              onClick={() => setFilters({ ...filters, project: null })}
-            >
-              Project: {filters.project} ×
-            </Badge>
-          )}
-          {filters.minProjects !== null && (
-            <Badge
-              variant="secondary"
-              className="cursor-pointer"
-              onClick={() => setFilters({ ...filters, minProjects: null })}
-            >
-              Min: {filters.minProjects} ×
-            </Badge>
-          )}
-          {filters.maxProjects !== null && (
-            <Badge
-              variant="secondary"
-              className="cursor-pointer"
-              onClick={() => setFilters({ ...filters, maxProjects: null })}
-            >
-              Max: {filters.maxProjects} ×
-            </Badge>
-          )}
-        </div>
+      {filters.project && (
+        <Badge
+          variant="secondary"
+          className="cursor-pointer"
+          onClick={() => setFilters({ ...filters, project: null })}
+        >
+          Project: {filters.project} ×
+        </Badge>
       )}
     </div>
   )

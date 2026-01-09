@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { QuickStats } from './overview/QuickStats'
 import { RecognitionSection } from './overview/RecognitionSection'
 import { DeveloperTrends } from './overview/DeveloperTrends'
-import { CollaborationNetwork } from './CollaborationNetwork'
 import { TeamBalance } from './TeamBalance'
 import { ActivityPatterns } from './ActivityPatterns'
 import { DeveloperContributions } from './DeveloperContributions'
@@ -68,7 +67,6 @@ export function DeveloperSummaryView({
 
   const handleCloseProfile = () => {
     setIsProfileOpen(false)
-    // Clear developer after animation completes
     setTimeout(() => setSelectedDeveloper(null), 350)
   }
 
@@ -76,7 +74,6 @@ export function DeveloperSummaryView({
     if (!summaryData) return []
     let filtered = summaryData.topPerformers
 
-    // Search filter
     if (filters.search.trim()) {
       const query = filters.search.toLowerCase()
       filtered = filtered.filter(
@@ -88,12 +85,10 @@ export function DeveloperSummaryView({
       )
     }
 
-    // Project filter
     if (filters.project) {
       filtered = filtered.filter((p) => p.projects.includes(filters.project!))
     }
 
-    // Project count filters
     if (filters.minProjects !== null) {
       filtered = filtered.filter((p) => p.projectCount >= filters.minProjects!)
     }
@@ -120,7 +115,6 @@ export function DeveloperSummaryView({
 
   return (
     <div className="space-y-6">
-      {/* Developer Profile Modal */}
       <DeveloperProfile
         developer={selectedDeveloper}
         summaryData={summaryData}
@@ -129,7 +123,6 @@ export function DeveloperSummaryView({
         onClose={handleCloseProfile}
       />
 
-      {/* Global Filters & Export */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <DeveloperFiltersComponent
           topPerformers={summaryData.topPerformers}
@@ -146,7 +139,6 @@ export function DeveloperSummaryView({
         </Button>
       </div>
 
-      {/* Tabbed Interface */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -155,7 +147,6 @@ export function DeveloperSummaryView({
           <TabsTrigger value="discovery">Discovery</TabsTrigger>
         </TabsList>
 
-        {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6 mt-6">
           <QuickStats
             liveData={liveData}
@@ -186,12 +177,7 @@ export function DeveloperSummaryView({
           />
         </TabsContent>
 
-        {/* Team Tab */}
         <TabsContent value="team" className="space-y-6 mt-6">
-          <CollaborationNetwork
-            topPerformers={filteredPerformers}
-            summaryData={summaryData}
-          />
           <TeamBalance
             topPerformers={filteredPerformers}
             summaryData={summaryData}
@@ -199,7 +185,6 @@ export function DeveloperSummaryView({
           <ActivityPatterns liveData={liveData} summaryData={summaryData} />
         </TabsContent>
 
-        {/* Individual Tab */}
         <TabsContent value="individual" className="space-y-6 mt-6">
           <DeveloperContributions
             topPerformers={filteredPerformers}
@@ -220,7 +205,6 @@ export function DeveloperSummaryView({
           />
         </TabsContent>
 
-        {/* Discovery Tab */}
         <TabsContent value="discovery" className="space-y-6 mt-6">
           <DeveloperSearch
             topPerformers={filteredPerformers}
