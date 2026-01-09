@@ -254,3 +254,56 @@ export const EXPORT_USERS = (format: 'csv' | 'json') => `/user-management/export
 // Settings routes
 export const GET_THEME_SETTINGS = () => `/settings/theme`
 export const UPDATE_THEME_SETTINGS = () => `/settings/theme`
+
+// Cost Analytics routes (Super Admin only)
+export const GET_LIVE_COST = () => `/cost-analytics/live`
+export const GET_COST_SUMMARY = (startDate?: string, endDate?: string) => {
+  const params = new URLSearchParams()
+  if (startDate) params.append('startDate', startDate)
+  if (endDate) params.append('endDate', endDate)
+  return `/cost-analytics/summary${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const GET_PROJECT_LIST = () => `/cost-analytics/projects`
+export const GET_PROJECT_DETAIL = (projectName: string, startDate?: string, endDate?: string) => {
+  const params = new URLSearchParams()
+  if (startDate) params.append('startDate', startDate)
+  if (endDate) params.append('endDate', endDate)
+  return `/cost-analytics/project/${encodeURIComponent(projectName)}${params.toString() ? `?${params.toString()}` : ''}`
+}
+
+// Budget routes
+export const GET_BUDGETS = (project?: string | null) => {
+  const params = new URLSearchParams()
+  if (project !== undefined) params.append('project', project === null ? 'null' : project)
+  return `/cost-analytics/budgets${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const CREATE_BUDGET = () => `/cost-analytics/budgets`
+export const UPDATE_BUDGET = (id: string) => `/cost-analytics/budgets/${id}`
+export const DELETE_BUDGET = (id: string) => `/cost-analytics/budgets/${id}`
+export const GET_BUDGET_COMPARISON = (id: string) => `/cost-analytics/budgets/${id}/comparison`
+export const GET_ALL_BUDGET_COMPARISONS = () => `/cost-analytics/budgets/comparisons/all`
+
+// Forecast and comparison routes
+export const GET_COST_FORECAST = (startDate?: string, endDate?: string, days?: number, project?: string | null) => {
+  const params = new URLSearchParams()
+  if (startDate) params.append('startDate', startDate)
+  if (endDate) params.append('endDate', endDate)
+  if (days) params.append('days', days.toString())
+  if (project !== undefined) params.append('project', project === null ? 'null' : project)
+  return `/cost-analytics/forecast${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const GET_PERIOD_COMPARISON = (
+  currentStart: string,
+  currentEnd: string,
+  previousStart: string,
+  previousEnd: string,
+  project?: string | null
+) => {
+  const params = new URLSearchParams()
+  params.append('currentStart', currentStart)
+  params.append('currentEnd', currentEnd)
+  params.append('previousStart', previousStart)
+  params.append('previousEnd', previousEnd)
+  if (project !== undefined) params.append('project', project === null ? 'null' : project)
+  return `/cost-analytics/compare?${params.toString()}`
+}

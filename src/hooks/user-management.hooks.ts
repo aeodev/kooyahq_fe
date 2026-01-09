@@ -245,6 +245,7 @@ type CreateUserInput = {
   status?: string
   permissions?: string[]
   bio?: string
+  monthlySalary?: number
 }
 
 export const useCreateUser = () => {

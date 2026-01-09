@@ -9,6 +9,7 @@ export type User = {
   banner?: string
   bio?: string
   status?: 'online' | 'busy' | 'away' | 'offline'
+  monthlySalary?: number
   clientCompanyId?: string
   deletedAt?: string
   createdAt: string

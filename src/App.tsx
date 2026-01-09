@@ -32,6 +32,7 @@ import { UserManagement } from '@/pages/UserManagement'
 import { AdminLogs } from '@/pages/AdminLogs'
 import { ServerManagement } from '@/pages/ServerManagement'
 import { SystemManagement } from '@/pages/SystemManagement'
+import { CostAnalytics } from '@/pages/CostAnalytics'
 import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
@@ -376,6 +377,18 @@ function App() {
                 <PermissionGate anyOf={[PERMISSIONS.SYSTEM_FULL_ACCESS]}>
                   <DashboardLayout>
                     <SystemManagement />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/cost-analytics"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[PERMISSIONS.SYSTEM_FULL_ACCESS]}>
+                  <DashboardLayout>
+                    <CostAnalytics />
                   </DashboardLayout>
                 </PermissionGate>
               </PrivateRoute>
