@@ -1,4 +1,5 @@
 import { TrendingUp, BarChart3 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   PieChart as RechartsPie,
@@ -20,6 +21,7 @@ import { getChartColor } from '@/utils/cost-analytics.utils'
 import { CHART_COLORS, MAX_PIE_CHART_ITEMS, MAX_BAR_CHART_ITEMS } from '@/constants/cost-analytics.constants'
 import type { CostSummaryData, CurrencyConfig, PieChartDataItem, BarChartDataItem, TrendChartDataItem } from '@/types/cost-analytics'
 import { ChartSkeleton } from './Skeletons'
+import { scaleIn, staggerContainer, transitionNormal } from '@/utils/animations'
 
 interface CostChartsProps {
   summaryData: CostSummaryData | null
@@ -68,12 +70,22 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
   }))
 
   return (
-    <>
+    <motion.div
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
       {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <motion.div
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+      >
         {/* Cost Distribution Pie */}
         {pieData.length > 0 && (
-          <Card className="border-border/50 bg-card/50">
+          <motion.div variants={scaleIn} transition={transitionNormal}>
+            <Card className="border-border/50 bg-card/50">
             <div className="p-4 border-b border-border/50">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
@@ -133,11 +145,13 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
               </div>
             </CardContent>
           </Card>
+          </motion.div>
         )}
 
         {/* Project Performance Bar Chart */}
         {barData.length > 0 && (
-          <Card className="border-border/50 bg-card/50">
+          <motion.div variants={scaleIn} transition={transitionNormal}>
+            <Card className="border-border/50 bg-card/50">
             <div className="p-4 border-b border-border/50">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-primary" />
@@ -185,12 +199,14 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
               </div>
             </CardContent>
           </Card>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
       {/* Cost Trends */}
       {trendData.length > 0 && (
-        <Card className="border-border/50 bg-card/50">
+        <motion.div variants={scaleIn} transition={transitionNormal}>
+          <Card className="border-border/50 bg-card/50">
           <div className="p-4 border-b border-border/50">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
@@ -244,7 +260,8 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       )}
-    </>
+    </motion.div>
   )
 }

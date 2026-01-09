@@ -1,10 +1,12 @@
 import { Trophy } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
 import type { TopPerformer, CurrencyConfig } from '@/types/cost-analytics'
 import { TopPerformersSkeleton } from './Skeletons'
+import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
 
 interface TopPerformersProps {
   topPerformers: TopPerformer[]
@@ -31,7 +33,12 @@ export function TopPerformers({ topPerformers, isLoading, currencyConfig }: TopP
         </div>
       </div>
       <CardContent className="p-4">
-        <div className="space-y-2">
+        <motion.div
+          className="space-y-2"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+        >
           {displayPerformers.map((performer, i) => {
             const rankStyles: Record<number, string> = {
               0: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
@@ -41,8 +48,10 @@ export function TopPerformers({ topPerformers, isLoading, currencyConfig }: TopP
             const rankClass = rankStyles[i] || 'bg-muted text-muted-foreground border-border'
 
             return (
-              <div
+              <motion.div
                 key={performer.userId}
+                variants={staggerItem}
+                transition={{ delay: i * 0.05, ...transitionNormal }}
                 className="flex items-center gap-4 p-3 rounded-lg border border-border/50 bg-background hover:bg-muted/30 transition-colors"
               >
                 <div
@@ -67,10 +76,10 @@ export function TopPerformers({ topPerformers, isLoading, currencyConfig }: TopP
                     {formatHours(performer.totalHours)}
                   </p>
                 </div>
-              </div>
+              </motion.div>
             )
           })}
-        </div>
+        </motion.div>
       </CardContent>
     </Card>
   )

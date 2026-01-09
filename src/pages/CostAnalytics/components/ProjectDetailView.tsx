@@ -1,4 +1,5 @@
-import { BarChart3, RefreshCw, Activity, AlertCircle } from 'lucide-react'
+import { BarChart3, RefreshCw } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
@@ -6,6 +7,7 @@ import { convertFromPHPSync } from '@/utils/currency-converter'
 import type { ProjectCostSummary, CurrencyConfig } from '@/types/cost-analytics'
 import { ErrorState } from './EmptyStates'
 import { SummaryStatsSkeleton, TableSkeleton } from './Skeletons'
+import { slideInRight, staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
 
 interface ProjectDetailViewProps {
   projectName: string
@@ -23,7 +25,14 @@ export function ProjectDetailView({
   currencyConfig,
 }: ProjectDetailViewProps) {
   return (
-    <Card className="border-border/50 bg-card/50">
+    <motion.div
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      variants={slideInRight}
+      transition={transitionNormal}
+    >
+      <Card className="border-border/50 bg-card/50">
       <div className="p-4 border-b border-border/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -47,35 +56,57 @@ export function ProjectDetailView({
             </div>
           </div>
         ) : projectDetail ? (
-          <div className="space-y-4">
+          <motion.div
+            className="space-y-4"
+            variants={staggerContainer}
+            initial="initial"
+            animate="animate"
+          >
             {/* Project Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-3 rounded-lg border border-border/50 bg-background">
+            <motion.div
+              className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+            >
+              <motion.div
+                variants={staggerItem}
+                className="p-3 rounded-lg border border-border/50 bg-background"
+              >
                 <p className="text-xs text-muted-foreground mb-1">Total Cost</p>
                 <p className="text-xl font-bold text-primary">
                   {formatCurrency(projectDetail.totalCost, currencyConfig)}
                 </p>
-              </div>
-              <div className="p-3 rounded-lg border border-border/50 bg-background">
+              </motion.div>
+              <motion.div
+                variants={staggerItem}
+                className="p-3 rounded-lg border border-border/50 bg-background"
+              >
                 <p className="text-xs text-muted-foreground mb-1">Total Hours</p>
                 <p className="text-xl font-bold text-foreground">
                   {formatHours(projectDetail.totalHours)}
                 </p>
-              </div>
-              <div className="p-3 rounded-lg border border-border/50 bg-background">
+              </motion.div>
+              <motion.div
+                variants={staggerItem}
+                className="p-3 rounded-lg border border-border/50 bg-background"
+              >
                 <p className="text-xs text-muted-foreground mb-1">Developers</p>
                 <p className="text-xl font-bold text-foreground">
                   {projectDetail.developers.length}
                 </p>
-              </div>
-              <div className="p-3 rounded-lg border border-border/50 bg-background">
+              </motion.div>
+              <motion.div
+                variants={staggerItem}
+                className="p-3 rounded-lg border border-border/50 bg-background"
+              >
                 <p className="text-xs text-muted-foreground mb-1">Avg Rate</p>
                 <p className="text-xl font-bold text-foreground">
                   {currencyConfig.symbol}
                   {convertFromPHPSync(projectDetail.avgHourlyRate, currencyConfig.code).toFixed(0)}/hr
                 </p>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
 
             {/* Developer Breakdown */}
             <div className="space-y-2">
@@ -110,9 +141,10 @@ export function ProjectDetailView({
                 </table>
               </div>
             </div>
-          </div>
+          </motion.div>
         ) : null}
       </CardContent>
     </Card>
+    </motion.div>
   )
 }

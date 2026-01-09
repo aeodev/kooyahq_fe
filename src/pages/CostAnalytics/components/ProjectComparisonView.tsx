@@ -1,4 +1,5 @@
 import { GitCompare, RefreshCw } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { formatHours } from '@/utils/cost-analytics.utils'
@@ -9,6 +10,7 @@ import { CHART_COLORS, MAX_COMPARE_PROJECTS } from '@/constants/cost-analytics.c
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import type { ProjectCostSummary, CurrencyConfig } from '@/types/cost-analytics'
 import { NoDataState } from './EmptyStates'
+import { staggerContainer, staggerItem, scaleIn, buttonScale, transitionNormal } from '@/utils/animations'
 
 interface ProjectComparisonViewProps {
   compareProjects: string[]
@@ -35,14 +37,22 @@ export function ProjectComparisonView({
           <Label className="text-xs text-muted-foreground mb-2 block">
             Select projects to compare (up to {MAX_COMPARE_PROJECTS})
           </Label>
-          <div className="flex flex-wrap gap-2">
+          <motion.div
+            className="flex flex-wrap gap-2"
+            variants={staggerContainer}
+            initial="initial"
+            animate="animate"
+          >
             {projectList.map((project) => {
               const isSelected = compareProjects.includes(project)
               return (
-                <button
+                <motion.button
                   key={project}
                   onClick={() => onToggleCompareProject(project)}
                   disabled={!isSelected && compareProjects.length >= MAX_COMPARE_PROJECTS}
+                  variants={staggerItem}
+                  {...buttonScale}
+                  transition={transitionNormal}
                   className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                     isSelected
                       ? 'bg-primary text-primary-foreground border-primary'
@@ -50,10 +60,10 @@ export function ProjectComparisonView({
                   }`}
                 >
                   {project}
-                </button>
+                </motion.button>
               )
             })}
-          </div>
+          </motion.div>
           {compareProjects.length > 0 && (
             <p className="text-xs text-muted-foreground mt-2">
               {compareProjects.length} project{compareProjects.length !== 1 ? 's' : ''} selected
@@ -78,9 +88,14 @@ export function ProjectComparisonView({
           </div>
           <CardContent className="p-4">
             {compareData.length > 0 ? (
-              <div className="space-y-6">
+              <motion.div
+                className="space-y-6"
+                initial="initial"
+                animate="animate"
+                variants={staggerContainer}
+              >
                 {/* Comparison Cards */}
-                <div
+                <motion.div
                   className={`grid gap-4 ${
                     compareData.length === 2
                       ? 'grid-cols-2'
@@ -88,12 +103,20 @@ export function ProjectComparisonView({
                         ? 'grid-cols-3'
                         : 'grid-cols-2 lg:grid-cols-4'
                   }`}
+                  layout
                 >
-                  {compareData.map((project, i) => (
-                    <div
-                      key={project.project}
-                      className="p-4 rounded-lg border border-border/50 bg-background"
-                    >
+                  <AnimatePresence mode="popLayout">
+                    {compareData.map((project, i) => (
+                      <motion.div
+                        key={project.project}
+                        layout
+                        variants={staggerItem}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={transitionNormal}
+                        className="p-4 rounded-lg border border-border/50 bg-background"
+                      >
                       <div className="flex items-center gap-2 mb-3">
                         <div
                           className="w-3 h-3 rounded-full"
@@ -128,12 +151,19 @@ export function ProjectComparisonView({
                           </p>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
 
                 {/* Comparison Bar Chart */}
-                <div className="h-64">
+                <motion.div
+                  className="h-64"
+                  variants={scaleIn}
+                  initial="initial"
+                  animate="animate"
+                  transition={transitionNormal}
+                >
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={compareData.map((p) => ({
@@ -173,8 +203,8 @@ export function ProjectComparisonView({
                       <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             ) : (
               <NoDataState message="Select projects to compare" />
             )}

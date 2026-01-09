@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -231,37 +232,52 @@ function CostAnalyticsContent() {
       </div>
 
       {/* Compare Mode Project Selection */}
-      {viewMode === 'compare' && (
-        <ProjectComparisonView
-          compareProjects={compareProjects}
-          compareData={filteredCompareData}
-          compareLoading={compareLoading}
-          projectList={projectList}
-          currencyConfig={currencyConfig}
-          onToggleCompareProject={handleToggleCompareProject}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {viewMode === 'compare' && (
+          <ProjectComparisonView
+            key="compare-view"
+            compareProjects={compareProjects}
+            compareData={filteredCompareData}
+            compareLoading={compareLoading}
+            projectList={projectList}
+            currencyConfig={currencyConfig}
+            onToggleCompareProject={handleToggleCompareProject}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Selected Project Indicator */}
-      {viewMode === 'single' && selectedProject && (
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">Viewing: {selectedProject}</Badge>
-          <Button variant="ghost" size="sm" onClick={handleClearProject} className="h-6 px-2">
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
+      <AnimatePresence>
+        {viewMode === 'single' && selectedProject && (
+          <motion.div
+            key="project-indicator"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center gap-2"
+          >
+            <Badge variant="secondary">Viewing: {selectedProject}</Badge>
+            <Button variant="ghost" size="sm" onClick={handleClearProject} className="h-6 px-2">
+              <X className="h-3 w-3" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Single Project Detail View */}
-      {viewMode === 'single' && selectedProject && (
-        <ProjectDetailView
-          projectName={selectedProject}
-          projectDetail={filteredProjectDetail}
-          projectDetailLoading={projectDetailLoading}
-          projectDetailError={projectDetailError}
-          currencyConfig={currencyConfig}
-        />
-      )}
+      <AnimatePresence>
+        {viewMode === 'single' && selectedProject && (
+          <ProjectDetailView
+            key={selectedProject}
+            projectName={selectedProject}
+            projectDetail={filteredProjectDetail}
+            projectDetailLoading={projectDetailLoading}
+            projectDetailError={projectDetailError}
+            currencyConfig={currencyConfig}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Live Stats Section */}
       <LiveCostTracking liveData={liveData} currencyConfig={currencyConfig} isLoading={liveLoading && !hasLoadedOnce} />

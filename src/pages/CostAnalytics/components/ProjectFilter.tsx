@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { X, GitCompare, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import type { ViewMode } from '@/types/cost-analytics'
+import { buttonScale, fadeInDown, transitionFast } from '@/utils/animations'
 
 interface ProjectFilterProps {
   projectList: string[]
@@ -84,9 +86,11 @@ export function ProjectFilter({
         {/* Project Selector */}
         <div className="flex-1" ref={dropdownRef}>
           <Label className="text-xs text-muted-foreground mb-2 block">Filter by Project</Label>
-          <button
+          <motion.button
             ref={buttonRef}
             onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
+            {...buttonScale}
+            transition={transitionFast}
             className="w-full h-10 px-3 text-left rounded-lg border border-border bg-background text-sm flex items-center justify-between hover:bg-muted/30 transition-colors"
             disabled={viewMode === 'compare'}
           >
@@ -96,47 +100,78 @@ export function ProjectFilter({
             <ChevronDown
               className={`h-4 w-4 text-muted-foreground transition-transform ${projectDropdownOpen ? 'rotate-180' : ''}`}
             />
-          </button>
+          </motion.button>
         </div>
 
         {/* Compare Mode Toggle */}
         <div className="flex items-end gap-2">
-          {viewMode === 'compare' ? (
-            <Button variant="outline" size="sm" onClick={onExitCompareMode} className="h-10">
-              <X className="h-4 w-4 mr-2" />
-              Exit Compare
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onEnterCompareMode}
-              className="h-10"
-              disabled={projectList.length < 2}
-            >
-              <GitCompare className="h-4 w-4 mr-2" />
-              Compare Projects
-            </Button>
-          )}
+          <AnimatePresence mode="wait">
+            {viewMode === 'compare' ? (
+              <motion.div
+                key="exit-compare"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={transitionFast}
+              >
+                <Button variant="outline" size="sm" onClick={onExitCompareMode} className="h-10">
+                  <X className="h-4 w-4 mr-2" />
+                  Exit Compare
+                </Button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="enter-compare"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={transitionFast}
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEnterCompareMode}
+                  className="h-10"
+                  disabled={projectList.length < 2}
+                >
+                  <GitCompare className="h-4 w-4 mr-2" />
+                  Compare Projects
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Dropdown Menu Portal */}
-      {projectDropdownOpen && dropdownPosition &&
-        createPortal(
-          <>
-            {/* Backdrop overlay */}
-            <div className="fixed inset-0 z-40" onClick={() => setProjectDropdownOpen(false)} />
-            {/* Dropdown menu */}
-            <div
-              ref={dropdownMenuRef}
-              className="fixed z-50 rounded-lg border border-border bg-popover shadow-lg max-h-64 overflow-y-auto"
-              style={{
-                top: `${dropdownPosition.top}px`,
-                left: `${dropdownPosition.left}px`,
-                width: `${dropdownPosition.width}px`,
-              }}
-            >
+      <AnimatePresence>
+        {projectDropdownOpen && dropdownPosition &&
+          createPortal(
+            <>
+              {/* Backdrop overlay */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={transitionFast}
+                className="fixed inset-0 z-40"
+                onClick={() => setProjectDropdownOpen(false)}
+              />
+              {/* Dropdown menu */}
+              <motion.div
+                ref={dropdownMenuRef}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={fadeInDown}
+                transition={transitionFast}
+                className="fixed z-50 rounded-lg border border-border bg-popover shadow-lg max-h-64 overflow-y-auto"
+                style={{
+                  top: `${dropdownPosition.top}px`,
+                  left: `${dropdownPosition.left}px`,
+                  width: `${dropdownPosition.width}px`,
+                }}
+              >
               <button
                 onClick={() => {
                   onClearProject()
@@ -161,10 +196,11 @@ export function ProjectFilter({
                   </button>
                 ))
               )}
-            </div>
-          </>,
-          document.body
-        )}
+              </motion.div>
+            </>,
+            document.body
+          )}
+      </AnimatePresence>
     </>
   )
 }

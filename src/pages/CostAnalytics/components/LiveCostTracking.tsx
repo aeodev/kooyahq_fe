@@ -1,5 +1,6 @@
 import { memo } from 'react'
-import { Flame, DollarSign, Clock, Users, Activity } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Flame, DollarSign, Clock, Users } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LivePulse } from './LivePulse'
@@ -9,6 +10,7 @@ import { convertFromPHPSync } from '@/utils/currency-converter'
 import type { LiveCostData, CurrencyConfig } from '@/types/cost-analytics'
 import { NoDataState } from './EmptyStates'
 import { LiveStatsSkeleton, ProjectCardsSkeleton, TableSkeleton } from './Skeletons'
+import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
 
 interface LiveCostTrackingProps {
   liveData: LiveCostData | null
@@ -35,8 +37,16 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
           <LiveStatsSkeleton />
         ) : (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 rounded-lg border border-border/50 bg-background">
+            <motion.div
+              className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+            >
+              <motion.div
+                variants={staggerItem}
+                className="p-4 rounded-lg border border-border/50 bg-background"
+              >
                 <div className="flex items-center gap-2 mb-2">
                   <Flame className="h-4 w-4 text-primary" />
                   <span className="text-xs text-muted-foreground">Burn Rate</span>
@@ -46,9 +56,12 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                   {convertFromPHPSync(liveData?.totalBurnRate || 0, currencyConfig.code).toFixed(2)}
                   <span className="text-sm text-muted-foreground font-normal">/hr</span>
                 </p>
-              </div>
+              </motion.div>
 
-              <div className="p-4 rounded-lg border border-border/50 bg-background">
+              <motion.div
+                variants={staggerItem}
+                className="p-4 rounded-lg border border-border/50 bg-background"
+              >
                 <div className="flex items-center gap-2 mb-2">
                   <DollarSign className="h-4 w-4 text-primary" />
                   <span className="text-xs text-muted-foreground">Live Cost</span>
@@ -56,9 +69,12 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                 <p className="text-xl font-bold text-foreground">
                   {formatCurrency(liveData?.totalLiveCost || 0, currencyConfig)}
                 </p>
-              </div>
+              </motion.div>
 
-              <div className="p-4 rounded-lg border border-border/50 bg-background">
+              <motion.div
+                variants={staggerItem}
+                className="p-4 rounded-lg border border-border/50 bg-background"
+              >
                 <div className="flex items-center gap-2 mb-2">
                   <Clock className="h-4 w-4 text-primary" />
                   <span className="text-xs text-muted-foreground">Active Hours</span>
@@ -66,9 +82,12 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                 <p className="text-xl font-bold text-foreground">
                   {formatHours(liveData?.activeHours || 0)}
                 </p>
-              </div>
+              </motion.div>
 
-              <div className="p-4 rounded-lg border border-border/50 bg-background">
+              <motion.div
+                variants={staggerItem}
+                className="p-4 rounded-lg border border-border/50 bg-background"
+              >
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-primary" />
                   <span className="text-xs text-muted-foreground">Active Devs</span>
@@ -76,8 +95,8 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                 <p className="text-xl font-bold text-foreground">
                   {liveData?.activeDevelopers?.length || 0}
                 </p>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
 
             {/* Active Projects */}
             {liveData?.projectCosts && liveData.projectCosts.length > 0 && (
@@ -86,9 +105,21 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                 {isLoading ? (
                   <ProjectCardsSkeleton />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {liveData.projectCosts.map((project) => (
-                      <div key={project.project} className="p-3 rounded-lg border border-border/50 bg-background">
+                  <motion.div
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+                    variants={staggerContainer}
+                    initial="initial"
+                    animate="animate"
+                  >
+                    <AnimatePresence>
+                      {liveData.projectCosts.map((project) => (
+                        <motion.div
+                          key={project.project}
+                          variants={staggerItem}
+                          layout
+                          transition={transitionNormal}
+                          className="p-3 rounded-lg border border-border/50 bg-background"
+                        >
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-medium text-foreground truncate flex-1">{project.project}</h4>
                           <Badge variant="secondary" className="ml-2">
@@ -104,9 +135,10 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                             {convertFromPHPSync(project.burnRate, currencyConfig.code).toFixed(0)}/hr
                           </span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </motion.div>
                 )}
               </div>
             )}
@@ -132,8 +164,16 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                       </tr>
                     </thead>
                     <tbody>
-                      {liveData.activeDevelopers.map((dev) => (
-                        <tr key={dev.userId} className="border-t border-border/50">
+                      <AnimatePresence>
+                        {liveData.activeDevelopers.map((dev, index) => (
+                          <motion.tr
+                            key={dev.userId}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ delay: index * 0.05, ...transitionNormal }}
+                            className="border-t border-border/50"
+                          >
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
                               <div
@@ -165,8 +205,9 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                           <td className="py-2 px-3 text-right text-sm font-medium text-primary">
                             {formatCurrency(dev.liveCost, currencyConfig)}
                           </td>
-                        </tr>
+                        </motion.tr>
                       ))}
+                      </AnimatePresence>
                     </tbody>
                   </table>
                 </div>
