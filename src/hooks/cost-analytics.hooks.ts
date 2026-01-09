@@ -2,6 +2,24 @@ import type { Socket } from 'socket.io-client'
 import { SocketTimeEntriesEvents } from '@/utils/api.routes'
 import { useCostAnalyticsStore } from '@/stores/cost-analytics.store'
 
+// Debounce utility
+function debounce<T extends (...args: unknown[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null
+  return function executedFunction(...args: Parameters<T>) {
+    const later = () => {
+      timeout = null
+      func(...args)
+    }
+    if (timeout) {
+      clearTimeout(timeout)
+    }
+    timeout = setTimeout(later, wait)
+  }
+}
+
 /**
  * Registers socket event handlers for cost analytics updates.
  * Listens to time entry events (timer start/stop/pause/resume) and refreshes live cost data.
@@ -10,11 +28,17 @@ export function registerCostAnalyticsHandlers(
   socket: Socket,
   eventHandlers: Map<string, (...args: unknown[]) => void>
 ): void {
-  // Handler to refresh live cost data when any timer event occurs
-  const refreshLiveCost = () => {
-    const store = useCostAnalyticsStore.getState()
-    store.fetchLiveData()
-  }
+  // Debounced handler - batches rapid socket events (300ms debounce)
+  const refreshLiveCostDebounced = debounce(() => {
+    const currentStore = useCostAnalyticsStore.getState()
+    // Only use silent fetch if we already have data (not initial load)
+    if (currentStore.liveData) {
+      currentStore.fetchLiveDataSilent()
+    } else {
+      // Initial load - use regular fetch
+      currentStore.fetchLiveData()
+    }
+  }, 300)
 
   // Listen to all timer-related events that affect live costs
   const timerEvents = [
@@ -25,8 +49,8 @@ export function registerCostAnalyticsHandlers(
   ]
 
   timerEvents.forEach((event) => {
-    socket.on(event, refreshLiveCost)
-    eventHandlers.set(`cost-analytics:${event}`, refreshLiveCost)
+    socket.on(event, refreshLiveCostDebounced)
+    eventHandlers.set(`cost-analytics:${event}`, refreshLiveCostDebounced)
   })
 }
 

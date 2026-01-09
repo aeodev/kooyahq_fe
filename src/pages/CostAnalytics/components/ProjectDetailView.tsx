@@ -2,6 +2,7 @@ import { BarChart3, RefreshCw, Activity, AlertCircle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
+import { convertFromPHPSync } from '@/utils/currency-converter'
 import type { ProjectCostSummary, CurrencyConfig } from '@/types/cost-analytics'
 import { ErrorState } from './EmptyStates'
 import { SummaryStatsSkeleton, TableSkeleton } from './Skeletons'
@@ -71,7 +72,7 @@ export function ProjectDetailView({
                 <p className="text-xs text-muted-foreground mb-1">Avg Rate</p>
                 <p className="text-xl font-bold text-foreground">
                   {currencyConfig.symbol}
-                  {projectDetail.avgHourlyRate.toFixed(0)}/hr
+                  {convertFromPHPSync(projectDetail.avgHourlyRate, currencyConfig.code).toFixed(0)}/hr
                 </p>
               </div>
             </div>
@@ -95,7 +96,7 @@ export function ProjectDetailView({
                         <td className="py-2 px-3 text-sm text-foreground">{dev.userName}</td>
                         <td className="py-2 px-3 text-right text-sm text-muted-foreground">
                           {currencyConfig.symbol}
-                          {dev.hourlyRate.toFixed(0)}/hr
+                          {convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(0)}/hr
                         </td>
                         <td className="py-2 px-3 text-right text-sm text-foreground">
                           {formatHours(dev.hours)}

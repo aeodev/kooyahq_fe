@@ -561,10 +561,21 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       updates.birthday = editData.birthday ? editData.birthday : undefined
     }
     // Handle monthly salary update
-    const newSalary = editData.monthlySalary ? parseFloat(editData.monthlySalary) : 0
-    const currentSalary = editingEmployee.monthlySalary || 0
-    if (newSalary !== currentSalary) {
-      updates.monthlySalary = newSalary
+    if (editData.monthlySalary) {
+      const salaryAmount = parseFloat(editData.monthlySalary)
+      if (!isNaN(salaryAmount) && salaryAmount >= 0) {
+        const currentSalary = editingEmployee.monthlySalary || 0
+        // Only update if the amount differs from current (allowing for small floating point differences)
+        if (Math.abs(salaryAmount - currentSalary) > 0.01) {
+          updates.monthlySalary = salaryAmount
+        }
+      }
+    } else {
+      // If salary is cleared, set to 0
+      const currentSalary = editingEmployee.monthlySalary || 0
+      if (currentSalary !== 0) {
+        updates.monthlySalary = 0
+      }
     }
     const currentPerms = Array.isArray(editingEmployee.permissions) ? editingEmployee.permissions : []
     const newPerms = Array.isArray(editData.permissions) ? editData.permissions : []
@@ -690,7 +701,16 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     if (!validateCreateUserForm()) return
 
     const normalizedPerms = normalizePermissionsWithDependencies(createUserData.permissions)
-    const monthlySalary = createUserData.monthlySalary ? parseFloat(createUserData.monthlySalary) : undefined
+    
+    // Parse salary if provided
+    let monthlySalary: number | undefined = undefined
+    if (createUserData.monthlySalary) {
+      const salaryAmount = parseFloat(createUserData.monthlySalary)
+      if (!isNaN(salaryAmount) && salaryAmount >= 0) {
+        monthlySalary = salaryAmount
+      }
+    }
+    
     const result = await createUser({
       name: createUserData.name.trim(),
       email: createUserData.email.trim(),
@@ -1102,16 +1122,21 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
               </div>
               <div className="space-y-2">
                 <Label htmlFor="create-monthlySalary">Monthly Salary</Label>
-                <Input
-                  id="create-monthlySalary"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={createUserData.monthlySalary}
-                  onChange={(e) => setCreateUserData({ ...createUserData, monthlySalary: e.target.value })}
-                  placeholder="e.g., 50000"
-                />
-                <p className="text-xs text-muted-foreground">Used for cost analytics (hourly rate = salary / 160hrs)</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    ₱
+                  </span>
+                  <Input
+                    id="create-monthlySalary"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={createUserData.monthlySalary}
+                    onChange={(e) => setCreateUserData({ ...createUserData, monthlySalary: e.target.value })}
+                    placeholder="e.g., 50000"
+                    className="pl-8"
+                  />
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">
                 Manage/update permissions automatically keep the matching view permission on.
@@ -1366,16 +1391,21 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-monthlySalary">Monthly Salary</Label>
-                  <Input
-                    id="edit-monthlySalary"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={editData.monthlySalary}
-                    onChange={(e) => setEditData({ ...editData, monthlySalary: e.target.value })}
-                    placeholder="e.g., 50000"
-                  />
-                  <p className="text-xs text-muted-foreground">Used for cost analytics (hourly rate = salary / 160hrs)</p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      ₱
+                    </span>
+                    <Input
+                      id="edit-monthlySalary"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editData.monthlySalary}
+                      onChange={(e) => setEditData({ ...editData, monthlySalary: e.target.value })}
+                      placeholder="e.g., 50000"
+                      className="pl-8"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">

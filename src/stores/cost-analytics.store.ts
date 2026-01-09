@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_LIVE_COST, GET_COST_SUMMARY, GET_PROJECT_LIST, GET_PROJECT_DETAIL } from '@/utils/api.routes'
 import { normalizeError } from '@/utils/error'
+import { convertFromPHPSync } from '@/utils/currency-converter'
 import type { LiveCostData, CostSummaryData, CurrencyConfig, CURRENCIES, ProjectCostSummary } from '@/types/cost-analytics'
 
 type CostAnalyticsState = {
@@ -38,6 +39,7 @@ type CostAnalyticsState = {
 
 type CostAnalyticsActions = {
   fetchLiveData: () => Promise<void>
+  fetchLiveDataSilent: () => Promise<void>
   fetchSummaryData: (startDate: string, endDate: string) => Promise<void>
   fetchProjectList: () => Promise<void>
   fetchProjectDetail: (projectName: string, startDate: string, endDate: string) => Promise<void>
@@ -94,6 +96,22 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
             : normalized.message || 'Failed to fetch live cost data'
           console.error('[Cost Analytics] Failed to fetch live data:', err)
           set({ liveError: message, liveLoading: false })
+        }
+      },
+
+      fetchLiveDataSilent: async () => {
+        try {
+          const response = await axiosInstance.get<{ status: string; data: LiveCostData }>(
+            GET_LIVE_COST()
+          )
+          set({
+            liveData: response.data.data,
+            lastLiveUpdate: new Date().toISOString(),
+            // Don't set liveLoading - keep existing state
+          })
+        } catch (err) {
+          // Silently fail or log only - don't show error state for socket updates
+          console.error('[Cost Analytics] Silent fetch failed:', err)
         }
       },
 
@@ -255,22 +273,32 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
 )
 
 // Helper to format currency
+// Converts PHP amounts to target currency before formatting
 export function formatCurrency(amount: number, currencyConfig: CurrencyConfig): string {
+  // Convert from PHP to target currency
+  const convertedAmount = convertFromPHPSync(amount, currencyConfig.code)
+  
   return new Intl.NumberFormat(currencyConfig.locale, {
     style: 'currency',
     currency: currencyConfig.code,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount)
+  }).format(convertedAmount)
 }
 
 // Helper to format compact currency (for large numbers)
+// Converts PHP amounts to target currency before formatting
 export function formatCompactCurrency(amount: number, currencyConfig: CurrencyConfig): string {
-  if (amount >= 1000000) {
-    return `${currencyConfig.symbol}${(amount / 1000000).toFixed(2)}M`
+  // Convert from PHP to target currency
+  const convertedAmount = convertFromPHPSync(amount, currencyConfig.code)
+  
+  if (convertedAmount >= 1000000) {
+    return `${currencyConfig.symbol}${(convertedAmount / 1000000).toFixed(2)}M`
   }
-  if (amount >= 1000) {
-    return `${currencyConfig.symbol}${(amount / 1000).toFixed(2)}K`
+  if (convertedAmount >= 1000) {
+    return `${currencyConfig.symbol}${(convertedAmount / 1000).toFixed(2)}K`
   }
+  // For amounts < 1000, use formatCurrency (it will convert, but we already converted)
+  // Pass original amount to avoid double conversion
   return formatCurrency(amount, currencyConfig)
 }

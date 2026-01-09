@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency, formatCompactCurrency } from '@/stores/cost-analytics.store'
+import { convertFromPHPSync } from '@/utils/currency-converter'
 import { getChartColor } from '@/utils/cost-analytics.utils'
 import { CHART_COLORS, MAX_COMPARE_PROJECTS } from '@/constants/cost-analytics.constants'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
@@ -123,7 +124,7 @@ export function ProjectComparisonView({
                           <p className="text-xs text-muted-foreground">Avg Rate</p>
                           <p className="text-sm font-medium text-foreground">
                             {currencyConfig.symbol}
-                            {project.avgHourlyRate.toFixed(0)}/hr
+                            {convertFromPHPSync(project.avgHourlyRate, currencyConfig.code).toFixed(0)}/hr
                           </p>
                         </div>
                       </div>

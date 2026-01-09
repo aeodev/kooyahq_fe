@@ -1,9 +1,11 @@
+import { memo } from 'react'
 import { Flame, DollarSign, Clock, Users, Activity } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LivePulse } from './LivePulse'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
+import { convertFromPHPSync } from '@/utils/currency-converter'
 import type { LiveCostData, CurrencyConfig } from '@/types/cost-analytics'
 import { NoDataState } from './EmptyStates'
 import { LiveStatsSkeleton, ProjectCardsSkeleton, TableSkeleton } from './Skeletons'
@@ -14,16 +16,16 @@ interface LiveCostTrackingProps {
   isLoading: boolean
 }
 
-export function LiveCostTracking({ liveData, currencyConfig, isLoading }: LiveCostTrackingProps) {
+export const LiveCostTracking = memo(function LiveCostTracking({ liveData, currencyConfig, isLoading }: LiveCostTrackingProps) {
   return (
     <Card className="border-border/50 bg-card/50">
       <div className="p-4 border-b border-border/50">
         <div className="flex items-center gap-2">
           <LivePulse />
           <h2 className="text-sm font-semibold text-foreground">Live Cost Tracking</h2>
-          <span className="text-xs text-muted-foreground">
+          {/* <span className="text-xs text-muted-foreground">
             {liveData?.timestamp ? new Date(liveData.timestamp).toLocaleTimeString() : '--'}
-          </span>
+          </span> */}
         </div>
       </div>
 
@@ -41,7 +43,7 @@ export function LiveCostTracking({ liveData, currencyConfig, isLoading }: LiveCo
                 </div>
                 <p className="text-xl font-bold text-foreground">
                   {currencyConfig.symbol}
-                  {(liveData?.totalBurnRate || 0).toFixed(2)}
+                  {convertFromPHPSync(liveData?.totalBurnRate || 0, currencyConfig.code).toFixed(2)}
                   <span className="text-sm text-muted-foreground font-normal">/hr</span>
                 </p>
               </div>
@@ -99,7 +101,7 @@ export function LiveCostTracking({ liveData, currencyConfig, isLoading }: LiveCo
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {currencyConfig.symbol}
-                            {project.burnRate.toFixed(0)}/hr
+                            {convertFromPHPSync(project.burnRate, currencyConfig.code).toFixed(0)}/hr
                           </span>
                         </div>
                       </div>
@@ -155,7 +157,7 @@ export function LiveCostTracking({ liveData, currencyConfig, isLoading }: LiveCo
                           </td>
                           <td className="py-2 px-3 text-right text-sm text-muted-foreground">
                             {currencyConfig.symbol}
-                            {dev.hourlyRate.toFixed(0)}/hr
+                            {convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(0)}/hr
                           </td>
                           <td className="py-2 px-3 text-right text-sm text-foreground">
                             {formatHours(dev.activeMinutes / 60)}
@@ -177,4 +179,4 @@ export function LiveCostTracking({ liveData, currencyConfig, isLoading }: LiveCo
       </CardContent>
     </Card>
   )
-}
+})

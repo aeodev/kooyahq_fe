@@ -14,6 +14,7 @@ import { LIVE_DATA_POLL_INTERVAL } from '@/constants/cost-analytics.constants'
 import { CURRENCIES } from '@/types/cost-analytics'
 import type { ViewMode } from '@/types/cost-analytics'
 import { filterSummaryDataByDevelopers } from '@/utils/cost-analytics.utils'
+import { convertFromPHP } from '@/utils/currency-converter'
 import { CostAnalyticsHeader } from './components/CostAnalyticsHeader'
 import { ProjectFilter } from './components/ProjectFilter'
 import { LiveCostTracking } from './components/LiveCostTracking'
@@ -102,6 +103,17 @@ function CostAnalyticsContent() {
     endDate,
   })
 
+  // Pre-fetch exchange rates when currency changes
+  useEffect(() => {
+    // Pre-fetch rates by doing a conversion (this will cache the rates)
+    // Only fetch if not PHP (no conversion needed for PHP)
+    if (currency !== 'PHP') {
+      convertFromPHP(1, currency).catch((error) => {
+        console.warn('[Cost Analytics] Failed to pre-fetch exchange rates:', error)
+      })
+    }
+  }, [currency])
+
   // Socket integration for real-time updates
   useEffect(() => {
     if (socket && socketConnected) {
@@ -166,6 +178,9 @@ function CostAnalyticsContent() {
   }, [compareData, selectedDevelopers])
 
   const isLoading = liveLoading || summaryLoading
+
+  // Track if we've loaded data at least once
+  const hasLoadedOnce = liveData !== null
 
   return (
     <section className="space-y-6">
@@ -249,7 +264,7 @@ function CostAnalyticsContent() {
       )}
 
       {/* Live Stats Section */}
-      <LiveCostTracking liveData={liveData} currencyConfig={currencyConfig} isLoading={liveLoading} />
+      <LiveCostTracking liveData={liveData} currencyConfig={currencyConfig} isLoading={liveLoading && !hasLoadedOnce} />
 
       {/* Historical Analysis */}
       <HistoricalAnalysis
