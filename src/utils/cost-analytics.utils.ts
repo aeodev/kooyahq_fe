@@ -27,6 +27,37 @@ export function getChartColor(index: number, colors: readonly string[]): string 
  */
 import type { CostSummaryData, ProjectCostSummary } from '@/types/cost-analytics'
 
+/**
+ * Filter a single project's developers and recalculate totals
+ */
+function filterProjectDevelopers(
+  project: ProjectCostSummary,
+  developerIds: string[]
+): ProjectCostSummary | null {
+  if (developerIds.length === 0) return project
+
+  const filteredDevelopers = project.developers.filter((dev) =>
+    developerIds.includes(dev.userId)
+  )
+
+  if (filteredDevelopers.length === 0) return null
+
+  const filteredHours = filteredDevelopers.reduce((sum, dev) => sum + dev.hours, 0)
+  const filteredCost = filteredDevelopers.reduce((sum, dev) => sum + dev.cost, 0)
+  const avgHourlyRate = filteredHours > 0 ? filteredCost / filteredHours : project.avgHourlyRate
+
+  return {
+    ...project,
+    developers: filteredDevelopers,
+    totalHours: filteredHours,
+    totalCost: filteredCost,
+    avgHourlyRate,
+  }
+}
+
+/**
+ * Filter summary data by selected developer IDs
+ */
 export function filterSummaryDataByDevelopers(
   data: CostSummaryData,
   developerIds: string[]
@@ -35,26 +66,7 @@ export function filterSummaryDataByDevelopers(
 
   // Filter project costs
   const filteredProjectCosts = data.projectCosts
-    .map((project) => {
-      const filteredDevelopers = project.developers.filter((dev) =>
-        developerIds.includes(dev.userId)
-      )
-
-      if (filteredDevelopers.length === 0) return null
-
-      const filteredHours = filteredDevelopers.reduce((sum, dev) => sum + dev.hours, 0)
-      const filteredCost = filteredDevelopers.reduce((sum, dev) => sum + dev.cost, 0)
-      const avgHourlyRate =
-        filteredHours > 0 ? filteredCost / filteredHours : project.avgHourlyRate
-
-      return {
-        ...project,
-        developers: filteredDevelopers,
-        totalHours: filteredHours,
-        totalCost: filteredCost,
-        avgHourlyRate,
-      }
-    })
+    .map((project) => filterProjectDevelopers(project, developerIds))
     .filter((p): p is ProjectCostSummary => p !== null)
 
   // Filter top performers
@@ -73,4 +85,28 @@ export function filterSummaryDataByDevelopers(
     totalCost,
     totalHours,
   }
+}
+
+/**
+ * Filter project detail by selected developer IDs
+ */
+export function filterProjectDetailByDevelopers(
+  projectDetail: ProjectCostSummary | null,
+  developerIds: string[]
+): ProjectCostSummary | null {
+  if (!projectDetail || developerIds.length === 0) return projectDetail
+  return filterProjectDevelopers(projectDetail, developerIds)
+}
+
+/**
+ * Filter compare data by selected developer IDs
+ */
+export function filterCompareDataByDevelopers(
+  compareData: ProjectCostSummary[],
+  developerIds: string[]
+): ProjectCostSummary[] {
+  if (developerIds.length === 0) return compareData
+  return compareData
+    .map((project) => filterProjectDevelopers(project, developerIds))
+    .filter((p): p is ProjectCostSummary => p !== null)
 }

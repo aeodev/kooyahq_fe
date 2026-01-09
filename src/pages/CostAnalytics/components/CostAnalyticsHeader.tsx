@@ -1,4 +1,4 @@
-import { RefreshCw, Download, FileDown } from 'lucide-react'
+import { Download, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -86,71 +86,67 @@ export function CostAnalyticsHeader({
 
   return (
     <header className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
+      <div className="flex flex-col gap-4">
+        <div className="space-y-1.5">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Cost Analytics</h1>
           <p className="text-sm text-muted-foreground">Real-time business spending insights</p>
         </div>
 
-        <div className="flex items-center gap-2">
-        <select
-          value={currency}
-          onChange={(e) => onCurrencyChange(e.target.value as keyof typeof CURRENCIES)}
-          className="h-9 px-3 rounded-lg border border-border bg-background text-sm"
-        >
-          {Object.entries(CURRENCIES).map(([code, config]) => (
-            <option key={code} value={code}>
-              {config.symbol} {code}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={currency}
+            onChange={(e) => onCurrencyChange(e.target.value as keyof typeof CURRENCIES)}
+            className="h-9 px-3 rounded-lg border border-border bg-background text-sm font-medium min-w-[100px]"
+          >
+            {Object.entries(CURRENCIES).map(([code, config]) => (
+              <option key={code} value={code}>
+                {config.symbol} {code}
+              </option>
+            ))}
+          </select>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={!canExportSummary && !canExportLive}>
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {canExportSummary && (
-              <DropdownMenuItem onClick={handleExportSummary}>
-                <FileDown className="h-4 w-4 mr-2" />
-                Export Summary (CSV)
-              </DropdownMenuItem>
-            )}
-            {canExportProjectDetail && (
-              <DropdownMenuItem onClick={handleExportProjectDetail}>
-                <FileDown className="h-4 w-4 mr-2" />
-                Export Project Detail (CSV)
-              </DropdownMenuItem>
-            )}
-            {canExportComparison && (
-              <DropdownMenuItem onClick={handleExportComparison}>
-                <FileDown className="h-4 w-4 mr-2" />
-                Export Comparison (CSV)
-              </DropdownMenuItem>
-            )}
-            {canExportLive && (
-              <DropdownMenuItem onClick={handleExportLiveData}>
-                <FileDown className="h-4 w-4 mr-2" />
-                Export Live Data (CSV)
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-          <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={!canExportSummary && !canExportLive} className="gap-2">
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canExportSummary && (
+                <DropdownMenuItem onClick={handleExportSummary}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Export Summary (CSV)
+                </DropdownMenuItem>
+              )}
+              {canExportProjectDetail && (
+                <DropdownMenuItem onClick={handleExportProjectDetail}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Export Project Detail (CSV)
+                </DropdownMenuItem>
+              )}
+              {canExportComparison && (
+                <DropdownMenuItem onClick={handleExportComparison}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Export Comparison (CSV)
+                </DropdownMenuItem>
+              )}
+              {canExportLive && (
+                <DropdownMenuItem onClick={handleExportLiveData}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Export Live Data (CSV)
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as 'projects' | 'developers')}>
-          <TabsList>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="developers">Developers</TabsTrigger>
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="projects" className="flex-1 sm:flex-none">Projects</TabsTrigger>
+            <TabsTrigger value="developers" className="flex-1 sm:flex-none">Developers</TabsTrigger>
           </TabsList>
         </Tabs>
         <LastUpdated timestamp={lastUpdated} />

@@ -1,13 +1,22 @@
 import { useState, useMemo } from 'react'
 import { useCostAnalyticsStore } from '@/stores/cost-analytics.store'
+import { useCostAnalyticsContext } from '@/contexts/CostAnalyticsContext'
 import type { CurrencyConfig, TopPerformer } from '@/types/cost-analytics'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { HistoricalAnalysis } from '../shared/HistoricalAnalysis'
 import { DeveloperProfile } from './DeveloperProfile'
-import { DeveloperFiltersComponent, type DeveloperFilters } from './shared/DeveloperFilters'
+import { type DeveloperFilters } from './shared/DeveloperFilters'
 import { exportDevelopersToCSV } from '@/utils/developer-export.utils'
-import { Download } from 'lucide-react'
+import { Download, Search, Filter, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { QuickStats } from './overview/QuickStats'
 import { RecognitionSection } from './overview/RecognitionSection'
 import { DeveloperTrends } from './overview/DeveloperTrends'
@@ -21,26 +30,22 @@ import { SkillsDiscovery } from './SkillsDiscovery'
 import { NoDataState } from '../EmptyStates'
 
 interface DeveloperSummaryViewProps {
-  startDate: string
-  endDate: string
-  onStartDateChange: (date: string) => void
-  onEndDateChange: (date: string) => void
-  onQuickRange: (days: number) => void
   currencyConfig: CurrencyConfig
   hasLoadedOnce: boolean
   onRefresh: () => void
 }
 
 export function DeveloperSummaryView({
-  startDate,
-  endDate,
-  onStartDateChange,
-  onEndDateChange,
-  onQuickRange,
   currencyConfig,
   hasLoadedOnce,
   onRefresh,
 }: DeveloperSummaryViewProps) {
+  const { startDate, endDate, setStartDate, setEndDate, quickRange } = useCostAnalyticsContext()
+
+  // Alias for HistoricalAnalysis component compatibility
+  const onStartDateChange = setStartDate
+  const onEndDateChange = setEndDate
+  const onQuickRange = quickRange
   const {
     liveData,
     liveLoading,
@@ -123,29 +128,76 @@ export function DeveloperSummaryView({
         onClose={handleCloseProfile}
       />
 
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <DeveloperFiltersComponent
-          topPerformers={summaryData.topPerformers}
-          summaryData={summaryData}
-          onFilterChange={setFilters}
-        />
+      <div className="flex flex-row gap-2 items-center overflow-x-auto">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[120px]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search developers..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="pl-10 h-10"
+          />
+        </div>
+
+        {/* Project Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2 h-10 shrink-0">
+              <Filter className="h-4 w-4" />
+              <span className="hidden sm:inline">Project</span>
+              {filters.project && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {filters.project.length > 8 ? filters.project.slice(0, 8) + '...' : filters.project}
+                </Badge>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setFilters({ ...filters, project: null })}>
+              All Projects
+            </DropdownMenuItem>
+            {summaryData?.projectCosts.map((p) => p.project).map((project) => (
+              <DropdownMenuItem
+                key={project}
+                onClick={() => setFilters({ ...filters, project })}
+              >
+                {project}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Export Button */}
         <Button
           variant="outline"
           size="sm"
           onClick={() => exportDevelopersToCSV(filteredPerformers, summaryData, currencyConfig)}
+          className="gap-2 h-10 shrink-0"
         >
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">Export CSV</span>
+          <span className="sm:hidden">Export</span>
         </Button>
+
+        {/* Clear Filters */}
+        {filters.project && (
+          <Button variant="ghost" size="sm" onClick={() => setFilters({ ...filters, project: null })} className="gap-1.5 h-10 shrink-0">
+            <X className="h-4 w-4" />
+            <span className="hidden sm:inline">Clear</span>
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
-          <TabsTrigger value="individual">Individual</TabsTrigger>
-          <TabsTrigger value="discovery">Discovery</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-full sm:w-auto min-w-full sm:min-w-0">
+            <TabsTrigger value="overview" className="flex-1 sm:flex-none px-4 text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="team" className="flex-1 sm:flex-none px-4 text-xs sm:text-sm">Team</TabsTrigger>
+            <TabsTrigger value="individual" className="flex-1 sm:flex-none px-4 text-xs sm:text-sm">Individual</TabsTrigger>
+            <TabsTrigger value="discovery" className="flex-1 sm:flex-none px-4 text-xs sm:text-sm">Discovery</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
           <QuickStats

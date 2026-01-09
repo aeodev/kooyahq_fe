@@ -73,27 +73,27 @@ export function DeveloperFiltersComponent({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center flex-1">
       {/* Search */}
-      <div className="relative flex-1 max-w-md">
+      <div className="relative flex-1 w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search developers..."
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          className="pl-10"
+          className="pl-10 h-10"
         />
       </div>
 
       {/* Project Filter */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Filter className="h-3 w-3 mr-2" />
-            Project
+          <Button variant="outline" size="sm" className="gap-2 h-10">
+            <Filter className="h-4 w-4" />
+            <span className="hidden sm:inline">Project</span>
             {filters.project && (
-              <Badge variant="secondary" className="ml-2">
-                {filters.project}
+              <Badge variant="secondary" className="ml-1 text-xs">
+                {filters.project.length > 10 ? filters.project.slice(0, 10) + '...' : filters.project}
               </Badge>
             )}
           </Button>
@@ -115,21 +115,23 @@ export function DeveloperFiltersComponent({
 
       {/* Clear Filters */}
       {activeFiltersCount > 0 && (
-        <Button variant="ghost" size="sm" onClick={clearFilters}>
-          <X className="h-3 w-3 mr-1" />
-          Clear ({activeFiltersCount})
+        <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5 h-10">
+          <X className="h-4 w-4" />
+          <span className="text-xs sm:text-sm">Clear</span>
         </Button>
       )}
 
-      {/* Active Filter Badges */}
+      {/* Active Filter Badges - Mobile */}
       {filters.project && (
-        <Badge
-          variant="secondary"
-          className="cursor-pointer"
-          onClick={() => setFilters({ ...filters, project: null })}
-        >
-          Project: {filters.project} ×
-        </Badge>
+        <div className="sm:hidden w-full">
+          <Badge
+            variant="secondary"
+            className="cursor-pointer text-xs"
+            onClick={() => setFilters({ ...filters, project: null })}
+          >
+            Project: {filters.project} ×
+          </Badge>
+        </div>
       )}
     </div>
   )

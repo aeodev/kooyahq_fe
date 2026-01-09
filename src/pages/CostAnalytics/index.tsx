@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useRef } from 'react'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useCostAnalyticsStore } from '@/stores/cost-analytics.store'
 import { useSocketStore } from '@/stores/socket.store'
@@ -6,16 +6,16 @@ import { registerCostAnalyticsHandlers, unregisterCostAnalyticsHandlers } from '
 import { usePolling } from '@/composables/usePolling'
 import { useCostAnalyticsData } from '@/hooks/cost-analytics/useCostAnalyticsData'
 import { useCostAnalyticsActions } from '@/hooks/cost-analytics/useCostAnalyticsActions'
-import { getDateRange } from '@/utils/date'
+import { useCostAnalyticsContext } from '@/contexts/CostAnalyticsContext'
 import { LIVE_DATA_POLL_INTERVAL } from '@/constants/cost-analytics.constants'
 import { CURRENCIES } from '@/types/cost-analytics'
-import type { ViewMode } from '@/types/cost-analytics'
 import { convertFromPHP } from '@/utils/currency-converter'
 import { CostAnalyticsHeader } from './components/CostAnalyticsHeader'
 import { ProjectSummaryView } from './components/projects/ProjectSummaryView'
 import { DeveloperSummaryView } from './components/developers/DeveloperSummaryView'
 import { ErrorState } from './components/EmptyStates'
 import { CostAnalyticsErrorBoundary } from '@/components/cost-analytics/CostAnalyticsErrorBoundary'
+import { CostAnalyticsProvider } from '@/contexts/CostAnalyticsContext'
 
 function CostAnalyticsContent() {
   const {
@@ -25,55 +25,33 @@ function CostAnalyticsContent() {
     summaryData,
     summaryLoading,
     summaryError,
-    projectList,
-    projectListLoading,
-    selectedProject,
     projectDetail,
-    projectDetailLoading,
-    projectDetailError,
-    compareProjects,
     compareData,
-    compareLoading,
     currency,
-    fetchLiveData,
     setCurrency,
+    lastUpdated,
+    hasLoadedOnce,
   } = useCostAnalyticsStore()
+
+  const {
+    startDate,
+    endDate,
+    viewMode,
+    compareProjects,
+    selectedProject,
+    activeTab,
+    setActiveTab,
+  } = useCostAnalyticsContext()
 
   const currencyConfig = CURRENCIES[currency]
 
   // Socket for real-time updates
   const socket = useSocketStore((state) => state.socket)
   const socketConnected = useSocketStore((state) => state.connected)
-  const eventHandlersRef = useMemo(() => new Map<string, (...args: unknown[]) => void>(), [])
+  const eventHandlersRef = useRef(new Map<string, (...args: unknown[]) => void>())
 
-  const [startDate, setStartDate] = useState(() => {
-    const { start } = getDateRange(30)
-    return start
-  })
-  const [endDate, setEndDate] = useState(() => {
-    const { end } = getDateRange(0)
-    return end
-  })
-
-  // View mode: 'all' | 'single' | 'compare'
-  const [viewMode, setViewMode] = useState<ViewMode>('all')
-
-  // Developer filter state
-  const [selectedDevelopers, setSelectedDevelopers] = useState<string[]>([])
-
-  // Active tab state
-  const [activeTab, setActiveTab] = useState<'projects' | 'developers'>('projects')
-
-  // Use polling composable for live data (respects visibility)
-  usePolling({
-    callback: fetchLiveData,
-    interval: LIVE_DATA_POLL_INTERVAL,
-    enabled: true,
-    pauseOnHidden: true,
-  })
-
-  // Use data fetching hook
-  useCostAnalyticsData({
+  // Get fetchLiveData from data hook for polling
+  const { fetchLiveData: fetchLiveDataFromHook } = useCostAnalyticsData({
     startDate,
     endDate,
     viewMode,
@@ -89,11 +67,14 @@ function CostAnalyticsContent() {
     handleEnterCompareMode,
     handleExitCompareMode,
     handleRefresh,
-  } = useCostAnalyticsActions({
-    viewMode,
-    setViewMode,
-    startDate,
-    endDate,
+  } = useCostAnalyticsActions()
+
+  // Use polling composable for live data (respects visibility)
+  usePolling({
+    callback: fetchLiveDataFromHook,
+    interval: LIVE_DATA_POLL_INTERVAL,
+    enabled: true,
+    pauseOnHidden: true,
   })
 
   // Pre-fetch exchange rates when currency changes
@@ -110,28 +91,17 @@ function CostAnalyticsContent() {
   // Socket integration for real-time updates
   useEffect(() => {
     if (socket && socketConnected) {
-      registerCostAnalyticsHandlers(socket, eventHandlersRef)
+      registerCostAnalyticsHandlers(socket, eventHandlersRef.current)
     }
 
     return () => {
       if (socket) {
-        unregisterCostAnalyticsHandlers(socket, eventHandlersRef)
+        unregisterCostAnalyticsHandlers(socket, eventHandlersRef.current)
       }
     }
-  }, [socket, socketConnected, eventHandlersRef])
-
-  const quickRange = (days: number) => {
-    const range = getDateRange(days)
-    setStartDate(range.start)
-    setEndDate(range.end)
-  }
+  }, [socket, socketConnected])
 
   const isLoading = liveLoading || summaryLoading
-
-  // Track if we've loaded data at least once
-  const hasLoadedOnce = liveData !== null
-
-  const { lastUpdated } = useCostAnalyticsStore()
 
   return (
     <section className="space-y-6">
@@ -164,14 +134,6 @@ function CostAnalyticsContent() {
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'projects' | 'developers')}>
         <TabsContent value="projects" className="mt-0">
           <ProjectSummaryView
-            startDate={startDate}
-            endDate={endDate}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
-            onQuickRange={quickRange}
-            viewMode={viewMode}
-            selectedDevelopers={selectedDevelopers}
-            setSelectedDevelopers={setSelectedDevelopers}
             currencyConfig={currencyConfig}
             hasLoadedOnce={hasLoadedOnce}
             onSelectProject={handleSelectProject}
@@ -184,11 +146,6 @@ function CostAnalyticsContent() {
         </TabsContent>
         <TabsContent value="developers" className="mt-0">
           <DeveloperSummaryView
-            startDate={startDate}
-            endDate={endDate}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
-            onQuickRange={quickRange}
             currencyConfig={currencyConfig}
             hasLoadedOnce={hasLoadedOnce}
             onRefresh={handleRefresh}
@@ -202,7 +159,9 @@ function CostAnalyticsContent() {
 export function CostAnalytics() {
   return (
     <CostAnalyticsErrorBoundary>
-      <CostAnalyticsContent />
+      <CostAnalyticsProvider>
+        <CostAnalyticsContent />
+      </CostAnalyticsProvider>
     </CostAnalyticsErrorBoundary>
   )
 }

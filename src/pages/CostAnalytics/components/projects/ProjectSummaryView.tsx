@@ -4,8 +4,13 @@ import { X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useCostAnalyticsStore } from '@/stores/cost-analytics.store'
-import type { ViewMode, CurrencyConfig } from '@/types/cost-analytics'
-import { filterSummaryDataByDevelopers } from '@/utils/cost-analytics.utils'
+import { useCostAnalyticsContext } from '@/contexts/CostAnalyticsContext'
+import type { CurrencyConfig } from '@/types/cost-analytics'
+import {
+  filterSummaryDataByDevelopers,
+  filterProjectDetailByDevelopers,
+  filterCompareDataByDevelopers,
+} from '@/utils/cost-analytics.utils'
 import { ProjectFilter } from './ProjectFilter'
 import { LiveCostTracking } from '../shared/LiveCostTracking'
 import { HistoricalAnalysis } from '../shared/HistoricalAnalysis'
@@ -13,17 +18,9 @@ import { CostCharts } from '../CostCharts'
 import { ProjectDetailView } from './ProjectDetailView'
 import { ProjectComparisonView } from './ProjectComparisonView'
 import { DeveloperFilter } from '../developers/DeveloperFilter'
-import { ErrorState, NoDataState } from '../EmptyStates'
+import { NoDataState } from '../EmptyStates'
 
 interface ProjectSummaryViewProps {
-  startDate: string
-  endDate: string
-  onStartDateChange: (date: string) => void
-  onEndDateChange: (date: string) => void
-  onQuickRange: (days: number) => void
-  viewMode: ViewMode
-  selectedDevelopers: string[]
-  setSelectedDevelopers: (developers: string[]) => void
   currencyConfig: CurrencyConfig
   hasLoadedOnce: boolean
   onSelectProject: (project: string) => void
@@ -35,14 +32,6 @@ interface ProjectSummaryViewProps {
 }
 
 export function ProjectSummaryView({
-  startDate,
-  endDate,
-  onStartDateChange,
-  onEndDateChange,
-  onQuickRange,
-  viewMode,
-  selectedDevelopers,
-  setSelectedDevelopers,
   currencyConfig,
   hasLoadedOnce,
   onSelectProject,
@@ -55,10 +44,8 @@ export function ProjectSummaryView({
   const {
     liveData,
     liveLoading,
-    liveError,
     summaryData,
     summaryLoading,
-    summaryError,
     projectList,
     projectListLoading,
     selectedProject,
@@ -70,63 +57,55 @@ export function ProjectSummaryView({
     compareLoading,
   } = useCostAnalyticsStore()
 
-  // Filter data by selected developers
+  const {
+    startDate,
+    endDate,
+    setStartDate,
+    setEndDate,
+    quickRange,
+    viewMode,
+    selectedDevelopers,
+    setSelectedDevelopers,
+  } = useCostAnalyticsContext()
+
+  // Alias for HistoricalAnalysis component compatibility
+  const onStartDateChange = setStartDate
+  const onEndDateChange = setEndDate
+  const onQuickRange = quickRange
+
+  // Filter data by selected developers using utility functions
   const filteredSummaryData = useMemo(() => {
     if (!summaryData || selectedDevelopers.length === 0) return summaryData
     return filterSummaryDataByDevelopers(summaryData, selectedDevelopers)
   }, [summaryData, selectedDevelopers])
 
   const filteredProjectDetail = useMemo(() => {
-    if (!projectDetail || selectedDevelopers.length === 0) return projectDetail
-    const filteredDevelopers = projectDetail.developers.filter((dev) =>
-      selectedDevelopers.includes(dev.userId)
-    )
-    if (filteredDevelopers.length === 0) return null
-    const filteredHours = filteredDevelopers.reduce((sum, dev) => sum + dev.hours, 0)
-    const filteredCost = filteredDevelopers.reduce((sum, dev) => sum + dev.cost, 0)
-    return {
-      ...projectDetail,
-      developers: filteredDevelopers,
-      totalHours: filteredHours,
-      totalCost: filteredCost,
-      avgHourlyRate: filteredHours > 0 ? filteredCost / filteredHours : projectDetail.avgHourlyRate,
-    }
+    return filterProjectDetailByDevelopers(projectDetail, selectedDevelopers)
   }, [projectDetail, selectedDevelopers])
 
   const filteredCompareData = useMemo(() => {
-    if (!compareData || selectedDevelopers.length === 0) return compareData
-    return compareData
-      .map((project) => {
-        const filteredDevelopers = project.developers.filter((dev) =>
-          selectedDevelopers.includes(dev.userId)
-        )
-        if (filteredDevelopers.length === 0) return null
-        const filteredHours = filteredDevelopers.reduce((sum, dev) => sum + dev.hours, 0)
-        const filteredCost = filteredDevelopers.reduce((sum, dev) => sum + dev.cost, 0)
-        return {
-          ...project,
-          developers: filteredDevelopers,
-          totalHours: filteredHours,
-          totalCost: filteredCost,
-          avgHourlyRate: filteredHours > 0 ? filteredCost / filteredHours : project.avgHourlyRate,
-        }
-      })
-      .filter((p): p is typeof compareData[0] => p !== null)
+    return filterCompareDataByDevelopers(compareData, selectedDevelopers)
   }, [compareData, selectedDevelopers])
+
+  // Use summaryData.projectCosts or liveData as fallback if projectList is empty
+  const effectiveProjectList = useMemo(() => {
+    if (projectList.length > 0) return projectList
+    if (summaryData?.projectCosts?.length) {
+      return summaryData.projectCosts.map((pc) => pc.project)
+    }
+    // Additional fallback: extract unique projects from liveData
+    if (liveData?.activeTimers?.length) {
+      const projects = [...new Set(liveData.activeTimers.map(t => t.project).filter(Boolean))]
+      if (projects.length > 0) return projects
+    }
+    return []
+  }, [projectList, summaryData, liveData])
 
   return (
     <div className="space-y-6">
-      {/* Error Display */}
-      {(liveError || summaryError) && (
-        <ErrorState
-          message={liveError || summaryError || 'Failed to load cost data'}
-          onRetry={onRefresh}
-        />
-      )}
-
       {/* Project Filter & Compare Mode */}
       <ProjectFilter
-        projectList={projectList}
+        projectList={effectiveProjectList}
         projectListLoading={projectListLoading}
         selectedProject={selectedProject}
         viewMode={viewMode}
@@ -156,7 +135,7 @@ export function ProjectSummaryView({
             compareProjects={compareProjects}
             compareData={filteredCompareData}
             compareLoading={compareLoading}
-            projectList={projectList}
+            projectList={effectiveProjectList}
             currencyConfig={currencyConfig}
             onToggleCompareProject={onToggleCompareProject}
           />

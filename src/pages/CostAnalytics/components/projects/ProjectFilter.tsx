@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { X, GitCompare, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import type { ViewMode } from '@/types/cost-analytics'
-import { buttonScale, fadeInDown, transitionFast } from '@/utils/animations'
+import { transitionFast } from '@/utils/animations'
 
 interface ProjectFilterProps {
   projectList: string[]
@@ -86,11 +86,9 @@ export function ProjectFilter({
         {/* Project Selector */}
         <div className="flex-1" ref={dropdownRef}>
           <Label className="text-xs text-muted-foreground mb-2 block">Filter by Project</Label>
-          <motion.button
+          <button
             ref={buttonRef}
             onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
-            {...buttonScale}
-            transition={transitionFast}
             className="w-full h-10 px-3 text-left rounded-lg border border-border bg-background text-sm flex items-center justify-between hover:bg-muted/30 transition-colors"
             disabled={viewMode === 'compare'}
           >
@@ -100,7 +98,7 @@ export function ProjectFilter({
             <ChevronDown
               className={`h-4 w-4 text-muted-foreground transition-transform ${projectDropdownOpen ? 'rotate-180' : ''}`}
             />
-          </motion.button>
+          </button>
         </div>
 
         {/* Compare Mode Toggle */}
@@ -144,45 +142,37 @@ export function ProjectFilter({
       </div>
 
       {/* Dropdown Menu Portal */}
-      <AnimatePresence>
-        {projectDropdownOpen && dropdownPosition &&
-          createPortal(
-            <>
-              {/* Backdrop overlay */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={transitionFast}
-                className="fixed inset-0 z-40"
-                onClick={() => setProjectDropdownOpen(false)}
-              />
-              {/* Dropdown menu */}
-              <motion.div
-                ref={dropdownMenuRef}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                variants={fadeInDown}
-                transition={transitionFast}
-                className="fixed z-50 rounded-lg border border-border bg-popover shadow-lg max-h-64 overflow-y-auto"
-                style={{
-                  top: `${dropdownPosition.top}px`,
-                  left: `${dropdownPosition.left}px`,
-                  width: `${dropdownPosition.width}px`,
-                }}
-              >
+      {projectDropdownOpen && dropdownPosition &&
+        createPortal(
+          <>
+            {/* Backdrop overlay */}
+            <div className="fixed inset-0 z-40" onClick={() => setProjectDropdownOpen(false)} />
+            {/* Dropdown menu */}
+            <div
+              ref={dropdownMenuRef}
+              className="fixed z-50 rounded-lg border border-border bg-popover shadow-lg max-h-64 overflow-y-auto"
+              style={{
+                top: `${dropdownPosition.top}px`,
+                left: `${dropdownPosition.left}px`,
+                width: `${dropdownPosition.width}px`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 onClick={() => {
                   onClearProject()
                   setProjectDropdownOpen(false)
                 }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors text-muted-foreground"
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors ${
+                  !selectedProject ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                }`}
               >
                 All Projects
               </button>
               {projectListLoading ? (
                 <div className="px-3 py-2 text-sm text-muted-foreground">Loading...</div>
+              ) : projectList.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">No projects available</div>
               ) : (
                 projectList.map((project) => (
                   <button
@@ -196,11 +186,10 @@ export function ProjectFilter({
                   </button>
                 ))
               )}
-              </motion.div>
-            </>,
-            document.body
-          )}
-      </AnimatePresence>
+            </div>
+          </>,
+          document.body
+        )}
     </>
   )
 }

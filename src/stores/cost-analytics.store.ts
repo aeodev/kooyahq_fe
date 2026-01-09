@@ -1,8 +1,5 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import axiosInstance from '@/utils/axios.instance'
-import { GET_LIVE_COST, GET_COST_SUMMARY, GET_PROJECT_LIST, GET_PROJECT_DETAIL } from '@/utils/api.routes'
-import { normalizeError } from '@/utils/error'
 import { convertFromPHPSync } from '@/utils/currency-converter'
 import type { LiveCostData, CostSummaryData, CurrencyConfig, CURRENCIES, ProjectCostSummary } from '@/types/cost-analytics'
 
@@ -38,22 +35,47 @@ type CostAnalyticsState = {
 
   // Last updated timestamp
   lastUpdated: Date | null
+
+  // Track if data has been loaded at least once
+  hasLoadedOnce: boolean
 }
 
 type CostAnalyticsActions = {
-  fetchLiveData: () => Promise<void>
-  fetchLiveDataSilent: () => Promise<void>
-  fetchSummaryData: (startDate: string, endDate: string) => Promise<void>
-  fetchProjectList: () => Promise<void>
-  fetchProjectDetail: (projectName: string, startDate: string, endDate: string) => Promise<void>
+  // Setters for live data
+  setLiveData: (data: LiveCostData | null) => void
+  setLiveLoading: (loading: boolean) => void
+  setLiveError: (error: string | null) => void
+  
+  // Setters for summary data
+  setSummaryData: (data: CostSummaryData | null) => void
+  setSummaryLoading: (loading: boolean) => void
+  setSummaryError: (error: string | null) => void
+  
+  // Setters for project list
+  setProjectList: (projects: string[]) => void
+  setProjectListLoading: (loading: boolean) => void
+  
+  // Setters for project detail
   setSelectedProject: (project: string | null) => void
+  setProjectDetail: (detail: ProjectCostSummary | null) => void
+  setProjectDetailLoading: (loading: boolean) => void
+  setProjectDetailError: (error: string | null) => void
+  
+  // Setters for compare mode
   setCompareProjects: (projects: string[]) => void
-  fetchCompareData: (projects: string[], startDate: string, endDate: string) => Promise<void>
+  setCompareData: (data: ProjectCostSummary[]) => void
+  setCompareLoading: (loading: boolean) => void
+  
+  // Currency preference
   setCurrency: (currency: keyof typeof CURRENCIES) => void
-  updateLiveData: (data: LiveCostData) => void
+  
+  // Last updated timestamp
+  setLastUpdated: (date: Date | null) => void
+  
+  // Utility actions
   clearData: () => void
-  retryFailedRequest: (type: 'live' | 'summary' | 'projectList' | 'projectDetail') => Promise<void>
   clearErrors: () => void
+  markAsLoaded: () => void
 }
 
 type CostAnalyticsStore = CostAnalyticsState & CostAnalyticsActions
@@ -80,156 +102,60 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
       compareLoading: false,
       currency: 'PHP',
       lastUpdated: null,
+      hasLoadedOnce: false,
 
-      // Actions
-      fetchLiveData: async () => {
-        set({ liveLoading: true, liveError: null })
-        try {
-          const response = await axiosInstance.get<{ status: string; data: LiveCostData }>(
-            GET_LIVE_COST()
-          )
-          const now = new Date()
-          set({
-            liveData: response.data.data,
-            liveLoading: false,
-            lastLiveUpdate: now.toISOString(),
-            lastUpdated: now,
-          })
-        } catch (err) {
-          const normalized = normalizeError(err)
-          const message = Array.isArray(normalized.message)
-            ? normalized.message.join(', ')
-            : normalized.message || 'Failed to fetch live cost data'
-          console.error('[Cost Analytics] Failed to fetch live data:', err)
-          set({ liveError: message, liveLoading: false })
-        }
-      },
-
-      fetchLiveDataSilent: async () => {
-        try {
-          const response = await axiosInstance.get<{ status: string; data: LiveCostData }>(
-            GET_LIVE_COST()
-          )
-          const now = new Date()
-          set({
-            liveData: response.data.data,
-            lastLiveUpdate: now.toISOString(),
-            lastUpdated: now,
-            // Don't set liveLoading - keep existing state
-          })
-        } catch (err) {
-          // Silently fail or log only - don't show error state for socket updates
-          console.error('[Cost Analytics] Silent fetch failed:', err)
-        }
-      },
-
-      fetchSummaryData: async (startDate: string, endDate: string) => {
-        set({ summaryLoading: true, summaryError: null })
-        try {
-          const response = await axiosInstance.get<{ status: string; data: CostSummaryData }>(
-            GET_COST_SUMMARY(startDate, endDate)
-          )
-          const now = new Date()
-          set({
-            summaryData: response.data.data,
-            summaryLoading: false,
-            lastUpdated: now,
-          })
-        } catch (err) {
-          const normalized = normalizeError(err)
-          const message = Array.isArray(normalized.message)
-            ? normalized.message.join(', ')
-            : normalized.message || `Failed to fetch cost summary for ${startDate} to ${endDate}`
-          console.error('[Cost Analytics] Failed to fetch summary data:', err)
-          set({ summaryError: message, summaryLoading: false })
-        }
-      },
-
-      fetchProjectList: async () => {
-        set({ projectListLoading: true })
-        try {
-          const response = await axiosInstance.get<{ status: string; data: string[] }>(
-            GET_PROJECT_LIST()
-          )
-          set({ projectList: response.data.data, projectListLoading: false })
-        } catch (err) {
-          const normalized = normalizeError(err)
-          const message = Array.isArray(normalized.message)
-            ? normalized.message.join(', ')
-            : normalized.message || 'Failed to fetch project list'
-          console.error('[Cost Analytics] Failed to fetch project list:', err)
-          set({ projectListLoading: false })
-          // Note: We don't set an error state here to avoid breaking the UI
-          // The error is logged for debugging purposes
-        }
-      },
-
-      fetchProjectDetail: async (projectName: string, startDate: string, endDate: string) => {
-        set({ projectDetailLoading: true, projectDetailError: null })
-        try {
-          const response = await axiosInstance.get<{ status: string; data: ProjectCostSummary }>(
-            GET_PROJECT_DETAIL(projectName, startDate, endDate)
-          )
-          set({
-            projectDetail: response.data.data,
-            projectDetailLoading: false,
-          })
-        } catch (err) {
-          const normalized = normalizeError(err)
-          const message = Array.isArray(normalized.message)
-            ? normalized.message.join(', ')
-            : normalized.message || `Failed to fetch details for project "${projectName}"`
-          console.error(`[Cost Analytics] Failed to fetch project detail for ${projectName}:`, err)
-          set({ projectDetailError: message, projectDetailLoading: false, projectDetail: null })
-        }
-      },
-
-      setSelectedProject: (project) => {
-        set({ selectedProject: project, projectDetail: null, projectDetailError: null })
-      },
-
-      setCompareProjects: (projects) => {
-        set({ compareProjects: projects })
-      },
-
-      fetchCompareData: async (projects: string[], startDate: string, endDate: string) => {
-        if (projects.length === 0) {
-          set({ compareData: [] })
-          return
-        }
-        
-        set({ compareLoading: true })
-        try {
-          const results = await Promise.all(
-            projects.map(async (projectName) => {
-              const response = await axiosInstance.get<{ status: string; data: ProjectCostSummary }>(
-                GET_PROJECT_DETAIL(projectName, startDate, endDate)
-              )
-              return response.data.data
-            })
-          )
-          set({ compareData: results.filter(Boolean), compareLoading: false })
-        } catch (err) {
-          const normalized = normalizeError(err)
-          const message = Array.isArray(normalized.message)
-            ? normalized.message.join(', ')
-            : normalized.message || 'Failed to fetch comparison data'
-          console.error('[Cost Analytics] Failed to fetch compare data:', err)
-          set({ compareLoading: false })
-          // Note: We don't set an error state here to avoid breaking the UI
-          // Partial results may still be useful
-        }
-      },
-
-      setCurrency: (currency) => {
-        set({ currency })
-      },
-
-      updateLiveData: (data) => {
+      // Actions - Live data setters
+      setLiveData: (data) => {
         const now = new Date()
-        set({ liveData: data, lastLiveUpdate: now.toISOString(), lastUpdated: now })
+        set({
+          liveData: data,
+          lastLiveUpdate: data ? now.toISOString() : null,
+          lastUpdated: now,
+          hasLoadedOnce: data !== null ? true : get().hasLoadedOnce,
+        })
       },
+      setLiveLoading: (loading) => set({ liveLoading: loading }),
+      setLiveError: (error) => set({ liveError: error }),
 
+      // Actions - Summary data setters
+      setSummaryData: (data) => {
+        const now = new Date()
+        set({
+          summaryData: data,
+          lastUpdated: now,
+        })
+      },
+      setSummaryLoading: (loading) => set({ summaryLoading: loading }),
+      setSummaryError: (error) => set({ summaryError: error }),
+
+      // Actions - Project list setters
+      setProjectList: (projects) => set({ projectList: projects }),
+      setProjectListLoading: (loading) => set({ projectListLoading: loading }),
+
+      // Actions - Project detail setters
+      setSelectedProject: (project) => {
+        set({
+          selectedProject: project,
+          projectDetail: project ? get().projectDetail : null,
+          projectDetailError: project ? get().projectDetailError : null,
+        })
+      },
+      setProjectDetail: (detail) => set({ projectDetail: detail }),
+      setProjectDetailLoading: (loading) => set({ projectDetailLoading: loading }),
+      setProjectDetailError: (error) => set({ projectDetailError: error }),
+
+      // Actions - Compare mode setters
+      setCompareProjects: (projects) => set({ compareProjects: projects }),
+      setCompareData: (data) => set({ compareData: data }),
+      setCompareLoading: (loading) => set({ compareLoading: loading }),
+
+      // Actions - Currency preference
+      setCurrency: (currency) => set({ currency }),
+
+      // Actions - Last updated timestamp
+      setLastUpdated: (date) => set({ lastUpdated: date }),
+
+      // Actions - Utility actions
       clearData: () => {
         set({
           liveData: null,
@@ -240,33 +166,6 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
           compareData: [],
         })
       },
-
-      retryFailedRequest: async (type) => {
-        const state = get()
-        switch (type) {
-          case 'live':
-            if (state.liveError) {
-              await state.fetchLiveData()
-            }
-            break
-          case 'summary':
-            if (state.summaryError && state.summaryData) {
-              // We need dates to retry summary - this should be handled by the component
-              console.warn('[Cost Analytics] Cannot retry summary without date range')
-            }
-            break
-          case 'projectList':
-            await state.fetchProjectList()
-            break
-          case 'projectDetail':
-            if (state.selectedProject && state.projectDetailError) {
-              // We need dates to retry - this should be handled by the component
-              console.warn('[Cost Analytics] Cannot retry project detail without date range')
-            }
-            break
-        }
-      },
-
       clearErrors: () => {
         set({
           liveError: null,
@@ -274,6 +173,7 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
           projectDetailError: null,
         })
       },
+      markAsLoaded: () => set({ hasLoadedOnce: true }),
     }),
     {
       name: 'kooyahq.cost-analytics',

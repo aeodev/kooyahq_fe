@@ -16,7 +16,7 @@ import {
   CartesianGrid,
 } from 'recharts'
 import { formatHours } from '@/utils/cost-analytics.utils'
-import { formatCurrency, formatCompactCurrency } from '@/stores/cost-analytics.store'
+import { formatCurrency } from '@/stores/cost-analytics.store'
 import { getChartColor } from '@/utils/cost-analytics.utils'
 import { CHART_COLORS, MAX_PIE_CHART_ITEMS, MAX_BAR_CHART_ITEMS } from '@/constants/cost-analytics.constants'
 import type { CostSummaryData, CurrencyConfig, PieChartDataItem, BarChartDataItem, TrendChartDataItem } from '@/types/cost-analytics'
@@ -33,11 +33,13 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
   if (summaryLoading && !summaryData) {
     return (
       <>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartSkeleton height={256} />
-          <ChartSkeleton height={288} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          <ChartSkeleton height={240} />
+          <ChartSkeleton height={240} />
         </div>
-        <ChartSkeleton height={256} />
+        <div className="mt-6">
+          <ChartSkeleton height={256} />
+        </div>
       </>
     )
   }
@@ -75,137 +77,140 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
       initial="initial"
       animate="animate"
     >
-      {/* Charts Grid */}
+      {/* Charts Grid - items-stretch ensures equal height */}
       <motion.div
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch"
         variants={staggerContainer}
         initial="initial"
         animate="animate"
       >
         {/* Cost Distribution Pie */}
         {pieData.length > 0 && (
-          <motion.div variants={scaleIn} transition={transitionNormal}>
-            <Card className="border-border/50 bg-card/50">
-            <div className="p-4 border-b border-border/50">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">Cost Distribution</h3>
+          <motion.div variants={scaleIn} transition={transitionNormal} className="h-full">
+            <Card className="border-border/50 bg-card/50 h-full flex flex-col">
+              <div className="p-4 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Cost Distribution</h3>
+                </div>
               </div>
-            </div>
-            <CardContent className="p-4">
-              <div className="h-64 min-h-[256px] w-full">
-                <ResponsiveContainer width="100%" height={256} minWidth={0}>
-                  <RechartsPie>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.[0]) return null
-                        const data = payload[0].payload as PieChartDataItem
-                        return (
-                          <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg">
-                            <p className="text-sm font-medium text-foreground">{data.name}</p>
-                            <p className="text-sm text-primary">
-                              {formatCurrency(data.value, currencyConfig)}
-                            </p>
-                          </div>
-                        )
-                      }}
-                    />
-                  </RechartsPie>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                {pieData.map((item) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="text-xs text-muted-foreground truncate flex-1">
-                      {item.name}
-                    </span>
-                    <span className="text-xs font-medium text-foreground">
-                      {Math.round((item.value / summaryData.totalCost) * 100)}%
-                    </span>
+              <CardContent className="p-4 flex-1 flex items-center">
+                <div className="flex items-center gap-6 w-full">
+                  {/* Pie Chart */}
+                  <div className="w-48 h-48 shrink-0">
+                    <ResponsiveContainer width={192} height={192} minWidth={0}>
+                      <RechartsPie>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={45}
+                          outerRadius={75}
+                          paddingAngle={2}
+                          dataKey="value"
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.[0]) return null
+                            const data = payload[0].payload as PieChartDataItem
+                            return (
+                              <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg">
+                                <p className="text-sm font-medium text-foreground">{data.name}</p>
+                                <p className="text-sm text-primary">
+                                  {formatCurrency(data.value, currencyConfig)}
+                                </p>
+                              </div>
+                            )
+                          }}
+                        />
+                      </RechartsPie>
+                    </ResponsiveContainer>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  {/* Legend */}
+                  <div className="flex-1 flex flex-col gap-2">
+                    {pieData.map((item) => (
+                      <div key={item.name} className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="text-sm text-muted-foreground truncate flex-1">
+                          {item.name}
+                        </span>
+                        <span className="text-sm font-medium text-foreground">
+                          {Math.round((item.value / summaryData.totalCost) * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
 
         {/* Project Performance Bar Chart */}
         {barData.length > 0 && (
-          <motion.div variants={scaleIn} transition={transitionNormal}>
-            <Card className="border-border/50 bg-card/50">
-            <div className="p-4 border-b border-border/50">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">Project Performance</h3>
+          <motion.div variants={scaleIn} transition={transitionNormal} className="h-full">
+            <Card className="border-border/50 bg-card/50 h-full flex flex-col">
+              <div className="p-4 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Project Performance</h3>
+                </div>
               </div>
-            </div>
-            <CardContent className="p-4">
-              <div className="h-72 min-h-[288px] w-full">
-                <ResponsiveContainer width="100%" height={288} minWidth={0}>
-                  <BarChart data={barData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis
-                      type="number"
-                      tickFormatter={(v) => formatCompactCurrency(v, currencyConfig)}
-                      stroke="hsl(var(--muted-foreground))"
-                      fontSize={11}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={80}
-                      stroke="hsl(var(--muted-foreground))"
-                      fontSize={11}
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.[0]) return null
-                        const data = payload[0].payload as BarChartDataItem
-                        return (
-                          <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg">
-                            <p className="text-sm font-medium text-foreground">{data.name}</p>
-                            <p className="text-sm text-primary">
-                              Cost: {formatCurrency(data.cost, currencyConfig)}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              Hours: {formatHours(data.hours)}
-                            </p>
-                          </div>
-                        )
-                      }}
-                    />
-                    <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+              <CardContent className="p-4 flex-1">
+                <div className="h-full w-full min-h-[200px]">
+                  <ResponsiveContainer width="100%" height={200} minWidth={0}>
+                    <BarChart data={barData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis
+                        type="number"
+                        tickFormatter={(v) => formatCurrency(v, currencyConfig)}
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={11}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={80}
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={11}
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.[0]) return null
+                          const data = payload[0].payload as BarChartDataItem
+                          return (
+                            <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg">
+                              <p className="text-sm font-medium text-foreground">{data.name}</p>
+                              <p className="text-sm text-primary">
+                                Cost: {formatCurrency(data.cost, currencyConfig)}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Hours: {formatHours(data.hours)}
+                              </p>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
       </motion.div>
 
       {/* Cost Trends */}
       {trendData.length > 0 && (
-        <motion.div variants={scaleIn} transition={transitionNormal}>
+        <motion.div variants={scaleIn} transition={transitionNormal} className="mt-6">
           <Card className="border-border/50 bg-card/50">
           <div className="p-4 border-b border-border/50">
             <div className="flex items-center gap-2">
@@ -230,7 +235,7 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
                     fontSize={11}
                   />
                   <YAxis
-                    tickFormatter={(v) => formatCompactCurrency(v, currencyConfig)}
+                    tickFormatter={(v) => formatCurrency(v, currencyConfig)}
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={11}
                   />

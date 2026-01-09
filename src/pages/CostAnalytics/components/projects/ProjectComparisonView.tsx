@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { formatHours } from '@/utils/cost-analytics.utils'
-import { formatCurrency, formatCompactCurrency } from '@/stores/cost-analytics.store'
+import { formatCurrency } from '@/stores/cost-analytics.store'
 import { convertFromPHPSync } from '@/utils/currency-converter'
 import { getChartColor } from '@/utils/cost-analytics.utils'
 import { CHART_COLORS, MAX_COMPARE_PROJECTS } from '@/constants/cost-analytics.constants'
@@ -179,7 +179,7 @@ export function ProjectComparisonView({
                         fontSize={11}
                       />
                       <YAxis
-                        tickFormatter={(v) => formatCompactCurrency(v, currencyConfig)}
+                        tickFormatter={(v) => formatCurrency(v, currencyConfig)}
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={11}
                       />

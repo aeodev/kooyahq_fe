@@ -1,13 +1,14 @@
 import type { Socket } from 'socket.io-client'
 import { SocketTimeEntriesEvents } from '@/utils/api.routes'
 import { useCostAnalyticsStore } from '@/stores/cost-analytics.store'
+import { fetchLiveData as fetchLiveDataService } from '@/services/cost-analytics.service'
 
 // Debounce utility
 function debounce<T extends (...args: unknown[]) => void>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null
+  let timeout: ReturnType<typeof setTimeout> | null = null
   return function executedFunction(...args: Parameters<T>) {
     const later = () => {
       timeout = null
@@ -29,14 +30,33 @@ export function registerCostAnalyticsHandlers(
   eventHandlers: Map<string, (...args: unknown[]) => void>
 ): void {
   // Debounced handler - batches rapid socket events (300ms debounce)
-  const refreshLiveCostDebounced = debounce(() => {
-    const currentStore = useCostAnalyticsStore.getState()
-    // Only use silent fetch if we already have data (not initial load)
-    if (currentStore.liveData) {
-      currentStore.fetchLiveDataSilent()
+  const refreshLiveCostDebounced = debounce(async () => {
+    const store = useCostAnalyticsStore.getState()
+    // Only use silent update if we already have data (not initial load)
+    if (store.liveData) {
+      // Silent update - don't show loading state
+      try {
+        const data = await fetchLiveDataService()
+        store.setLiveData(data)
+        store.markAsLoaded()
+      } catch (err) {
+        // Silently fail for socket updates - don't show error state
+        console.error('[Cost Analytics] Silent fetch failed:', err)
+      }
     } else {
-      // Initial load - use regular fetch
-      currentStore.fetchLiveData()
+      // Initial load - use regular fetch with loading state
+      store.setLiveLoading(true)
+      store.setLiveError(null)
+      try {
+        const data = await fetchLiveDataService()
+        store.setLiveData(data)
+        store.setLiveLoading(false)
+        store.markAsLoaded()
+      } catch (err: unknown) {
+        const error = err as { message?: string }
+        store.setLiveError(error.message || 'Failed to fetch live cost data')
+        store.setLiveLoading(false)
+      }
     }
   }, 300)
 
