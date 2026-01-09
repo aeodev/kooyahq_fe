@@ -100,9 +100,19 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       return timer
     } catch (err) {
       const normalized = normalizeError(err)
+      
+      // Check if this is a network error (backend unreachable)
+      const isNetworkError = err && typeof err === 'object' && 'code' in err && (
+        (err as { code?: string }).code === 'ERR_NETWORK' ||
+        (err as { code?: string }).code === 'ECONNREFUSED' ||
+        (err as { code?: string }).code === 'ETIMEDOUT' ||
+        !('response' in err)
+      )
+      
       set({
         errors: { ...get().errors, activeTimer: normalized },
         loading: { ...get().loading, activeTimer: false },
+        activeTimer: isNetworkError ? null : get().activeTimer,
       })
       return null
     }

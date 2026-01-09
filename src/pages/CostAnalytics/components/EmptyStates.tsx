@@ -1,4 +1,4 @@
-import { AlertCircle, Activity, BarChart3 } from 'lucide-react'
+import { AlertCircle, Activity, BarChart3, Clock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -46,19 +46,43 @@ interface NoDataStateProps {
   title?: string
   message?: string
   suggestion?: string
+  icon?: React.ReactNode
 }
 
 export function NoDataState({
   title = 'No data available',
   message = 'No cost data available for this period',
-  suggestion = 'Try selecting a different date range',
+  suggestion = 'Try selecting a different date range or check back later',
+  icon,
 }: NoDataStateProps) {
+  // Check if icon is a React element (already rendered JSX) or a component constructor
+  const renderIcon = () => {
+    if (icon) {
+      // If icon is already a React element (JSX), render it directly
+      if (typeof icon === 'object' && icon !== null && '$$typeof' in icon) {
+        return icon
+      }
+      // If icon is a component constructor (function), render it with className
+      if (typeof icon === 'function') {
+        const IconComponent = icon
+        return <IconComponent className="h-12 w-12 text-muted-foreground/50" />
+      }
+      // Otherwise, render it as-is (string, number, etc.)
+      return icon
+    }
+    // Default icon
+    return <BarChart3 className="h-12 w-12 text-muted-foreground/50" />
+  }
+  
   return (
     <Card className="border-border/50 bg-card/50">
       <CardContent className="py-12 text-center">
-        <BarChart3 className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+        <div className="flex justify-center mb-4">
+          {renderIcon()}
+        </div>
+        {title && <p className="text-sm font-medium text-foreground mb-1">{title}</p>}
         <p className="text-sm text-muted-foreground">{message}</p>
-        {suggestion && <p className="text-xs text-muted-foreground mt-1">{suggestion}</p>}
+        {suggestion && <p className="text-xs text-muted-foreground mt-2 opacity-75">{suggestion}</p>}
       </CardContent>
     </Card>
   )

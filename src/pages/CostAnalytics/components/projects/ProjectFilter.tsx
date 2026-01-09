@@ -1,11 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
 import { X, GitCompare, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import type { ViewMode } from '@/types/cost-analytics'
-import { transitionFast } from '@/utils/animations'
 
 interface ProjectFilterProps {
   projectList: string[]
@@ -82,10 +79,9 @@ export function ProjectFilter({
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+      <div className="flex items-center gap-2">
         {/* Project Selector */}
-        <div className="flex-1" ref={dropdownRef}>
-          <Label className="text-xs text-muted-foreground mb-2 block">Filter by Project</Label>
+        <div className="flex-1 min-w-0" ref={dropdownRef}>
           <button
             ref={buttonRef}
             onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
@@ -96,49 +92,29 @@ export function ProjectFilter({
               {selectedProject || 'All Projects'}
             </span>
             <ChevronDown
-              className={`h-4 w-4 text-muted-foreground transition-transform ${projectDropdownOpen ? 'rotate-180' : ''}`}
+              className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${projectDropdownOpen ? 'rotate-180' : ''}`}
             />
           </button>
         </div>
 
-        {/* Compare Mode Toggle */}
-        <div className="flex items-end gap-2">
-          <AnimatePresence mode="wait">
-            {viewMode === 'compare' ? (
-              <motion.div
-                key="exit-compare"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={transitionFast}
-              >
-                <Button variant="outline" size="sm" onClick={onExitCompareMode} className="h-10">
-                  <X className="h-4 w-4 mr-2" />
-                  Exit Compare
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="enter-compare"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={transitionFast}
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEnterCompareMode}
-                  className="h-10"
-                  disabled={projectList.length < 2}
-                >
-                  <GitCompare className="h-4 w-4 mr-2" />
-                  Compare Projects
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* Compare Mode Toggle - Inline */}
+        {viewMode === 'compare' ? (
+          <Button variant="outline" size="sm" onClick={onExitCompareMode} className="h-10 shrink-0">
+            <X className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Exit</span>
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onEnterCompareMode}
+            className="h-10 shrink-0"
+            disabled={projectList.length < 2}
+            title="Compare Projects"
+          >
+            <GitCompare className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Dropdown Menu Portal */}

@@ -50,10 +50,10 @@ export function DeveloperTrends({
     >
       <Card className="border-border/50 bg-card/50">
         <CardContent className="p-4">
-          <Tabs defaultValue="monthly" className="w-full">
+          <Tabs defaultValue="daily" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="monthly">Monthly</TabsTrigger>
               <TabsTrigger value="daily">Daily (30 days)</TabsTrigger>
+              <TabsTrigger value="monthly">Monthly</TabsTrigger>
             </TabsList>
 
             <TabsContent value="monthly" className="mt-4">

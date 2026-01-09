@@ -57,6 +57,12 @@ export type TopPerformer = {
   projects: string[]
 }
 
+export type OvertimeBreakdown = {
+  regular: { cost: number; hours: number }
+  overtime: { cost: number; hours: number }
+  overtimePercentage: number
+}
+
 export type CostSummaryData = {
   totalCost: number
   totalHours: number
@@ -72,6 +78,50 @@ export type CostSummaryData = {
     cost: number
     hours: number
   }>
+  overtimeBreakdown?: OvertimeBreakdown
+}
+
+export type Budget = {
+  id: string
+  project: string | null
+  startDate: string
+  endDate: string
+  amount: number
+  currency: string
+  alertThresholds: {
+    warning: number
+    critical: number
+  }
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type BudgetComparison = {
+  budget: Budget
+  actualCost: number
+  actualHours: number
+  remainingBudget: number
+  remainingDays: number
+  utilizationPercentage: number
+  alertLevel: 'ok' | 'warning' | 'critical'
+  projectedCost: number
+  projectedOverspend: number
+}
+
+export type CostForecast = {
+  projectedCost: number
+  projectedHours: number
+  daysRemaining: number
+  confidence: number
+  dailyAverage: number
+  trend: 'increasing' | 'decreasing' | 'stable'
+}
+
+export type PeriodComparison = {
+  current: { cost: number; hours: number }
+  previous: { cost: number; hours: number }
+  change: { cost: number; hours: number; costPercentage: number; hoursPercentage: number }
 }
 
 export type CurrencyConfig = {

@@ -1,4 +1,4 @@
-import { Download, FileDown } from 'lucide-react'
+import { Download, FileDown, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -16,7 +16,6 @@ import {
   exportLiveDataToCSV,
   downloadCSV,
 } from '@/utils/cost-analytics-export.utils'
-import { LastUpdated } from './shared/LastUpdated'
 
 interface CostAnalyticsHeaderProps {
   currency: keyof typeof CURRENCIES
@@ -31,7 +30,6 @@ interface CostAnalyticsHeaderProps {
   selectedProject: string | null
   activeTab: 'projects' | 'developers'
   onTabChange: (tab: 'projects' | 'developers') => void
-  lastUpdated: Date | null
 }
 
 export function CostAnalyticsHeader({
@@ -47,7 +45,6 @@ export function CostAnalyticsHeader({
   selectedProject,
   activeTab,
   onTabChange,
-  lastUpdated,
 }: CostAnalyticsHeaderProps) {
   const currencyConfig = CURRENCIES[currency]
 
@@ -86,25 +83,37 @@ export function CostAnalyticsHeader({
 
   return (
     <header className="space-y-4">
-      <div className="flex flex-col gap-4">
-        <div className="space-y-1.5">
+      {/* Title Section */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Cost Analytics</h1>
           <p className="text-sm text-muted-foreground">Real-time business spending insights</p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={currency}
-            onChange={(e) => onCurrencyChange(e.target.value as keyof typeof CURRENCIES)}
-            className="h-9 px-3 rounded-lg border border-border bg-background text-sm font-medium min-w-[100px]"
-          >
-            {Object.entries(CURRENCIES).map(([code, config]) => (
-              <option key={code} value={code}>
-                {config.symbol} {code}
-              </option>
-            ))}
-          </select>
+        {/* Top Actions - Right aligned */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Currency selector as proper dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 min-w-[100px]">
+                <span className="font-medium">{currencyConfig.symbol} {currency}</span>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {Object.entries(CURRENCIES).map(([code, config]) => (
+                <DropdownMenuItem
+                  key={code}
+                  onClick={() => onCurrencyChange(code as keyof typeof CURRENCIES)}
+                  className={currency === code ? 'bg-primary/10' : ''}
+                >
+                  <span className="font-medium">{config.symbol} {code}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
+          {/* Export button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={!canExportSummary && !canExportLive} className="gap-2">
@@ -142,14 +151,14 @@ export function CostAnalyticsHeader({
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* Tabs and Last Updated - Better alignment */}
+      <div className="flex items-center justify-between gap-4 pb-2 border-b border-border">
         <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as 'projects' | 'developers')}>
           <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="projects" className="flex-1 sm:flex-none">Projects</TabsTrigger>
             <TabsTrigger value="developers" className="flex-1 sm:flex-none">Developers</TabsTrigger>
           </TabsList>
         </Tabs>
-        <LastUpdated timestamp={lastUpdated} />
       </div>
     </header>
   )

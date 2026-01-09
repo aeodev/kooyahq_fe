@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Users, ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
 import type { CostSummaryData, ProjectCostSummary, LiveCostData } from '@/types/cost-analytics'
 
 interface DeveloperFilterProps {
@@ -124,49 +123,35 @@ export function DeveloperFilter({
 
   return (
     <>
-      <div className="flex-1" ref={dropdownRef}>
-        <Label className="text-xs text-muted-foreground mb-2 block">Filter by Developer</Label>
+      <div className="flex-1 min-w-0" ref={dropdownRef}>
         <button
           ref={buttonRef}
           onClick={() => setDropdownOpen(!dropdownOpen)}
           className="w-full h-10 px-3 text-left rounded-lg border border-border bg-background text-sm flex items-center justify-between hover:bg-muted/30 transition-colors"
         >
-          <span className={selectedDevelopers.length > 0 ? 'text-foreground' : 'text-muted-foreground'}>
-            {selectedDevelopers.length === 0
-              ? 'All Developers'
-              : selectedDevelopers.length === 1
-                ? selectedDeveloperNames[0]
-                : `${selectedDevelopers.length} developers`}
+          <span className="flex items-center gap-2 min-w-0">
+            {selectedDevelopers.length === 0 ? (
+              <span className="text-muted-foreground">All Developers</span>
+            ) : (
+              <>
+                <span className="text-foreground truncate">
+                  {selectedDevelopers.length === 1
+                    ? selectedDeveloperNames[0]
+                    : `${selectedDevelopers.length} selected`}
+                </span>
+                {selectedDevelopers.length > 1 && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-xs shrink-0">
+                    {selectedDevelopers.length}
+                  </Badge>
+                )}
+              </>
+            )}
           </span>
           <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+            className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${dropdownOpen ? 'rotate-180' : ''}`}
           />
         </button>
       </div>
-
-      {/* Selected Developers Badge */}
-      {selectedDevelopers.length > 0 && (
-        <div className="flex items-end">
-          <div className="flex flex-wrap gap-2">
-            {selectedDeveloperNames.slice(0, 2).map((name) => (
-              <Badge key={name} variant="secondary" className="h-6">
-                {name}
-                <button
-                  onClick={() => handleToggleDeveloper(selectedDevelopers[selectedDeveloperNames.indexOf(name)])}
-                  className="ml-1 hover:text-destructive"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-            {selectedDevelopers.length > 2 && (
-              <Badge variant="secondary" className="h-6">
-                +{selectedDevelopers.length - 2}
-              </Badge>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Dropdown Menu Portal */}
       {dropdownOpen && dropdownPosition &&
@@ -186,9 +171,11 @@ export function DeveloperFilter({
             >
               <button
                 onClick={handleClearAll}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors text-muted-foreground border-b border-border"
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors ${
+                  selectedDevelopers.length === 0 ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                } border-b border-border`}
               >
-                Clear All
+                All Developers
               </button>
               <div className="max-h-56 overflow-y-auto">
                 {availableDevelopers.map((developer) => {

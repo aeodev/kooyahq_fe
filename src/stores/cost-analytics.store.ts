@@ -1,7 +1,17 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { convertFromPHPSync } from '@/utils/currency-converter'
-import type { LiveCostData, CostSummaryData, CurrencyConfig, CURRENCIES, ProjectCostSummary } from '@/types/cost-analytics'
+import type {
+  LiveCostData,
+  CostSummaryData,
+  CurrencyConfig,
+  CURRENCIES,
+  ProjectCostSummary,
+  Budget,
+  BudgetComparison,
+  CostForecast,
+  PeriodComparison,
+} from '@/types/cost-analytics'
 
 type CostAnalyticsState = {
   // Live data
@@ -38,6 +48,20 @@ type CostAnalyticsState = {
 
   // Track if data has been loaded at least once
   hasLoadedOnce: boolean
+
+  // Budget data
+  budgets: Budget[]
+  budgetsLoading: boolean
+  budgetsError: string | null
+  budgetComparisons: BudgetComparison[]
+
+  // Forecast data
+  forecast: CostForecast | null
+  forecastLoading: boolean
+
+  // Period comparison data
+  periodComparison: PeriodComparison | null
+  comparisonLoading: boolean
 }
 
 type CostAnalyticsActions = {
@@ -72,6 +96,20 @@ type CostAnalyticsActions = {
   // Last updated timestamp
   setLastUpdated: (date: Date | null) => void
   
+  // Budget actions
+  setBudgets: (budgets: Budget[]) => void
+  setBudgetsLoading: (loading: boolean) => void
+  setBudgetsError: (error: string | null) => void
+  setBudgetComparisons: (comparisons: BudgetComparison[]) => void
+
+  // Forecast actions
+  setForecast: (forecast: CostForecast | null) => void
+  setForecastLoading: (loading: boolean) => void
+
+  // Period comparison actions
+  setPeriodComparison: (comparison: PeriodComparison | null) => void
+  setComparisonLoading: (loading: boolean) => void
+
   // Utility actions
   clearData: () => void
   clearErrors: () => void
@@ -103,6 +141,14 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
       currency: 'PHP',
       lastUpdated: null,
       hasLoadedOnce: false,
+      budgets: [],
+      budgetsLoading: false,
+      budgetsError: null,
+      budgetComparisons: [],
+      forecast: null,
+      forecastLoading: false,
+      periodComparison: null,
+      comparisonLoading: false,
 
       // Actions - Live data setters
       setLiveData: (data) => {
@@ -155,6 +201,20 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
       // Actions - Last updated timestamp
       setLastUpdated: (date) => set({ lastUpdated: date }),
 
+      // Actions - Budget setters
+      setBudgets: (budgets) => set({ budgets }),
+      setBudgetsLoading: (loading) => set({ budgetsLoading: loading }),
+      setBudgetsError: (error) => set({ budgetsError: error }),
+      setBudgetComparisons: (comparisons) => set({ budgetComparisons: comparisons }),
+
+      // Actions - Forecast setters
+      setForecast: (forecast) => set({ forecast }),
+      setForecastLoading: (loading) => set({ forecastLoading: loading }),
+
+      // Actions - Period comparison setters
+      setPeriodComparison: (comparison) => set({ periodComparison: comparison }),
+      setComparisonLoading: (loading) => set({ comparisonLoading: loading }),
+
       // Actions - Utility actions
       clearData: () => {
         set({
@@ -164,6 +224,8 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
           summaryError: null,
           projectDetail: null,
           compareData: [],
+          forecast: null,
+          periodComparison: null,
         })
       },
       clearErrors: () => {
@@ -171,6 +233,7 @@ export const useCostAnalyticsStore = create<CostAnalyticsStore>()(
           liveError: null,
           summaryError: null,
           projectDetailError: null,
+          budgetsError: null,
         })
       },
       markAsLoaded: () => set({ hasLoadedOnce: true }),

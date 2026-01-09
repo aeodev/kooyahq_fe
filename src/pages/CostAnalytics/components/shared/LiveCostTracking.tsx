@@ -7,18 +7,20 @@ import { LivePulse } from '../LivePulse'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
 import { convertFromPHPSync } from '@/utils/currency-converter'
-import type { LiveCostData, CurrencyConfig } from '@/types/cost-analytics'
+import type { LiveCostData, CurrencyConfig, CostSummaryData } from '@/types/cost-analytics'
 import { NoDataState } from '../EmptyStates'
 import { LiveStatsSkeleton, ProjectCardsSkeleton, TableSkeleton } from '../Skeletons'
 import { staggerContainer, staggerItem, transitionNormal } from '@/utils/animations'
+import { OvertimeBreakdown } from './OvertimeBreakdown'
 
 interface LiveCostTrackingProps {
   liveData: LiveCostData | null
   currencyConfig: CurrencyConfig
   isLoading: boolean
+  summaryData?: CostSummaryData | null
 }
 
-export const LiveCostTracking = memo(function LiveCostTracking({ liveData, currencyConfig, isLoading }: LiveCostTrackingProps) {
+export const LiveCostTracking = memo(function LiveCostTracking({ liveData, currencyConfig, isLoading, summaryData }: LiveCostTrackingProps) {
   return (
     <Card className="border-border/50 bg-card/50">
       <div className="p-4 border-b border-border/50">
@@ -38,61 +40,69 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
         ) : (
           <>
             <motion.div
-              className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+              className="grid grid-cols-2 lg:grid-cols-4 gap-3"
               variants={staggerContainer}
               initial="initial"
               animate="animate"
             >
               <motion.div
                 variants={staggerItem}
-                className="p-4 rounded-lg border border-border/50 bg-background"
+                className="p-4 rounded-lg border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 transition-colors"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Flame className="h-4 w-4 text-primary" />
-                  <span className="text-xs text-muted-foreground">Burn Rate</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 rounded-md bg-primary/10">
+                    <Flame className="h-4 w-4 text-primary" />
+                  </div>
                 </div>
-                <p className="text-xl font-bold text-foreground">
+                <p className="text-xs text-muted-foreground mb-1">Burn Rate</p>
+                <p className="text-2xl font-bold text-foreground">
                   {currencyConfig.symbol}
                   {convertFromPHPSync(liveData?.totalBurnRate || 0, currencyConfig.code).toFixed(2)}
-                  <span className="text-sm text-muted-foreground font-normal">/hr</span>
+                  <span className="text-sm text-muted-foreground font-normal ml-1">/hr</span>
                 </p>
               </motion.div>
 
               <motion.div
                 variants={staggerItem}
-                className="p-4 rounded-lg border border-border/50 bg-background"
+                className="p-4 rounded-lg border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 transition-colors"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <DollarSign className="h-4 w-4 text-primary" />
-                  <span className="text-xs text-muted-foreground">Live Cost</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 rounded-md bg-primary/10">
+                    <DollarSign className="h-4 w-4 text-primary" />
+                  </div>
                 </div>
-                <p className="text-xl font-bold text-foreground">
+                <p className="text-xs text-muted-foreground mb-1">Live Cost</p>
+                <p className="text-2xl font-bold text-foreground">
                   {formatCurrency(liveData?.totalLiveCost || 0, currencyConfig)}
                 </p>
               </motion.div>
 
               <motion.div
                 variants={staggerItem}
-                className="p-4 rounded-lg border border-border/50 bg-background"
+                className="p-4 rounded-lg border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 transition-colors"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <span className="text-xs text-muted-foreground">Active Hours</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 rounded-md bg-primary/10">
+                    <Clock className="h-4 w-4 text-primary" />
+                  </div>
                 </div>
-                <p className="text-xl font-bold text-foreground">
+                <p className="text-xs text-muted-foreground mb-1">Active Hours</p>
+                <p className="text-2xl font-bold text-foreground">
                   {formatHours(liveData?.activeHours || 0)}
                 </p>
               </motion.div>
 
               <motion.div
                 variants={staggerItem}
-                className="p-4 rounded-lg border border-border/50 bg-background"
+                className="p-4 rounded-lg border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:border-primary/30 transition-colors"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  <span className="text-xs text-muted-foreground">Active Devs</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 rounded-md bg-primary/10">
+                    <Users className="h-4 w-4 text-primary" />
+                  </div>
                 </div>
-                <p className="text-xl font-bold text-foreground">
+                <p className="text-xs text-muted-foreground mb-1">Active Devs</p>
+                <p className="text-2xl font-bold text-foreground">
                   {liveData?.activeDevelopers?.length || 0}
                 </p>
               </motion.div>
@@ -118,22 +128,24 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                           variants={staggerItem}
                           layout
                           transition={transitionNormal}
-                          className="p-3 rounded-lg border border-border/50 bg-background"
+                          className="p-4 rounded-lg border border-border/50 bg-background hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer group"
                         >
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-foreground truncate flex-1">{project.project}</h4>
-                          <Badge variant="secondary" className="ml-2">
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate flex-1">
+                            {project.project}
+                          </h4>
+                          <Badge variant="secondary" className="ml-2 shrink-0">
                             {project.developers} dev{project.developers !== 1 ? 's' : ''}
                           </Badge>
                         </div>
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-lg font-semibold text-primary">
+                        <div className="space-y-1">
+                          <p className="text-2xl font-bold text-primary">
                             {formatCurrency(project.liveCost, currencyConfig)}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
+                          </p>
+                          <p className="text-xs text-muted-foreground">
                             {currencyConfig.symbol}
                             {convertFromPHPSync(project.burnRate, currencyConfig.code).toFixed(0)}/hr
-                          </span>
+                          </p>
                         </div>
                       </motion.div>
                       ))}
@@ -174,46 +186,60 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                             transition={{ delay: index * 0.05, ...transitionNormal }}
                             className="border-t border-border/50"
                           >
-                          <td className="py-2 px-3">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`w-2 h-2 rounded-full ${dev.isPaused ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                              />
-                              <span className="text-sm text-foreground">{dev.userName}</span>
-                              {dev.isPaused && <span className="text-xs text-amber-500">(paused)</span>}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3">
-                            <div className="flex flex-wrap gap-1">
-                              {dev.projects.slice(0, 2).map((p) => (
-                                <Badge key={p} variant="secondary" className="text-xs">
-                                  {p}
-                                </Badge>
-                              ))}
-                              {dev.projects.length > 2 && (
-                                <span className="text-xs text-muted-foreground">+{dev.projects.length - 2}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3 text-right text-sm text-muted-foreground">
-                            {currencyConfig.symbol}
-                            {convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(0)}/hr
-                          </td>
-                          <td className="py-2 px-3 text-right text-sm text-foreground">
-                            {formatHours(dev.activeMinutes / 60)}
-                          </td>
-                          <td className="py-2 px-3 text-right text-sm font-medium text-primary">
-                            {formatCurrency(dev.liveCost, currencyConfig)}
-                          </td>
-                        </motion.tr>
-                      ))}
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className={`w-2 h-2 rounded-full ${dev.isPaused ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                />
+                                <span className="text-sm text-foreground">{dev.userName}</span>
+                                {dev.isPaused && <span className="text-xs text-amber-500">(paused)</span>}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-wrap gap-1">
+                                {dev.projects.slice(0, 2).map((p) => (
+                                  <Badge key={p} variant="secondary" className="text-xs">
+                                    {p}
+                                  </Badge>
+                                ))}
+                                {dev.projects.length > 2 && (
+                                  <span className="text-xs text-muted-foreground">+{dev.projects.length - 2}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-right text-sm text-muted-foreground">
+                              {currencyConfig.symbol}
+                              {convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(0)}/hr
+                            </td>
+                            <td className="py-2 px-3 text-right text-sm text-foreground">
+                              {formatHours(dev.activeMinutes / 60)}
+                            </td>
+                            <td className="py-2 px-3 text-right text-sm font-medium text-primary">
+                              {formatCurrency(dev.liveCost, currencyConfig)}
+                            </td>
+                          </motion.tr>
+                        ))}
                       </AnimatePresence>
                     </tbody>
                   </table>
                 </div>
               </div>
             ) : (
-              !isLoading && <NoDataState message="No active timers right now" />
+              !isLoading && (
+                <NoDataState 
+                  message="No active timers right now"
+                  suggestion="Try selecting a different date range or check back later"
+                  icon={<Clock className="h-12 w-12 text-muted-foreground/50" />}
+                />
+              )
+            )}
+
+            {/* Overtime Breakdown */}
+            {summaryData?.overtimeBreakdown && (
+              <OvertimeBreakdown
+                breakdown={summaryData.overtimeBreakdown}
+                currencyConfig={currencyConfig}
+              />
             )}
           </>
         )}

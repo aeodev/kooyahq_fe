@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useCostAnalyticsStore } from '@/stores/cost-analytics.store'
 import { useCostAnalyticsContext } from '@/contexts/CostAnalyticsContext'
@@ -19,6 +18,7 @@ import { ProjectDetailView } from './ProjectDetailView'
 import { ProjectComparisonView } from './ProjectComparisonView'
 import { DeveloperFilter } from '../developers/DeveloperFilter'
 import { NoDataState } from '../EmptyStates'
+import { BudgetTracking } from '../shared/BudgetTracking'
 
 interface ProjectSummaryViewProps {
   currencyConfig: CurrencyConfig
@@ -39,7 +39,7 @@ export function ProjectSummaryView({
   onToggleCompareProject,
   onEnterCompareMode,
   onExitCompareMode,
-  onRefresh,
+  onRefresh: _onRefresh,
 }: ProjectSummaryViewProps) {
   const {
     liveData,
@@ -94,37 +94,44 @@ export function ProjectSummaryView({
       return summaryData.projectCosts.map((pc) => pc.project)
     }
     // Additional fallback: extract unique projects from liveData
-    if (liveData?.activeTimers?.length) {
-      const projects = [...new Set(liveData.activeTimers.map(t => t.project).filter(Boolean))]
+    if (liveData?.projectCosts?.length) {
+      const projects = liveData.projectCosts.map((pc) => pc.project).filter(Boolean) as string[]
       if (projects.length > 0) return projects
     }
     return []
   }, [projectList, summaryData, liveData])
 
   return (
-    <div className="space-y-6">
-      {/* Project Filter & Compare Mode */}
-      <ProjectFilter
-        projectList={effectiveProjectList}
-        projectListLoading={projectListLoading}
-        selectedProject={selectedProject}
-        viewMode={viewMode}
-        compareProjects={compareProjects}
-        onSelectProject={onSelectProject}
-        onClearProject={onClearProject}
-        onEnterCompareMode={onEnterCompareMode}
-        onExitCompareMode={onExitCompareMode}
-      />
+    <div className="space-y-4">
+      {/* Unified Filters Bar */}
+      <div className="p-4 rounded-lg border border-border/50 bg-muted/20">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Project Filter */}
+          <div className="flex-1 min-w-0">
+            <ProjectFilter
+              projectList={effectiveProjectList}
+              projectListLoading={projectListLoading}
+              selectedProject={selectedProject}
+              viewMode={viewMode}
+              compareProjects={compareProjects}
+              onSelectProject={onSelectProject}
+              onClearProject={onClearProject}
+              onEnterCompareMode={onEnterCompareMode}
+              onExitCompareMode={onExitCompareMode}
+            />
+          </div>
 
-      {/* Developer Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-        <DeveloperFilter
-          summaryData={summaryData}
-          projectDetail={projectDetail}
-          liveData={liveData}
-          selectedDevelopers={selectedDevelopers}
-          onDevelopersChange={setSelectedDevelopers}
-        />
+          {/* Developer Filter */}
+          <div className="flex-1 min-w-0">
+            <DeveloperFilter
+              summaryData={summaryData}
+              projectDetail={projectDetail}
+              liveData={liveData}
+              selectedDevelopers={selectedDevelopers}
+              onDevelopersChange={setSelectedDevelopers}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Compare Mode Project Selection */}
@@ -151,10 +158,15 @@ export function ProjectSummaryView({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 w-fit"
           >
-            <Badge variant="secondary">Viewing: {selectedProject}</Badge>
-            <Button variant="ghost" size="sm" onClick={onClearProject} className="h-6 px-2">
+            <span className="text-sm font-medium text-primary">{selectedProject}</span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClearProject} 
+              className="h-5 w-5 p-0 hover:bg-primary/20"
+            >
               <X className="h-3 w-3" />
             </Button>
           </motion.div>
@@ -176,7 +188,12 @@ export function ProjectSummaryView({
       </AnimatePresence>
 
       {/* Live Stats Section */}
-      <LiveCostTracking liveData={liveData} currencyConfig={currencyConfig} isLoading={liveLoading && !hasLoadedOnce} />
+      <LiveCostTracking
+        liveData={liveData}
+        currencyConfig={currencyConfig}
+        isLoading={liveLoading && !hasLoadedOnce}
+        summaryData={filteredSummaryData}
+      />
 
       {/* Historical Analysis */}
       <HistoricalAnalysis
@@ -188,6 +205,13 @@ export function ProjectSummaryView({
         onStartDateChange={onStartDateChange}
         onEndDateChange={onEndDateChange}
         onQuickRange={onQuickRange}
+      />
+
+      {/* Budget Tracking */}
+      <BudgetTracking
+        currencyConfig={currencyConfig}
+        projectList={effectiveProjectList}
+        selectedProject={selectedProject}
       />
 
       {/* Charts */}

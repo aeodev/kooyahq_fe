@@ -76,12 +76,10 @@ export const useSocketStore = create<SocketStore>((set) => {
     }
 
     const handleConnect = () => {
-      console.log('Socket connected')
       set({ connected: true, connecting: false, error: null })
     }
 
     const handleDisconnect = () => {
-      console.log('Socket disconnected')
       set({ connected: false, connecting: false })
     }
 

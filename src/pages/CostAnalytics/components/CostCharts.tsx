@@ -1,6 +1,8 @@
-import { TrendingUp, BarChart3 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { TrendingUp, BarChart3, BarChart as BarChartIcon } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import {
   PieChart as RechartsPie,
   Pie,
@@ -14,6 +16,7 @@ import {
   AreaChart,
   Area,
   CartesianGrid,
+  Line,
 } from 'recharts'
 import { formatHours } from '@/utils/cost-analytics.utils'
 import { formatCurrency } from '@/stores/cost-analytics.store'
@@ -22,6 +25,9 @@ import { CHART_COLORS, MAX_PIE_CHART_ITEMS, MAX_BAR_CHART_ITEMS } from '@/consta
 import type { CostSummaryData, CurrencyConfig, PieChartDataItem, BarChartDataItem, TrendChartDataItem } from '@/types/cost-analytics'
 import { ChartSkeleton } from './Skeletons'
 import { scaleIn, staggerContainer, transitionNormal } from '@/utils/animations'
+import { useCostForecast } from '@/hooks/cost-analytics/useCostForecast'
+import { useCostAnalyticsContext } from '@/contexts/CostAnalyticsContext'
+import { CostForecast } from './shared/CostForecast'
 
 interface CostChartsProps {
   summaryData: CostSummaryData | null
@@ -30,6 +36,16 @@ interface CostChartsProps {
 }
 
 export function CostCharts({ summaryData, summaryLoading, currencyConfig }: CostChartsProps) {
+  const [showForecast, setShowForecast] = useState(false)
+  const { startDate, endDate, selectedProject } = useCostAnalyticsContext()
+  const { forecast, fetchForecast } = useCostForecast()
+
+  useEffect(() => {
+    if (showForecast && summaryData && summaryData.dailyCosts.length > 0) {
+      fetchForecast(startDate, endDate, 30, selectedProject ?? undefined)
+    }
+  }, [showForecast, startDate, endDate, selectedProject, summaryData, fetchForecast])
+
   if (summaryLoading && !summaryData) {
     return (
       <>
@@ -70,6 +86,24 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
     cost: d.cost,
     hours: d.hours,
   }))
+
+  // Add forecast data to trend chart if enabled
+  const chartDataWithForecast = showForecast && forecast
+    ? [
+        ...trendData,
+        ...Array.from({ length: forecast.daysRemaining }, (_, i) => {
+          const lastDate = new Date(summaryData.dailyCosts[summaryData.dailyCosts.length - 1].date)
+          const forecastDate = new Date(lastDate)
+          forecastDate.setDate(forecastDate.getDate() + i + 1)
+          return {
+            date: forecastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            cost: forecast.projectedCost / forecast.daysRemaining,
+            hours: forecast.projectedHours / forecast.daysRemaining,
+            forecast: true,
+          }
+        }),
+      ]
+    : trendData
 
   return (
     <motion.div
@@ -213,15 +247,26 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
         <motion.div variants={scaleIn} transition={transitionNormal} className="mt-6">
           <Card className="border-border/50 bg-card/50">
           <div className="p-4 border-b border-border/50">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Cost Trends</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Cost Trends</h3>
+              </div>
+              <Button
+                variant={showForecast ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowForecast(!showForecast)}
+                className="gap-2"
+              >
+                <BarChartIcon className="h-4 w-4" />
+                {showForecast ? 'Hide Forecast' : 'Show Forecast'}
+              </Button>
             </div>
           </div>
           <CardContent className="p-4">
             <div className="h-64 min-h-[256px] w-full">
               <ResponsiveContainer width="100%" height={256} minWidth={0}>
-                <AreaChart data={trendData}>
+                <AreaChart data={chartDataWithForecast}>
                   <defs>
                     <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -260,9 +305,25 @@ export function CostCharts({ summaryData, summaryLoading, currencyConfig }: Cost
                     fillOpacity={1}
                     fill="url(#colorCost)"
                   />
+                  {showForecast && (
+                    <Line
+                      type="monotone"
+                      dataKey="cost"
+                      stroke="hsl(var(--destructive))"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      connectNulls={false}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            {showForecast && forecast && (
+              <div className="mt-4">
+                <CostForecast forecast={forecast} currencyConfig={currencyConfig} />
+              </div>
+            )}
           </CardContent>
         </Card>
         </motion.div>

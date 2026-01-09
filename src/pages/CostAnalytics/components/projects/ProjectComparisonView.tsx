@@ -164,7 +164,7 @@ export function ProjectComparisonView({
                   animate="animate"
                   transition={transitionNormal}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minHeight={256} minWidth={0}>
                     <BarChart
                       data={compareData.map((p) => ({
                         name: p.project.length > 15 ? p.project.slice(0, 15) + '...' : p.project,

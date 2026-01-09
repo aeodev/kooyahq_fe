@@ -54,11 +54,9 @@ export function useCostAnalyticsData({
   useEffect(() => {
     let cancelled = false
     setProjectListLoading(true)
-    console.log('[Cost Analytics] Fetching project list...')
     fetchProjectListService()
       .then((projects) => {
         if (!cancelled) {
-          console.log('[Cost Analytics] Project list received:', projects?.length || 0, 'projects')
           setProjectList(projects || [])
           setProjectListLoading(false)
         }
@@ -218,9 +216,7 @@ export function useCostAnalyticsData({
   const fetchProjectList = async () => {
     setProjectListLoading(true)
     try {
-      console.log('[Cost Analytics] Manually fetching project list...')
       const projects = await fetchProjectListService()
-      console.log('[Cost Analytics] Project list received:', projects?.length || 0, 'projects')
       setProjectList(projects || [])
       setProjectListLoading(false)
     } catch (err) {
