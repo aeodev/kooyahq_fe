@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, ChevronDown, Plus, Trash2, CheckSquare, Link2 } from 'lucide-react'
+import { X, ChevronDown, Plus, Trash2, CheckSquare, Link2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
@@ -419,6 +419,11 @@ export function CreateTaskModal({
             {/* Sidebar */}
             <div className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-border/50 bg-muted/20 overflow-y-auto">
               <div className="p-4 space-y-3">
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2" type="button">
+                  <Sparkles className="h-4 w-4" />
+                  Improve Task
+                </Button>
+
                 {/* Issue Type */}
                 <div>
                   <label className="text-xs text-muted-foreground block mb-1.5">Issue Type</label>

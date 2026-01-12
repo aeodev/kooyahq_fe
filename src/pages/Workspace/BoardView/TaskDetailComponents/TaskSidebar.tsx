@@ -178,7 +178,7 @@ export function TaskSidebar({
           </DropdownMenu>
         </div>
 
-        <Button variant="outline" className="w-full justify-start gap-2">
+        <Button variant="outline" size="sm" className="w-full justify-start gap-2" type="button">
           <Sparkles className="h-4 w-4" />
           Improve Task
         </Button>
