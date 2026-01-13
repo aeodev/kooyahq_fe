@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Bell, CheckCheck } from 'lucide-react'
 import { useNotifications } from '@/hooks/notification.hooks'
@@ -55,6 +56,23 @@ const notificationTypeLabels: Record<NotificationType['type'], string> = {
 }
 
 function getNotificationReference(notification: NotificationType): string | null {
+  const metadata =
+    notification.metadata && typeof notification.metadata === 'object' && !Array.isArray(notification.metadata)
+      ? (notification.metadata as Record<string, unknown>)
+      : null
+  const ticketKey = metadata && typeof metadata.ticketKey === 'string' ? metadata.ticketKey : null
+  const boardName = metadata && typeof metadata.boardName === 'string' ? metadata.boardName : null
+
+  if (ticketKey) return `Ticket ${ticketKey}`
+  if (boardName) return `Board ${boardName}`
+  if (notification.url) {
+    const match = notification.url.match(/^\/workspace\/([^/]+)(?:\/([^/]+))?/)
+    if (match) {
+      const [, boardKey, ticketKey] = match
+      if (ticketKey) return `Ticket ${ticketKey}`
+      if (boardKey) return `Board ${boardKey}`
+    }
+  }
   if (notification.cardId) return `Card ${notification.cardId}`
   if (notification.postId) return `Post ${notification.postId}`
   if (notification.boardId) return `Board ${notification.boardId}`
@@ -63,25 +81,40 @@ function getNotificationReference(notification: NotificationType): string | null
 }
 
 function getNotificationMessage(notification: NotificationType): string {
+  const reference = getNotificationReference(notification)
   switch (notification.type) {
     case 'comment':
-      return notification.actor ? `${notification.actor.name} commented on your post` : 'Someone commented on your post'
+      return notification.actor
+        ? `${notification.actor.name} commented on ${reference ?? 'your post'}`
+        : `Someone commented on ${reference ?? 'your post'}`
     case 'reaction':
-      return notification.actor ? `${notification.actor.name} reacted to your post` : 'Someone reacted to your post'
+      return notification.actor
+        ? `${notification.actor.name} reacted to ${reference ?? 'your post'}`
+        : `Someone reacted to ${reference ?? 'your post'}`
     case 'mention':
-      return notification.actor ? `${notification.actor.name} mentioned you` : 'Someone mentioned you'
+      return notification.actor
+        ? `${notification.actor.name} mentioned you${reference ? ` in ${reference}` : ''}`
+        : `Someone mentioned you${reference ? ` in ${reference}` : ''}`
     case 'post_created':
-      return 'A new post was created'
+      return `A new post was created${reference ? ` (${reference})` : ''}`
     case 'system':
       return notification.title || 'System notification'
     case 'card_assigned':
-      return notification.actor ? `${notification.actor.name} assigned you to a card` : 'You were assigned to a card'
+      return notification.actor
+        ? `${notification.actor.name} assigned you to ${reference ?? 'a card'}`
+        : `You were assigned to ${reference ?? 'a card'}`
     case 'card_comment':
-      return notification.actor ? `${notification.actor.name} commented on your card` : 'Someone commented on your card'
+      return notification.actor
+        ? `${notification.actor.name} commented on ${reference ?? 'your card'}`
+        : `Someone commented on ${reference ?? 'your card'}`
     case 'card_moved':
-      return notification.actor ? `${notification.actor.name} moved a card` : 'A card was moved'
+      return notification.actor
+        ? `${notification.actor.name} moved ${reference ?? 'a card'}`
+        : `A card was moved${reference ? ` (${reference})` : ''}`
     case 'board_member_added':
-      return notification.actor ? `${notification.actor.name} added you to a board` : 'You were added to a board'
+      return notification.actor
+        ? `${notification.actor.name} added you to ${reference ?? 'a board'}`
+        : `You were added to ${reference ?? 'a board'}`
     case 'game_invitation':
       return notification.actor ? `${notification.actor.name} invited you to play ${notification.title?.replace('Game invitation: ', '') || 'a game'}` : 'You were invited to play a game'
     default:
@@ -92,15 +125,64 @@ function getNotificationMessage(notification: NotificationType): string {
 function getNotificationSummary(notification: NotificationType): { title: string; description?: string } {
   const message = getNotificationMessage(notification)
   const title = notification.title?.trim()
+  const metadata =
+    notification.metadata && typeof notification.metadata === 'object' && !Array.isArray(notification.metadata)
+      ? (notification.metadata as Record<string, unknown>)
+      : null
+  const metadataSummary =
+    metadata && typeof metadata.summary === 'string' && metadata.summary.trim()
+      ? metadata.summary.trim()
+      : undefined
+  const commentPreview =
+    metadata && typeof metadata.commentPreview === 'string' && metadata.commentPreview.trim()
+      ? metadata.commentPreview.trim()
+      : undefined
+  const detailSummary = metadataSummary || commentPreview
 
   if (title) {
+    if (detailSummary && detailSummary !== title) {
+      return { title, description: detailSummary }
+    }
     if (message && message !== title && message !== 'System notification') {
       return { title, description: message }
     }
     return { title }
   }
 
+  if (detailSummary && detailSummary !== message) {
+    return { title: message, description: detailSummary }
+  }
+
   return { title: message }
+}
+
+function formatMetadataLabel(key: string): string {
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (match) => match.toUpperCase())
+}
+
+function formatMetadataValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) {
+    const printable = value.filter(
+      (item) => ['string', 'number', 'boolean'].includes(typeof item)
+    ) as Array<string | number | boolean>
+    if (printable.length > 0) {
+      return printable.map((item) => String(item)).join(', ')
+    }
+    return JSON.stringify(value)
+  }
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function truncateMetadataValue(value: string, maxLength = 240): string {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, maxLength)}...`
 }
 
 export function Notifications() {
@@ -108,6 +190,7 @@ export function Notifications() {
   const can = useAuthStore((state) => state.can)
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [selectedNotification, setSelectedNotification] = useState<NotificationType | null>(null)
   const {
     notifications,
     unreadCount,
@@ -131,27 +214,33 @@ export function Notifications() {
   }, [user, showUnreadOnly, fetchNotifications, canViewNotifications])
 
   const handleMarkAsRead = async (id: string) => {
-    if (!canUpdateNotifications) return
-    await markAsRead(id)
+    if (!canUpdateNotifications) return false
+    const didMark = await markAsRead(id)
+    if (didMark) {
+      setSelectedNotification((prev) => (prev && prev.id === id ? { ...prev, read: true } : prev))
+    }
     // Refresh notifications if showing unread only to update the list
     if (showUnreadOnly) {
-      fetchNotifications(showUnreadOnly)
+      await fetchNotifications(showUnreadOnly)
     }
+    return didMark
   }
 
   const handleNotificationClick = (notification: NotificationType) => {
-    const shouldMarkRead = !notification.read && canUpdateNotifications
-    if (shouldMarkRead) {
-      if (notification.url) {
-        void markAsRead(notification.id)
-      } else {
-        void handleMarkAsRead(notification.id)
-      }
+    setSelectedNotification(notification)
+    if (!notification.read && canUpdateNotifications) {
+      void handleMarkAsRead(notification.id)
     }
+  }
 
-    if (notification.url) {
-      navigate(notification.url)
+  const handleSeeMore = () => {
+    if (!selectedNotification?.url) return
+    if (!selectedNotification.read && canUpdateNotifications) {
+      void handleMarkAsRead(selectedNotification.id)
     }
+    const destination = selectedNotification.url
+    setSelectedNotification(null)
+    navigate(destination)
   }
 
   const handleMarkAllAsRead = async () => {
@@ -199,6 +288,34 @@ export function Notifications() {
       items,
     }))
   }, [notifications])
+
+  const selectedSummary = selectedNotification ? getNotificationSummary(selectedNotification) : null
+  const selectedTypeLabel = selectedNotification ? notificationTypeLabels[selectedNotification.type] : ''
+  const selectedActorName =
+    selectedNotification?.actor?.name ?? (selectedNotification?.type === 'system' ? 'System' : null)
+  const selectedReference = selectedNotification ? getNotificationReference(selectedNotification) : null
+  const selectedTimestamp = selectedNotification ? new Date(selectedNotification.createdAt).toLocaleString() : ''
+  const selectedMetadataEntries = useMemo(() => {
+    if (!selectedNotification?.metadata || typeof selectedNotification.metadata !== 'object' || Array.isArray(selectedNotification.metadata)) {
+      return []
+    }
+    const metadata = selectedNotification.metadata as Record<string, unknown>
+    const descriptionValue = selectedSummary?.description?.trim()
+    const excludedKeys = new Set<string>(['summary'])
+    if (descriptionValue) {
+      if (metadata.summary === descriptionValue) excludedKeys.add('summary')
+      if (metadata.commentPreview === descriptionValue) excludedKeys.add('commentPreview')
+    }
+
+    return Object.entries(metadata)
+      .filter(([key, value]) => !excludedKeys.has(key) && value !== undefined && value !== null)
+      .map(([key, value]) => ({
+        key,
+        label: formatMetadataLabel(key),
+        value: truncateMetadataValue(formatMetadataValue(value)),
+      }))
+      .filter((entry) => entry.value)
+  }, [selectedNotification, selectedSummary])
 
   if (!user || !canViewNotifications) return null
 
@@ -263,14 +380,14 @@ export function Notifications() {
                         const reference = getNotificationReference(notification)
                         const actorName = notification.actor?.name ?? (notification.type === 'system' ? 'System' : null)
                         const typeLabel = notificationTypeLabels[notification.type]
-                        const isClickable = Boolean(notification.url) || (!notification.read && canUpdateNotifications)
+                        const detailHint = notification.url ? 'See more' : 'View details'
 
                         return (
                           <div
                             key={notification.id}
-                            className={`flex items-start gap-4 px-6 py-4 transition-colors ${
-                              isClickable ? 'cursor-pointer hover:bg-muted/40' : ''
-                            } ${!notification.read ? 'bg-primary/5' : ''}`}
+                            className={`flex items-start gap-4 px-6 py-4 transition-colors cursor-pointer hover:bg-muted/40 ${
+                              !notification.read ? 'bg-primary/5' : ''
+                            }`}
                             onClick={() => handleNotificationClick(notification)}
                           >
                             <span
@@ -304,7 +421,7 @@ export function Notifications() {
                                 </span>
                                 {actorName && <span>{`Actor: ${actorName}`}</span>}
                                 {reference && <span>{`Ref: ${reference}`}</span>}
-                                {notification.url && <span className="text-primary">View details</span>}
+                                <span className="text-primary">{detailHint}</span>
                               </div>
                             </div>
                             <div className="flex flex-col items-end gap-2 text-right">
@@ -354,6 +471,81 @@ export function Notifications() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={Boolean(selectedNotification)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedNotification(null)
+        }}
+      >
+        {selectedNotification && selectedSummary && (
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>{selectedSummary.title}</DialogTitle>
+              {selectedSummary.description && (
+                <DialogDescription>{selectedSummary.description}</DialogDescription>
+              )}
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground">Status</div>
+                    <div className="font-medium">{selectedNotification.read ? 'Read' : 'Unread'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground">Type</div>
+                    <div className="font-medium">{selectedTypeLabel}</div>
+                  </div>
+                  {selectedActorName && (
+                    <div>
+                      <div className="text-xs uppercase text-muted-foreground">Actor</div>
+                      <div className="font-medium">{selectedActorName}</div>
+                      {selectedNotification.actor?.email && (
+                        <div className="text-xs text-muted-foreground">{selectedNotification.actor.email}</div>
+                      )}
+                    </div>
+                  )}
+                  {selectedReference && (
+                    <div>
+                      <div className="text-xs uppercase text-muted-foreground">Reference</div>
+                      <div className="font-medium">{selectedReference}</div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground">Received</div>
+                    <div className="font-medium">{selectedTimestamp}</div>
+                  </div>
+                </div>
+              </div>
+              {selectedMetadataEntries.length > 0 && (
+                <div className="space-y-3">
+                  <div className="text-xs uppercase text-muted-foreground">Details</div>
+                  <div className="grid gap-2">
+                    {selectedMetadataEntries.map((entry) => (
+                      <div
+                        key={entry.key}
+                        className="flex flex-col gap-1 rounded-md border border-border/60 bg-background px-3 py-2"
+                      >
+                        <div className="text-[11px] uppercase text-muted-foreground">{entry.label}</div>
+                        <div className="text-sm font-medium text-foreground break-words">{entry.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSelectedNotification(null)}>
+                Close
+              </Button>
+              {selectedNotification.url && (
+                <Button onClick={handleSeeMore}>See more</Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   )
 }

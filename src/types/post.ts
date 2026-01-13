@@ -76,6 +76,7 @@ export interface Notification {
   boardId?: string
   title?: string
   url?: string
+  metadata?: Record<string, unknown>
   read: boolean
   createdAt: string
   updatedAt: string
@@ -86,4 +87,3 @@ export interface Notification {
     profilePic?: string
   }
 }
-
