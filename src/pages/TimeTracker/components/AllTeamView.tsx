@@ -1,29 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { TeamMemberCard } from './TeamMemberCard'
+import type { TeamMember } from './team-utils'
 import { Users, Clock, Activity } from 'lucide-react'
-
-type TeamMember = {
-  id: string
-  name: string
-  email: string
-  position?: string
-  profilePic?: string
-  status: 'active' | 'inactive'
-  todayHours: string
-  activeTimer?: {
-    duration: string
-    projects: string[]
-    task: string
-    isPaused?: boolean
-  }
-  entries: Array<{
-    id: string
-    project: string
-    task: string
-    duration: string
-    time: string
-  }>
-}
 
 type AllTeamViewProps = {
   members: TeamMember[]

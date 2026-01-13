@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, ChevronDown } from 'lucide-react'
+import { Calendar, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Minus } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { formatReadableDate } from '@/utils/date'
 import type { Column, Priority, Task, TaskType } from './types'
@@ -62,6 +62,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_RANGE_PADDING_DAYS = 14
 const RANGE_EXTENSION_DAYS = 30
 const SCROLL_EDGE_THRESHOLD_PX = 220
+const MIN_LEFT_PANE_WIDTH = 220
+const MAX_LEFT_PANE_WIDTH = 600
 
 const startOfDay = (date: Date): Date =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -107,6 +109,32 @@ const getSortDate = (task: Task): number => {
   return date ? startOfDay(date).getTime() : 0
 }
 
+const getPriorityIcon = (priority: Priority) => {
+  const colors: Record<Priority, string> = {
+    highest: 'text-red-600',
+    high: 'text-red-500',
+    medium: 'text-amber-500',
+    low: 'text-blue-500',
+    lowest: 'text-blue-400',
+  }
+  const baseClass = cn('h-3.5 w-3.5', colors[priority])
+
+  switch (priority) {
+    case 'highest':
+      return <ChevronsUp className={baseClass} />
+    case 'high':
+      return <ChevronUp className={baseClass} />
+    case 'medium':
+      return <Minus className={baseClass} />
+    case 'low':
+      return <ChevronDown className={baseClass} />
+    case 'lowest':
+      return <ChevronsDown className={baseClass} />
+    default:
+      return <Minus className={baseClass} />
+  }
+}
+
 export function TimelineView({
   tasks,
   allTasks,
@@ -125,12 +153,47 @@ export function TimelineView({
 }: TimelineViewProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null)
+  const [leftPaneWidth, setLeftPaneWidth] = useState(256)
   const dragStateRef = useRef<DragState | null>(null)
   const dragMovedRef = useRef(false)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const rangeExtensionRef = useRef(false)
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   const scheduledTasks = useMemo(() => tasks.filter(hasAnyDate), [tasks])
+  const scheduledDateBounds = useMemo(() => {
+    let minTime = Number.POSITIVE_INFINITY
+    let maxTime = Number.NEGATIVE_INFINITY
+    let minStartTime = Number.POSITIVE_INFINITY
+
+    scheduledTasks.forEach((task) => {
+      if (task.startDate) {
+        const time = startOfDay(task.startDate).getTime()
+        minStartTime = Math.min(minStartTime, time)
+        minTime = Math.min(minTime, time)
+        maxTime = Math.max(maxTime, time)
+      }
+      if (task.endDate) {
+        const time = startOfDay(task.endDate).getTime()
+        minTime = Math.min(minTime, time)
+        maxTime = Math.max(maxTime, time)
+      }
+      if (task.dueDate) {
+        const time = startOfDay(task.dueDate).getTime()
+        minTime = Math.min(minTime, time)
+        maxTime = Math.max(maxTime, time)
+      }
+    })
+
+    if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) return null
+
+    return {
+      min: new Date(minTime),
+      max: new Date(maxTime),
+      minStart: Number.isFinite(minStartTime) ? new Date(minStartTime) : null,
+    }
+  }, [scheduledTasks])
+  const minPastDate = scheduledDateBounds?.minStart ?? scheduledDateBounds?.min ?? null
 
   const epicLookup = useMemo(() => {
     const map = new Map<string, Task>()
@@ -156,25 +219,17 @@ export function TimelineView({
   useEffect(() => {
     if (rangeLocked) return
     const today = startOfDay(new Date())
-    const scheduledDates = scheduledTasks.flatMap((task) => {
-      const dates: Date[] = []
-      if (task.startDate) dates.push(startOfDay(task.startDate))
-      if (task.endDate) dates.push(startOfDay(task.endDate))
-      if (task.dueDate) dates.push(startOfDay(task.dueDate))
-      return dates
-    })
-
     let nextStart = addDays(today, -DEFAULT_RANGE_PADDING_DAYS)
     let nextEnd = addDays(today, DEFAULT_RANGE_PADDING_DAYS)
 
-    if (scheduledDates.length > 0) {
-      const times = scheduledDates.map((date) => date.getTime())
-      const minDate = new Date(Math.min(...times))
-      const maxDate = new Date(Math.max(...times))
-      const anchorStart = minDate < today ? minDate : today
-      const anchorEnd = maxDate > today ? maxDate : today
+    if (scheduledDateBounds) {
+      const anchorStart = scheduledDateBounds.min < today ? scheduledDateBounds.min : today
+      const anchorEnd = scheduledDateBounds.max > today ? scheduledDateBounds.max : today
       nextStart = addDays(anchorStart, -DEFAULT_RANGE_PADDING_DAYS)
       nextEnd = addDays(anchorEnd, DEFAULT_RANGE_PADDING_DAYS)
+      if (minPastDate && nextStart < minPastDate) {
+        nextStart = minPastDate
+      }
     }
 
     if (rangeStart && rangeEnd) {
@@ -187,7 +242,7 @@ export function TimelineView({
 
     onRangeStartChange(nextStart)
     onRangeEndChange(nextEnd)
-  }, [scheduledTasks, rangeLocked, rangeStart, rangeEnd, onRangeStartChange, onRangeEndChange])
+  }, [scheduledDateBounds, minPastDate, rangeLocked, rangeStart, rangeEnd, onRangeStartChange, onRangeEndChange])
 
   const normalizedRangeStart = rangeStart ? startOfDay(rangeStart) : null
   const normalizedRangeEnd = rangeEnd ? startOfDay(rangeEnd) : null
@@ -206,10 +261,17 @@ export function TimelineView({
       rangeExtensionRef.current = true
 
       if (direction === 'past') {
-        const shiftPx = RANGE_EXTENSION_DAYS * pixelsPerDay
-        container.scrollLeft += shiftPx
         if (rangeStart) {
-          onRangeStartChange(addDays(rangeStart, -RANGE_EXTENSION_DAYS))
+          const currentStart = startOfDay(rangeStart)
+          let nextStart = addDays(currentStart, -RANGE_EXTENSION_DAYS)
+          if (minPastDate && nextStart < minPastDate) {
+            nextStart = minPastDate
+          }
+          const shiftDays = diffInDays(currentStart, nextStart)
+          if (shiftDays < 0) {
+            container.scrollLeft += Math.abs(shiftDays) * pixelsPerDay
+            onRangeStartChange(nextStart)
+          }
         }
       } else if (rangeEnd) {
         onRangeEndChange(addDays(rangeEnd, RANGE_EXTENSION_DAYS))
@@ -219,7 +281,7 @@ export function TimelineView({
         rangeExtensionRef.current = false
       })
     },
-    [pixelsPerDay, rangeStart, rangeEnd, onRangeStartChange, onRangeEndChange]
+    [pixelsPerDay, rangeStart, rangeEnd, onRangeStartChange, onRangeEndChange, minPastDate]
   )
 
   const handleTimelineScroll = useCallback(() => {
@@ -250,10 +312,19 @@ export function TimelineView({
     const addEachSide = Math.ceil(missingDays / 2)
 
     if (rangeStart && rangeEnd) {
-      onRangeStartChange(addDays(rangeStart, -addEachSide))
-      onRangeEndChange(addDays(rangeEnd, addEachSide))
+      let nextStart = addDays(rangeStart, -addEachSide)
+      const nextEnd = addDays(rangeEnd, addEachSide)
+      if (minPastDate && nextStart < minPastDate) {
+        nextStart = minPastDate
+      }
+      if (nextStart.getTime() !== rangeStart.getTime()) {
+        onRangeStartChange(nextStart)
+      }
+      if (nextEnd.getTime() !== rangeEnd.getTime()) {
+        onRangeEndChange(nextEnd)
+      }
     }
-  }, [normalizedRangeStart, normalizedRangeEnd, pixelsPerDay, rangeLocked, totalDays, rangeStart, rangeEnd, onRangeStartChange, onRangeEndChange])
+  }, [normalizedRangeStart, normalizedRangeEnd, pixelsPerDay, rangeLocked, totalDays, rangeStart, rangeEnd, onRangeStartChange, onRangeEndChange, minPastDate])
 
   const statusColorMap = useMemo(() => {
     const map = new Map<string, { className: string; hexColor?: string }>()
@@ -282,8 +353,9 @@ export function TimelineView({
     const groups = new Map<string, { label: string; tasks: Task[] }>()
 
     tasks.forEach((task) => {
-      const groupKey = task.epic ?? 'independent'
-      const label = groupKey === 'independent' ? 'Independent' : resolveEpicLabel(task.epic)
+      const resolvedEpicId = task.epic && epicLookup.has(task.epic) ? task.epic : undefined
+      const groupKey = task.type === 'epic' ? task.id : resolvedEpicId ?? 'independent'
+      const label = groupKey === 'independent' ? 'Independent' : resolveEpicLabel(groupKey)
       const entry = groups.get(groupKey) ?? { label, tasks: [] }
       entry.tasks.push(task)
       groups.set(groupKey, entry)
@@ -471,12 +543,44 @@ export function TimelineView({
     }
   }, [getPreviewDates, handlePointerMove, onUpdateTaskDates])
 
+  const handleDividerPointerMove = useCallback((event: PointerEvent) => {
+    const state = resizeStateRef.current
+    if (!state) return
+    const delta = event.clientX - state.startX
+    const nextWidth = Math.max(
+      MIN_LEFT_PANE_WIDTH,
+      Math.min(MAX_LEFT_PANE_WIDTH, state.startWidth + delta)
+    )
+    setLeftPaneWidth(nextWidth)
+  }, [])
+
+  const handleDividerPointerUp = useCallback(() => {
+    if (!resizeStateRef.current) return
+    resizeStateRef.current = null
+    window.removeEventListener('pointermove', handleDividerPointerMove)
+    window.removeEventListener('pointerup', handleDividerPointerUp)
+  }, [handleDividerPointerMove])
+
+  const handleDividerPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    resizeStateRef.current = { startX: event.clientX, startWidth: leftPaneWidth }
+    window.addEventListener('pointermove', handleDividerPointerMove)
+    window.addEventListener('pointerup', handleDividerPointerUp)
+  }
+
   useEffect(() => {
     return () => {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
     }
   }, [handlePointerMove, handlePointerUp])
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', handleDividerPointerMove)
+      window.removeEventListener('pointerup', handleDividerPointerUp)
+    }
+  }, [handleDividerPointerMove, handleDividerPointerUp])
 
   const startDrag = (event: React.PointerEvent, task: Task, mode: DragMode) => {
     if (!canEdit || !normalizedRangeStart) return
@@ -630,42 +734,62 @@ export function TimelineView({
       ) : (
         <div className="rounded-xl border border-border/50 bg-card/30 overflow-hidden">
           <div className="flex">
-            <div className="w-64 shrink-0 border-r border-border/50">
+            <div className="shrink-0" style={{ width: leftPaneWidth }}>
               <div className="h-8 border-b border-border/50 px-3 text-[11px] uppercase tracking-[0.2em] text-muted-foreground flex items-center">
                 Epic
               </div>
-              {groupedRows.map((row) =>
-                row.type === 'group' ? (
-                  <button
-                    type="button"
-                    key={row.id}
-                    onClick={() => toggleGroup(row.id)}
-                    className="h-8 w-full border-b border-border/50 bg-muted/30 px-3 text-xs font-semibold text-muted-foreground flex items-center justify-between text-left"
-                  >
-                    <span className="flex items-center gap-2">
-                      <ChevronDown
-                        className={cn(
-                          'h-3 w-3 transition-transform',
-                          collapsedGroups.has(row.id) && '-rotate-90'
-                        )}
-                      />
-                      {row.label}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">{row.count}</span>
-                  </button>
-                ) : (
+              {groupedRows.map((row) => {
+                if (row.type === 'group') {
+                  return (
+                    <button
+                      type="button"
+                      key={row.id}
+                      onClick={() => toggleGroup(row.id)}
+                      className="h-8 w-full border-b border-border/50 bg-muted/30 px-3 text-xs font-semibold text-muted-foreground flex items-center justify-between text-left"
+                    >
+                      <span className="flex items-center gap-2">
+                        <ChevronDown
+                          className={cn(
+                            'h-3 w-3 transition-transform',
+                            collapsedGroups.has(row.id) && '-rotate-90'
+                          )}
+                        />
+                        {row.label}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">{row.count}</span>
+                    </button>
+                  )
+                }
+
+                return (
                   <div
                     key={row.id}
                     className="h-10 border-b border-border/50 px-3 flex items-center gap-2 cursor-pointer hover:bg-accent/30"
                     onClick={() => onTaskClick(row.task)}
                   >
-                    <span className="text-xs font-medium text-foreground">{row.task.key}</span>
-                    <span className="text-xs text-muted-foreground truncate">
+                    <span className="text-xs font-medium text-foreground whitespace-nowrap shrink-0 inline-flex items-center gap-1">
+                      {row.task.key}
+                      <span
+                        className="shrink-0"
+                        title={row.task.priority.charAt(0).toUpperCase() + row.task.priority.slice(1)}
+                      >
+                        {getPriorityIcon(row.task.priority)}
+                      </span>
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">
                       {row.task.title}
                     </span>
                   </div>
                 )
-              )}
+              })}
+            </div>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              className="relative w-2 cursor-col-resize"
+              onPointerDown={handleDividerPointerDown}
+            >
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/60" />
             </div>
             <div
               ref={scrollContainerRef}

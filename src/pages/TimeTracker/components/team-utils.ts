@@ -1,6 +1,6 @@
-import type { TimeEntry } from '@/types/time-entry'
+import type { TimeEntry, TaskItem } from '@/types/time-entry'
 import type { User } from '@/types/user'
-import { formatDuration, formatTimeRange, calculateActiveDuration } from './utils'
+import { formatDuration, formatTimeRange, calculateActiveDuration, normalizeTaskText } from './utils'
 
 export type TeamMember = {
   id: string
@@ -19,7 +19,7 @@ export type TeamMember = {
   entries: Array<{
     id: string
     project: string
-    task: string
+    tasks: TaskItem[]
     duration: string
     time: string
   }>
@@ -75,13 +75,15 @@ export function transformEntriesToTeamMembers(
       activeTimer: activeEntry ? {
         duration: user.id === currentUserId ? timerDuration : calculateActiveDuration(activeEntry, now),
         projects: activeEntry.projects,
-        task: activeEntry.tasks[activeEntry.tasks.length - 1]?.text || '',
+        task: activeEntry.tasks[activeEntry.tasks.length - 1]?.text
+          ? normalizeTaskText(activeEntry.tasks[activeEntry.tasks.length - 1].text)
+          : '',
         isPaused: activeEntry.isPaused || false,
       } : undefined,
       entries: userEntries.map((e) => ({
         id: e.id,
         project: e.projects.join(', '),
-        task: e.tasks[e.tasks.length - 1]?.text || '',
+        tasks: e.tasks || [],
         duration: formatDuration(e.duration),
         time: formatTimeRange(e.startTime, e.endTime, e.isPaused, e.lastPausedAt),
       })),

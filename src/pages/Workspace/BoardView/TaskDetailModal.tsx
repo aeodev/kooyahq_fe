@@ -20,6 +20,16 @@ import {
 import type { TicketDetailResponse } from './TaskDetailComponents/types'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type TaskDetailModalProps = {
   open: boolean
@@ -261,6 +271,8 @@ export function TaskDetailModal({
   const [datePickerOpen, setDatePickerOpen] = useState<'dueDate' | 'startDate' | 'endDate' | null>(null)
   const [newBranchName, setNewBranchName] = useState('')
   const [isImproving, setIsImproving] = useState(false)
+  const [improveModalOpen, setImproveModalOpen] = useState(false)
+  const [improvePrompt, setImprovePrompt] = useState('')
 
   // Core Data State - ticketDetails is the single source of truth
   const [ticketDetails, setTicketDetails] = useState<TicketDetailResponse | null>(null)
@@ -624,11 +636,13 @@ export function TaskDetailModal({
     }
   }
 
-  const handleImproveTask = async () => {
+  const handleImproveTask = async (userCommand?: string) => {
     if (!canUpdateTicket || !ticketDetails?.ticket.id || isImproving) return
 
     const oldDescription = ticketDetails.ticket.description
     const oldCriteria = ticketDetails.ticket.acceptanceCriteria || []
+    const trimmedCommand = userCommand?.trim()
+    const payload = trimmedCommand ? { userCommand: trimmedCommand } : undefined
 
     setIsEditingDescription(false)
     setIsImproving(true)
@@ -636,9 +650,10 @@ export function TaskDetailModal({
     try {
       const response = await axiosInstance.post<{
         success: boolean
-        data: { description: string; acceptanceCriteria: Array<{ text: string; completed?: boolean }> }
+        data: { description: string; acceptanceCriteria: Array<{ text: string; completed?: boolean; isCompleted?: boolean }> }
       }>(
         IMPROVE_TICKET(ticketDetails.ticket.id),
+        payload,
       )
 
       if (!response.data.success) {
@@ -649,9 +664,10 @@ export function TaskDetailModal({
       const improvedDescription = typeof response.data.data?.description === 'string' ? response.data.data.description : ''
       const improvedCriteria = Array.isArray(response.data.data?.acceptanceCriteria)
         ? response.data.data.acceptanceCriteria
-            .map((item) => ({
+            .map((item, index) => ({
+              id: `criteria-${Date.now()}-${index}`,
               text: typeof item?.text === 'string' ? item.text.trim() : '',
-              completed: Boolean(item?.completed),
+              isCompleted: Boolean(item?.isCompleted ?? item?.completed),
             }))
             .filter((item) => item.text.length > 0)
         : []
@@ -701,6 +717,23 @@ export function TaskDetailModal({
     } finally {
       setIsImproving(false)
     }
+  }
+
+  const handleOpenImproveModal = () => {
+    if (!canUpdateTicket || !ticketDetails?.ticket.id || isImproving) return
+    setImproveModalOpen(true)
+  }
+
+  const handleCloseImproveModal = () => {
+    setImproveModalOpen(false)
+    setImprovePrompt('')
+  }
+
+  const handleSubmitImproveModal = () => {
+    if (!canUpdateTicket || !ticketDetails?.ticket.id || isImproving) return
+    const trimmedPrompt = improvePrompt.trim()
+    handleCloseImproveModal()
+    void handleImproveTask(trimmedPrompt)
   }
 
   const handleUpdatePriority = async (priority: Priority) => {
@@ -850,14 +883,17 @@ export function TaskDetailModal({
 
     const oldDueDate = ticketDetails.ticket.dueDate
 
+    const updatedTicket = {
+      ...ticketDetails.ticket,
+      dueDate: date ? date.toISOString() : undefined,
+    }
+
     // Optimistic update
     setTicketDetails((prev) => prev ? {
       ...prev,
-      ticket: {
-        ...prev.ticket,
-        dueDate: date ? date.toISOString() : undefined,
-      },
+      ticket: updatedTicket,
     } : null)
+    onUpdate(ticketToTask(updatedTicket, columns, users, editedTask))
     setDatePickerOpen(null)
 
     try {
@@ -870,6 +906,10 @@ export function TaskDetailModal({
 
       if (!response.data.success) {
         // Revert on error
+        const revertedTicket = {
+          ...ticketDetails.ticket,
+          dueDate: oldDueDate,
+        }
         setTicketDetails((prev) => prev ? {
           ...prev,
           ticket: {
@@ -877,10 +917,15 @@ export function TaskDetailModal({
             dueDate: oldDueDate,
           },
         } : null)
+        onUpdate(ticketToTask(revertedTicket, columns, users, editedTask))
         toast.error('Failed to update due date')
       }
     } catch (error) {
       // Revert on error
+      const revertedTicket = {
+        ...ticketDetails.ticket,
+        dueDate: oldDueDate,
+      }
       setTicketDetails((prev) => prev ? {
         ...prev,
         ticket: {
@@ -888,6 +933,7 @@ export function TaskDetailModal({
           dueDate: oldDueDate,
         },
       } : null)
+      onUpdate(ticketToTask(revertedTicket, columns, users, editedTask))
       toast.error('Failed to update due date')
     }
   }
@@ -898,14 +944,17 @@ export function TaskDetailModal({
 
     const oldStartDate = ticketDetails.ticket.startDate
 
+    const updatedTicket = {
+      ...ticketDetails.ticket,
+      startDate: date ? date.toISOString() : undefined,
+    }
+
     // Optimistic update
     setTicketDetails((prev) => prev ? {
       ...prev,
-      ticket: {
-        ...prev.ticket,
-        startDate: date ? date.toISOString() : undefined,
-      },
+      ticket: updatedTicket,
     } : null)
+    onUpdate(ticketToTask(updatedTicket, columns, users, editedTask))
     setDatePickerOpen(null)
 
     try {
@@ -918,6 +967,10 @@ export function TaskDetailModal({
 
       if (!response.data.success) {
         // Revert on error
+        const revertedTicket = {
+          ...ticketDetails.ticket,
+          startDate: oldStartDate,
+        }
         setTicketDetails((prev) => prev ? {
           ...prev,
           ticket: {
@@ -925,10 +978,15 @@ export function TaskDetailModal({
             startDate: oldStartDate,
           },
         } : null)
+        onUpdate(ticketToTask(revertedTicket, columns, users, editedTask))
         toast.error('Failed to update start date')
       }
     } catch (error) {
       // Revert on error
+      const revertedTicket = {
+        ...ticketDetails.ticket,
+        startDate: oldStartDate,
+      }
       setTicketDetails((prev) => prev ? {
         ...prev,
         ticket: {
@@ -936,6 +994,7 @@ export function TaskDetailModal({
           startDate: oldStartDate,
         },
       } : null)
+      onUpdate(ticketToTask(revertedTicket, columns, users, editedTask))
       toast.error('Failed to update start date')
     }
   }
@@ -961,7 +1020,7 @@ export function TaskDetailModal({
     }
   }
 
-  const handleSelectEpic = async (epicId: string) => {
+  const handleSelectEpic = async (epicId: string | null) => {
     if (!canUpdateTicket) return
     if (!ticketDetails?.ticket.id) return
 
@@ -969,26 +1028,46 @@ export function TaskDetailModal({
     
     // Store old value for revert
     const oldEpicId = ticketDetails.ticket.rootEpicId
+    const oldParentTicketId = ticketDetails.ticket.parentTicketId
+    const oldParentTicket = ticketDetails.relatedTickets.parent
+    const oldEpicTicket = epicTicket
+    const ticketType = ticketDetails.ticket.ticketType
+    const shouldSyncParent = ticketType === 'task' || ticketType === 'bug' || ticketType === 'story'
+    const nextParentTicketId = shouldSyncParent ? epicId : oldParentTicketId
+    const nextEpicTicket = epicId
+      ? (availableTickets.find((ticket) => ticket.id === epicId) as Ticket | undefined) || null
+      : null
+    const nextParentTicket = shouldSyncParent ? nextEpicTicket : oldParentTicket
     
     // Optimistic update
     setTicketDetails((prev) => prev ? {
       ...prev,
       ticket: {
         ...prev.ticket,
-        rootEpicId: epicId,
+        rootEpicId: epicId || undefined,
+        parentTicketId: nextParentTicketId || undefined,
       },
+      relatedTickets: shouldSyncParent
+        ? {
+            ...prev.relatedTickets,
+            parent: nextParentTicket,
+          }
+        : prev.relatedTickets,
     } : null)
+    setEpicTicket(nextEpicTicket)
 
-    // Fetch epic ticket immediately
-    try {
-      const epicResponse = await axiosInstance.get<{ success: boolean; data: TicketDetailResponse }>(
-        GET_TICKET_BY_ID(epicId)
-      )
-      if (epicResponse.data.success && epicResponse.data.data) {
-        setEpicTicket(epicResponse.data.data.ticket)
+    if (epicId) {
+      // Fetch epic ticket immediately
+      try {
+        const epicResponse = await axiosInstance.get<{ success: boolean; data: TicketDetailResponse }>(
+          GET_TICKET_BY_ID(epicId)
+        )
+        if (epicResponse.data.success && epicResponse.data.data) {
+          setEpicTicket(epicResponse.data.data.ticket)
+        }
+      } catch (error) {
+        console.error('Error fetching epic ticket:', error)
       }
-    } catch (error) {
-      console.error('Error fetching epic ticket:', error)
     }
     
     try {
@@ -996,7 +1075,8 @@ export function TaskDetailModal({
         UPDATE_TICKET(ticketDetails.ticket.id),
         {
           data: {
-            rootEpicId: epicId,
+            rootEpicId: epicId || null,
+            ...(shouldSyncParent ? { parentTicketId: epicId || null } : {}),
           },
         }
       )
@@ -1008,16 +1088,27 @@ export function TaskDetailModal({
           ticket: {
             ...prev.ticket,
             rootEpicId: oldEpicId,
+            parentTicketId: oldParentTicketId,
           },
+          relatedTickets: shouldSyncParent
+            ? {
+                ...prev.relatedTickets,
+                parent: oldParentTicket,
+              }
+            : prev.relatedTickets,
         } : null)
-        setEpicTicket(null)
+        setEpicTicket(oldEpicTicket)
         toast.error('Failed to update epic')
       } else {
         // Update parent component's task state using optimistic update
         // Trust the local state - no need to refetch
         if (ticketDetails) {
           const updatedTask = ticketToTask(
-            { ...ticketDetails.ticket, rootEpicId: epicId },
+            {
+              ...ticketDetails.ticket,
+              rootEpicId: epicId || undefined,
+              parentTicketId: nextParentTicketId || undefined,
+            },
             columns,
             users,
             task
@@ -1032,8 +1123,16 @@ export function TaskDetailModal({
         ticket: {
           ...prev.ticket,
           rootEpicId: oldEpicId,
+          parentTicketId: oldParentTicketId,
         },
+        relatedTickets: shouldSyncParent
+          ? {
+              ...prev.relatedTickets,
+              parent: oldParentTicket,
+            }
+          : prev.relatedTickets,
       } : null)
+      setEpicTicket(oldEpicTicket)
       toast.error('Failed to update epic')
     } finally {
       setUpdatingEpic(false)
@@ -1056,18 +1155,21 @@ export function TaskDetailModal({
       return
     }
     
+    const parentTicket = parentTicketId
+      ? availableTickets.find((ticket) => ticket.id === parentTicketId) || null
+      : null
+
     // Validate parent type
     if (parentTicketId) {
-      const parentTicket = availableTickets.find(t => t.id === parentTicketId)
       if (!parentTicket) {
         toast.error('Parent ticket not found')
         return
       }
       
-      // For task/bug/story: parent can be epic OR bug
+      // For task/bug/story: parent must be epic
       if (ticketType === 'task' || ticketType === 'bug' || ticketType === 'story') {
-        if (parentTicket.ticketType !== 'epic' && parentTicket.ticketType !== 'bug') {
-          toast.error('Task, bug, and story tickets must have an epic or bug as parent')
+        if (parentTicket.ticketType !== 'epic') {
+          toast.error('Task, bug, and story tickets must have an epic as parent')
           return
         }
       }
@@ -1080,6 +1182,17 @@ export function TaskDetailModal({
     }
 
     const oldParentTicketId = ticketDetails.ticket.parentTicketId
+    const oldRootEpicId = ticketDetails.ticket.rootEpicId
+    const oldEpicTicket = epicTicket
+    let nextRootEpicId: string | null | undefined = oldRootEpicId
+
+    if (ticketType === 'task' || ticketType === 'bug' || ticketType === 'story') {
+      nextRootEpicId = parentTicketId || null
+    } else if (ticketType === 'subtask' && parentTicketId && parentTicket?.ticketType === 'epic') {
+      nextRootEpicId = parentTicketId
+    }
+
+    const shouldUpdateRootEpic = nextRootEpicId !== oldRootEpicId
 
     // Optimistic update
     setTicketDetails((prev) => prev ? {
@@ -1087,20 +1200,41 @@ export function TaskDetailModal({
       ticket: {
         ...prev.ticket,
         parentTicketId: parentTicketId || undefined,
+        ...(shouldUpdateRootEpic ? { rootEpicId: nextRootEpicId || undefined } : {}),
       },
       relatedTickets: {
         ...prev.relatedTickets,
-        parent: parentTicketId 
-          ? (availableTickets.find((t) => t.id === parentTicketId) as Ticket | undefined) || null
-          : null,
+        parent: parentTicketId ? parentTicket : null,
       },
     } : null)
+    if (shouldUpdateRootEpic) {
+      if (nextRootEpicId) {
+        const nextEpicTicket = availableTickets.find((ticket) => ticket.id === nextRootEpicId) || null
+        setEpicTicket(nextEpicTicket)
+        if (!nextEpicTicket) {
+          axiosInstance.get<{ success: boolean; data: TicketDetailResponse }>(
+            GET_TICKET_BY_ID(nextRootEpicId)
+          ).then((epicResponse) => {
+            if (epicResponse.data.success && epicResponse.data.data) {
+              setEpicTicket(epicResponse.data.data.ticket)
+            }
+          }).catch((error) => {
+            console.error('Error fetching epic ticket:', error)
+          })
+        }
+      } else {
+        setEpicTicket(null)
+      }
+    }
 
     try {
       const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
         UPDATE_TICKET(ticketDetails.ticket.id),
         {
-          data: { parentTicketId: parentTicketId || null },
+          data: {
+            parentTicketId: parentTicketId || null,
+            ...(shouldUpdateRootEpic ? { rootEpicId: nextRootEpicId || null } : {}),
+          },
         }
       )
 
@@ -1111,6 +1245,7 @@ export function TaskDetailModal({
           ticket: {
             ...prev.ticket,
             parentTicketId: oldParentTicketId,
+            ...(shouldUpdateRootEpic ? { rootEpicId: oldRootEpicId } : {}),
           },
           relatedTickets: {
             ...prev.relatedTickets,
@@ -1119,13 +1254,21 @@ export function TaskDetailModal({
               : null,
           },
         } : null)
+        if (shouldUpdateRootEpic) {
+          setEpicTicket(oldEpicTicket)
+        }
         toast.error('Failed to update parent ticket')
       } else {
         // Update parent component's task state using optimistic update
         // Trust the local state - no need to refetch
         if (ticketDetails) {
+          const updatedRootEpicId = shouldUpdateRootEpic ? nextRootEpicId || undefined : oldRootEpicId
           const updatedTask = ticketToTask(
-            { ...ticketDetails.ticket, parentTicketId: parentTicketId || undefined },
+            {
+              ...ticketDetails.ticket,
+              parentTicketId: parentTicketId || undefined,
+              rootEpicId: updatedRootEpicId,
+            },
             columns,
             users,
             task
@@ -1140,6 +1283,7 @@ export function TaskDetailModal({
         ticket: {
           ...prev.ticket,
           parentTicketId: oldParentTicketId,
+          ...(shouldUpdateRootEpic ? { rootEpicId: oldRootEpicId } : {}),
         },
         relatedTickets: {
           ...prev.relatedTickets,
@@ -1148,6 +1292,9 @@ export function TaskDetailModal({
             : null,
         },
       } : null)
+      if (shouldUpdateRootEpic) {
+        setEpicTicket(oldEpicTicket)
+      }
       toast.error('Failed to update parent ticket')
     }
   }
@@ -1156,13 +1303,13 @@ export function TaskDetailModal({
     if (!availableTickets.length) return []
     
     // parentTicketId rules:
-    // - For task/bug/story: parentTicketId can be epic OR bug
+    // - For task/bug/story: parentTicketId can be epic
     // - For subtask: parentTicketId can be task/bug/story/epic (NOT subtask)
     if (editedTask.type === 'task' || editedTask.type === 'bug' || editedTask.type === 'story') {
-      // Task/Bug/Story: parent can be epic OR bug
+      // Task/Bug/Story: parent can be epic
       return availableTickets.filter(
         (t) => t.id !== editedTask.id && 
-        (t.ticketType === 'epic' || t.ticketType === 'bug')
+        t.ticketType === 'epic'
       ).map(t => ({
         id: t.id,
         ticketKey: t.ticketKey,
@@ -1193,14 +1340,17 @@ export function TaskDetailModal({
 
     const oldEndDate = ticketDetails.ticket.endDate
 
+    const updatedTicket = {
+      ...ticketDetails.ticket,
+      endDate: date ? date.toISOString() : undefined,
+    }
+
     // Optimistic update
     setTicketDetails((prev) => prev ? {
       ...prev,
-      ticket: {
-        ...prev.ticket,
-        endDate: date ? date.toISOString() : undefined,
-      },
+      ticket: updatedTicket,
     } : null)
+    onUpdate(ticketToTask(updatedTicket, columns, users, editedTask))
     setDatePickerOpen(null)
 
     try {
@@ -1213,6 +1363,10 @@ export function TaskDetailModal({
 
       if (!response.data.success) {
         // Revert on error
+        const revertedTicket = {
+          ...ticketDetails.ticket,
+          endDate: oldEndDate,
+        }
         setTicketDetails((prev) => prev ? {
           ...prev,
           ticket: {
@@ -1220,10 +1374,15 @@ export function TaskDetailModal({
             endDate: oldEndDate,
           },
         } : null)
+        onUpdate(ticketToTask(revertedTicket, columns, users, editedTask))
         toast.error('Failed to update end date')
       }
     } catch (error) {
       // Revert on error
+      const revertedTicket = {
+        ...ticketDetails.ticket,
+        endDate: oldEndDate,
+      }
       setTicketDetails((prev) => prev ? {
         ...prev,
         ticket: {
@@ -1231,6 +1390,7 @@ export function TaskDetailModal({
           endDate: oldEndDate,
         },
       } : null)
+      onUpdate(ticketToTask(revertedTicket, columns, users, editedTask))
       toast.error('Failed to update end date')
     }
   }
@@ -1745,6 +1905,8 @@ export function TaskDetailModal({
       setIsEditingDescription(false)
       setIsEditingTitle(false)
       setTitleDraft('')
+      setImproveModalOpen(false)
+      setImprovePrompt('')
     }
     return () => {
       document.body.style.overflow = ''
@@ -1772,13 +1934,51 @@ export function TaskDetailModal({
     ? Math.round((subtasksDone / editedTask.subtasks.length) * 100) 
     : 0
   const showSkeleton = loading && !ticketDetails
+  const improveModal = (
+    <Dialog open={improveModalOpen} onOpenChange={(isOpen) => !isOpen && handleCloseImproveModal()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Improve Task</DialogTitle>
+          <DialogDescription>
+            Add any extra context or constraints for the AI.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <label htmlFor="task-improve-context" className="text-sm font-medium">
+            Additional context (optional)
+          </label>
+          <Textarea
+            id="task-improve-context"
+            value={improvePrompt}
+            onChange={(event) => setImprovePrompt(event.target.value)}
+            placeholder="Add specifics, edge cases, or format notes..."
+            rows={5}
+            disabled={isImproving}
+            autoFocus
+          />
+          <p className="text-xs text-muted-foreground">
+            This text is included in the improvement prompt.
+          </p>
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button type="button" variant="outline" onClick={handleCloseImproveModal} disabled={isImproving}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSubmitImproveModal} disabled={isImproving}>
+            Improve Task
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 
   if (!open) return null
 
   if (fullPage) {
     return (
-      <div className="h-full w-full flex flex-col bg-background">
-        <div className="bg-background border-b border-border/50 w-full overflow-hidden flex flex-col flex-1">
+      <>
+        <div className="h-full w-full flex flex-col bg-background">
+          <div className="bg-background border-b border-border/50 w-full overflow-hidden flex flex-col flex-1">
           <TaskDetailHeader
             editedTask={editedTask}
             epicTicket={epicTicket}
@@ -1929,7 +2129,7 @@ export function TaskDetailModal({
                   availableTags,
                   onFilterByTag: handleFilterByTag,
                   isImproving,
-                  onImproveTask: canUpdateTicket ? handleImproveTask : undefined,
+                  onImproveTask: canUpdateTicket ? handleOpenImproveModal : undefined,
                   onStatusChange: handleUpdateStatus,
                   onUpdatePriority: handleUpdatePriority,
                   onUpdateField: handleUpdateField as any,
@@ -1946,8 +2146,10 @@ export function TaskDetailModal({
               />
             )}
           </div>
+          </div>
         </div>
-      </div>
+        {improveModal}
+      </>
     )
   }
 
@@ -2113,7 +2315,7 @@ export function TaskDetailModal({
                   availableTags,
                   onFilterByTag: handleFilterByTag,
                   isImproving,
-                  onImproveTask: canUpdateTicket ? handleImproveTask : undefined,
+                  onImproveTask: canUpdateTicket ? handleOpenImproveModal : undefined,
                   onStatusChange: handleUpdateStatus,
                   onUpdatePriority: handleUpdatePriority,
                   onUpdateField: handleUpdateField as any,
@@ -2132,6 +2334,7 @@ export function TaskDetailModal({
           </div>
         </div>
       </div>
+      {improveModal}
     </>
   )
 }

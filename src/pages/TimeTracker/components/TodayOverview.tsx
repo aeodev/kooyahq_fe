@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { CoffeeCup } from './CoffeeCup'
 import type { TaskItem } from '@/types/time-entry'
 import { useMemo } from 'react'
+import { normalizeTaskText } from './utils'
 
 type Entry = {
   id: string
@@ -152,7 +153,9 @@ export function TodayOverview({
                       </div>
                       {/* Task description - show latest task */}
                       <p className="text-xs text-muted-foreground truncate mt-1">
-                        {entry.tasks.length > 0 ? entry.tasks[entry.tasks.length - 1].text : 'No task description'}
+                        {entry.tasks.length > 0
+                          ? normalizeTaskText(entry.tasks[entry.tasks.length - 1].text)
+                          : 'No task description'}
                       </p>
                     </div>
                     

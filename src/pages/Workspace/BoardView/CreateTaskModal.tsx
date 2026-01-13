@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { X, ChevronDown, Plus, Trash2, CheckSquare, Link2, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
 import { cn } from '@/utils/cn'
 import { toRichTextDoc } from '@/utils/rich-text'
@@ -11,6 +12,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { Column, TaskType, Priority, Assignee } from './types'
 import { getTaskTypeIcon, getPriorityIcon, getPriorityLabel } from './index'
 import { AssigneeAvatar } from './AssigneeAvatar'
@@ -38,7 +47,7 @@ const FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13]
 type AcceptanceCriteriaItem = {
   id: string
   text: string
-  completed: boolean
+  isCompleted: boolean
 }
 
 type DocumentItem = {
@@ -82,6 +91,8 @@ export function CreateTaskModal({
   const [rootEpicId, setRootEpicId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [isImproving, setIsImproving] = useState(false)
+  const [improveModalOpen, setImproveModalOpen] = useState(false)
+  const [improvePrompt, setImprovePrompt] = useState('')
   const [availableTickets, setAvailableTickets] = useState<Ticket[]>([])
 
   // Fetch tickets for parent/epic selection
@@ -122,6 +133,8 @@ export function CreateTaskModal({
       setParentTicketId(null)
       setRootEpicId(null)
       setIsImproving(false)
+      setImproveModalOpen(false)
+      setImprovePrompt('')
     }
   }, [open, selectedColumnId, columns])
 
@@ -148,7 +161,7 @@ export function CreateTaskModal({
     if (newCriteria.trim()) {
       setAcceptanceCriteria([
         ...acceptanceCriteria,
-        { id: `criteria-${Date.now()}`, text: newCriteria.trim(), completed: false },
+        { id: `criteria-${Date.now()}`, text: newCriteria.trim(), isCompleted: false },
       ])
       setNewCriteria('')
     }
@@ -162,7 +175,7 @@ export function CreateTaskModal({
   const handleToggleCriteria = (id: string) => {
     if (isImproving) return
     setAcceptanceCriteria(acceptanceCriteria.map(c => 
-      c.id === id ? { ...c, completed: !c.completed } : c
+      c.id === id ? { ...c, isCompleted: !c.isCompleted } : c
     ))
   }
 
@@ -185,7 +198,7 @@ export function CreateTaskModal({
     setDocuments(documents.filter((d) => d.id !== id))
   }
 
-  const handleImproveTask = async () => {
+  const handleImproveTask = async (userCommand?: string) => {
     if (isImproving) return
     if (!canCreateTicket) return
     if (!title.trim()) {
@@ -193,11 +206,12 @@ export function CreateTaskModal({
       return
     }
 
+    const trimmedCommand = userCommand?.trim()
     setIsImproving(true)
     try {
       const response = await axiosInstance.post<{
         success: boolean
-        data: { description: string; acceptanceCriteria: Array<{ text: string; completed?: boolean }> }
+        data: { description: string; acceptanceCriteria: Array<{ text: string; completed?: boolean; isCompleted?: boolean }> }
       }>(
         IMPROVE_TICKET_DRAFT(boardId),
         {
@@ -205,8 +219,10 @@ export function CreateTaskModal({
           description,
           acceptanceCriteria: acceptanceCriteria.map((item) => ({
             text: item.text,
-            completed: item.completed,
+            isCompleted: item.isCompleted,
           })),
+          ticketType: type,
+          ...(trimmedCommand ? { userCommand: trimmedCommand } : {}),
         }
       )
 
@@ -221,7 +237,7 @@ export function CreateTaskModal({
             .map((item, index) => ({
               id: `criteria-${Date.now()}-${index}`,
               text: typeof item?.text === 'string' ? item.text.trim() : '',
-              completed: Boolean(item?.completed),
+              isCompleted: Boolean(item?.isCompleted ?? item?.completed),
             }))
             .filter((item) => item.text.length > 0)
         : []
@@ -234,6 +250,27 @@ export function CreateTaskModal({
     } finally {
       setIsImproving(false)
     }
+  }
+
+  const handleOpenImproveModal = () => {
+    if (isImproving || !canCreateTicket) return
+    if (!title.trim()) {
+      toast.error('Add a title before improving')
+      return
+    }
+    setImproveModalOpen(true)
+  }
+
+  const handleCloseImproveModal = () => {
+    setImproveModalOpen(false)
+    setImprovePrompt('')
+  }
+
+  const handleSubmitImproveModal = () => {
+    if (isImproving || !canCreateTicket) return
+    const trimmedPrompt = improvePrompt.trim()
+    handleCloseImproveModal()
+    void handleImproveTask(trimmedPrompt)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -252,7 +289,7 @@ export function CreateTaskModal({
         tags: tags.length > 0 ? tags : undefined,
         points: points || undefined,
         acceptanceCriteria: acceptanceCriteria.length > 0 
-          ? acceptanceCriteria.map(c => ({ text: c.text, completed: c.completed }))
+          ? acceptanceCriteria.map(c => ({ id: c.id, text: c.text, isCompleted: c.isCompleted }))
           : undefined,
         documents: documents.length > 0 
           ? documents.map(d => ({ url: d.url, label: d.label }))
@@ -282,10 +319,8 @@ export function CreateTaskModal({
   const selectedParent = parentTicketId ? availableTickets.find((t) => t.id === parentTicketId) : null
   const selectedEpic = rootEpicId ? availableTickets.find((t) => t.id === rootEpicId && t.ticketType === 'epic') : null
   
-  // Filter tickets for parent selection (epics, stories, tasks)
-  const availableParents = availableTickets.filter(t => 
-    t.ticketType === 'epic' || t.ticketType === 'story' || t.ticketType === 'task'
-  )
+  // Filter tickets for parent selection (epics only)
+  const availableParents = availableTickets.filter(t => t.ticketType === 'epic')
   
   // Filter tickets for epic selection (only epics)
   const availableEpics = availableTickets.filter(t => t.ticketType === 'epic')
@@ -309,6 +344,43 @@ export function CreateTaskModal({
   const availableTagOptions = useMemo(
     () => availableTags.filter((tag) => !tags.includes(tag)),
     [availableTags, tags]
+  )
+  const improveModal = (
+    <Dialog open={improveModalOpen} onOpenChange={(isOpen) => !isOpen && handleCloseImproveModal()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Improve Task</DialogTitle>
+          <DialogDescription>
+            Add any extra context or constraints for the AI.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <label htmlFor="create-task-improve-context" className="text-sm font-medium">
+            Additional context (optional)
+          </label>
+          <Textarea
+            id="create-task-improve-context"
+            value={improvePrompt}
+            onChange={(event) => setImprovePrompt(event.target.value)}
+            placeholder="Add specifics, edge cases, or format notes..."
+            rows={5}
+            disabled={isImproving}
+            autoFocus
+          />
+          <p className="text-xs text-muted-foreground">
+            This text is included in the improvement prompt.
+          </p>
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button type="button" variant="outline" onClick={handleCloseImproveModal} disabled={isImproving}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSubmitImproveModal} disabled={isImproving}>
+            Improve Task
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 
   if (!open) return null
@@ -383,7 +455,7 @@ export function CreateTaskModal({
                           <CheckSquare
                             className={cn(
                               'h-4 w-4',
-                              criteria.completed
+                              criteria.isCompleted
                                 ? 'text-primary fill-primary'
                                 : 'text-muted-foreground'
                             )}
@@ -391,7 +463,7 @@ export function CreateTaskModal({
                         </button>
                         <span className={cn(
                           'text-sm flex-1',
-                          criteria.completed && 'line-through text-muted-foreground'
+                          criteria.isCompleted && 'line-through text-muted-foreground'
                         )}>
                           {criteria.text}
                         </span>
@@ -488,7 +560,7 @@ export function CreateTaskModal({
                   size="sm"
                   className="w-full justify-start gap-2"
                   type="button"
-                  onClick={handleImproveTask}
+                  onClick={handleOpenImproveModal}
                   disabled={isImproving || !canCreateTicket}
                   aria-busy={isImproving}
                 >
@@ -629,7 +701,10 @@ export function CreateTaskModal({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
                         <DropdownMenuItem
-                          onClick={() => setParentTicketId(null)}
+                          onClick={() => {
+                            setParentTicketId(null)
+                            setRootEpicId(null)
+                          }}
                           className="cursor-pointer"
                         >
                           None
@@ -637,7 +712,10 @@ export function CreateTaskModal({
                         {availableParents.map((ticket) => (
                           <DropdownMenuItem
                             key={ticket.id}
-                            onClick={() => setParentTicketId(ticket.id)}
+                            onClick={() => {
+                              setParentTicketId(ticket.id)
+                              setRootEpicId(ticket.id)
+                            }}
                             className="cursor-pointer"
                           >
                             {getTaskTypeIcon(ticket.ticketType === 'subtask' ? 'subtask' : ticket.ticketType)}
@@ -666,7 +744,10 @@ export function CreateTaskModal({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
                         <DropdownMenuItem
-                          onClick={() => setRootEpicId(null)}
+                          onClick={() => {
+                            setRootEpicId(null)
+                            setParentTicketId(null)
+                          }}
                           className="cursor-pointer"
                         >
                           None
@@ -674,7 +755,10 @@ export function CreateTaskModal({
                         {availableEpics.map((ticket) => (
                           <DropdownMenuItem
                             key={ticket.id}
-                            onClick={() => setRootEpicId(ticket.id)}
+                            onClick={() => {
+                              setRootEpicId(ticket.id)
+                              setParentTicketId(ticket.id)
+                            }}
                             className="cursor-pointer"
                           >
                             {getTaskTypeIcon('epic')}
@@ -833,6 +917,7 @@ export function CreateTaskModal({
           </div>
         </div>
       </div>
+      {improveModal}
     </>
   )
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Clock, ListTodo, ChevronDown, ChevronUp } from 'lucide-react'
 import type { TaskItem } from '@/types/time-entry'
-import { formatDuration } from './utils'
+import { formatDuration, normalizeTaskText } from './utils'
 
 type DisplayEntry = {
   id: string
@@ -28,7 +28,9 @@ function LiveTotalDuration({ entry, className }: { entry: DisplayEntry; classNam
 function EntryRow({ entry }: { entry: DisplayEntry }) {
   const [expanded, setExpanded] = useState(false)
   const hasMultipleTasks = entry.tasks.length > 1
-  const mainTask = entry.tasks.length > 0 ? entry.tasks[entry.tasks.length - 1].text : 'No task'
+  const mainTask = entry.tasks.length > 0
+    ? normalizeTaskText(entry.tasks[entry.tasks.length - 1].text)
+    : 'No task'
 
   return (
     <div className="group">
@@ -102,7 +104,7 @@ function EntryRow({ entry }: { entry: DisplayEntry }) {
         <div className="ml-12 mr-4 mb-4 pl-4 border-l-2 border-border/50 space-y-2 animate-in slide-in-from-top-2 duration-200">
           {entry.tasks.map((task, index) => (
             <div key={index} className="flex items-center justify-between py-2 text-sm">
-              <span className="text-muted-foreground truncate">{task.text}</span>
+              <span className="text-muted-foreground truncate">{normalizeTaskText(task.text)}</span>
               <span className="text-muted-foreground tabular-nums ml-4">
                 {formatDuration(task.duration)}
               </span>

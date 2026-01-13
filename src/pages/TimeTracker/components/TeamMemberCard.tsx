@@ -1,28 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-
-type TeamMember = {
-  id: string
-  name: string
-  email: string
-  position?: string
-  profilePic?: string
-  status: 'active' | 'inactive'
-  todayHours: string
-  activeTimer?: {
-    duration: string
-    projects: string[]
-    task: string
-    isPaused?: boolean
-  }
-  entries: Array<{
-    id: string
-    project: string
-    task: string
-    duration: string
-    time: string
-  }>
-}
+import type { TeamMember } from './team-utils'
+import { formatDuration, normalizeTaskText, isWorkspaceTicketTask } from './utils'
 
 type TeamMemberCardProps = {
   member: TeamMember
@@ -159,13 +138,40 @@ export function TeamMemberCard({ member }: TeamMemberCardProps) {
             {member.entries.map((entry) => (
               <div 
                 key={entry.id} 
-                className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-accent/30 transition-colors"
+                className="py-2 px-2 rounded-lg hover:bg-accent/30 transition-colors"
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground truncate">{entry.task || 'No task'}</p>
-                  <p className="text-xs text-muted-foreground">{entry.project}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <p className="text-xs text-muted-foreground">{entry.project}</p>
+                    {entry.tasks.length > 0 ? (
+                      <div className="space-y-1">
+                        {entry.tasks.map((task, index) => {
+                          const isWorkspaceTask = isWorkspaceTicketTask(task.text)
+                          return (
+                            <div key={`${task.addedAt}-${index}`} className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isWorkspaceTask && (
+                                  <Badge className="text-[9px] py-0 px-1.5 bg-primary/10 text-primary border-0">
+                                    Workspace
+                                  </Badge>
+                                )}
+                                <span className="text-sm text-foreground truncate">
+                                  {normalizeTaskText(task.text)}
+                                </span>
+                              </div>
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {formatDuration(task.duration)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No tasks recorded</p>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-foreground ml-4 flex-shrink-0 tabular-nums">{entry.duration}</p>
                 </div>
-                <p className="text-sm font-medium text-foreground ml-4 flex-shrink-0 tabular-nums">{entry.duration}</p>
               </div>
             ))}
             {member.entries.length === 0 && (

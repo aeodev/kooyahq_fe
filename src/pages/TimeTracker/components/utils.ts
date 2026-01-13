@@ -1,5 +1,9 @@
 import type { TimeEntry } from '@/types/time-entry'
 
+const WORKSPACE_TICKET_PREFIX = '[Workspace Ticket] '
+const WORKSPACE_TICKET_PREFIX_TRIMMED = WORKSPACE_TICKET_PREFIX.trim()
+const PLACEHOLDER_TASKS = new Set(['started working'])
+
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
@@ -74,6 +78,28 @@ export function calculateActiveDuration(entry: TimeEntry, now: Date): string {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
   }
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+export function normalizeTaskText(text: string): string {
+  if (text.startsWith(WORKSPACE_TICKET_PREFIX)) {
+    return text.slice(WORKSPACE_TICKET_PREFIX.length)
+  }
+  if (text.startsWith(WORKSPACE_TICKET_PREFIX_TRIMMED)) {
+    return text.slice(WORKSPACE_TICKET_PREFIX_TRIMMED.length).trimStart()
+  }
+  return text
+}
+
+export function isWorkspaceTicketTask(text: string): boolean {
+  const normalized = text.trim()
+  return normalized.startsWith(WORKSPACE_TICKET_PREFIX) || normalized.startsWith(WORKSPACE_TICKET_PREFIX_TRIMMED)
+}
+
+export function isActualTaskText(text: string): boolean {
+  const normalized = text.trim()
+  if (!normalized) return false
+  if (isWorkspaceTicketTask(normalized)) return false
+  return !PLACEHOLDER_TASKS.has(normalized.toLowerCase())
 }
 
 export function formatHours(hours: number): string {

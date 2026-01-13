@@ -30,7 +30,7 @@ type TaskDetailHeaderProps = {
   onShare: () => void
   onFullscreen: () => void
   onLoadEpics: () => void
-  onSelectEpic: (epicId: string) => void
+  onSelectEpic: (epicId: string | null) => void
 }
 
 export function TaskDetailHeader({
@@ -55,8 +55,13 @@ export function TaskDetailHeader({
 }: TaskDetailHeaderProps) {
   const handleBackToBoard = onBackToBoard || onClose
   
+  const parentEpicTicket =
+    ticketDetails?.relatedTickets.parent?.ticketType === 'epic'
+      ? ticketDetails.relatedTickets.parent
+      : null
+  const effectiveEpicTicket = epicTicket || parentEpicTicket
   // Check if ticket has rootEpicId (even if epicTicket hasn't loaded yet)
-  const hasRootEpicId = ticketDetails?.ticket.rootEpicId
+  const hasRootEpicId = ticketDetails?.ticket.rootEpicId || parentEpicTicket?.id
 
   return (
     <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-border/50 bg-muted/30">
@@ -83,28 +88,54 @@ export function TaskDetailHeader({
         )}
 
         {/* Epic - show epic if exists (clickable), show "Add epic" if doesn't exist */}
-        {epicTicket && !isEpic ? (
+        {effectiveEpicTicket && !isEpic ? (
           <>
-            <button
-              onClick={() => {
-                if (onNavigateToTask && epicTicket.ticketKey) {
-                  onNavigateToTask(epicTicket.ticketKey)
-                }
-              }}
-              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-              title={`Go to ${epicTicket.ticketKey}`}
-            >
-              {getTaskTypeIcon('epic')}
-              <span className="font-medium">{epicTicket.ticketKey}</span>
-            </button>
+            <div className="flex items-center gap-1.5 group">
+              <button
+                onClick={() => {
+                  if (onNavigateToTask && effectiveEpicTicket.ticketKey) {
+                    onNavigateToTask(effectiveEpicTicket.ticketKey)
+                  }
+                }}
+                className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                title={`Go to ${effectiveEpicTicket.ticketKey}`}
+              >
+                {getTaskTypeIcon('epic')}
+                <span className="font-medium">{effectiveEpicTicket.ticketKey}</span>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+                onClick={() => onSelectEpic(null)}
+                disabled={updatingEpic}
+                aria-label="Clear epic"
+                title="Clear epic"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
             <span className="text-muted-foreground">/</span>
           </>
         ) : hasRootEpicId && !isEpic ? (
           // Ticket has rootEpicId but epicTicket hasn't loaded yet - show loading state
           <>
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              {getTaskTypeIcon('epic')}
-              <span className="font-medium">Loading epic...</span>
+            <div className="flex items-center gap-1.5 group">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                {getTaskTypeIcon('epic')}
+                <span className="font-medium">Loading epic...</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+                onClick={() => onSelectEpic(null)}
+                disabled={updatingEpic}
+                aria-label="Clear epic"
+                title="Clear epic"
+              >
+                <X className="h-3 w-3" />
+              </Button>
             </div>
             <span className="text-muted-foreground">/</span>
           </>

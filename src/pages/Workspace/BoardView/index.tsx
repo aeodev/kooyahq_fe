@@ -1540,16 +1540,29 @@ export function BoardView() {
       }
     })
     
-    // If status changed, also update apiTickets optimistically to prevent jump-back
-    if (statusChanged && newColumn) {
-      setApiTickets((prev) =>
-        prev.map((t) => 
-          t.id === updatedTask.id 
-            ? { ...t, columnId: newColumn.id }
-            : t
-        )
-      )
-    }
+    setApiTickets((prev) =>
+      prev.map((t) => {
+        if (t.id !== updatedTask.id) return t
+        const nextTicket = {
+          ...t,
+          title: updatedTask.title,
+          description: updatedTask.description,
+          priority: updatedTask.priority,
+          tags: updatedTask.labels,
+          assigneeId: updatedTask.assignee?.id,
+          startDate: updatedTask.startDate ? updatedTask.startDate.toISOString() : undefined,
+          endDate: updatedTask.endDate ? updatedTask.endDate.toISOString() : undefined,
+          dueDate: updatedTask.dueDate ? updatedTask.dueDate.toISOString() : undefined,
+          parentTicketId: updatedTask.parent,
+          rootEpicId: updatedTask.epic,
+          ticketType: updatedTask.type,
+        }
+        if (statusChanged && newColumn) {
+          nextTicket.columnId = newColumn.id
+        }
+        return nextTicket
+      })
+    )
     
     setSelectedTask(updatedTask)
   }

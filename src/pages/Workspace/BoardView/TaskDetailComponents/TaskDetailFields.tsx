@@ -66,12 +66,16 @@ export function TaskDetailFields({
 }: TaskDetailFieldsProps) {
   // Use ticketDetails.ticket as source of truth for parent
   // parentTicketId rules:
-  // - For task/bug/story: parentTicketId can be epic OR bug
+  // - For task/bug/story: parentTicketId can be epic
   // - For subtask: parentTicketId can be task/bug/story/epic
-  const ticketType = ticketDetails?.ticket.ticketType
+  const ticketType = ticketDetails?.ticket.ticketType || editedTask.type
   const canHaveParent = ticketType === 'task' || ticketType === 'bug' || ticketType === 'story' || ticketType === 'subtask'
   const parentTicketId = ticketDetails?.ticket.parentTicketId
-  const parentTicket = ticketDetails?.relatedTickets.parent
+  const parentTicket =
+    ticketDetails?.relatedTickets.parent ||
+    (parentTicketId
+      ? availableTicketsForParent.find((ticket) => ticket.id === parentTicketId) || null
+      : null)
 
   const availableTagOptions = availableTags
     .map((tag) => tag.trim())
@@ -286,7 +290,7 @@ export function TaskDetailFields({
     ),
     parent: (
       // Parent field shows for task/bug/story/subtask
-      // For task/bug/story: parentTicketId can be epic OR bug
+      // For task/bug/story: parentTicketId can be epic
       // For subtask: parentTicketId can be task/bug/story/epic
       canHaveParent ? (
         <div key="parent">
@@ -296,7 +300,7 @@ export function TaskDetailFields({
               <button className="flex items-center gap-2 hover:bg-accent rounded px-2 py-1 -mx-2 transition-colors w-full text-left">
                 {parentTicket ? (
                   <span className="text-sm flex items-center gap-1.5">
-                    {getTaskTypeIcon(parentTicket.ticketType)}
+                    {getTaskTypeIcon(parentTicket.ticketType as TaskType)}
                     <span 
                       className="font-medium hover:underline cursor-pointer"
                       onClick={(e) => {

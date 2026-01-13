@@ -48,7 +48,7 @@ export function AcceptanceCriteriaSection({
     // Optimistically update UI immediately
     const oldCriteria = [...acceptanceCriteria]
     const updatedCriteria = acceptanceCriteria.map((item, i) =>
-      i === index ? { ...item, completed: !item.completed } : item
+      i === index ? { ...item, isCompleted: !item.isCompleted } : item
     )
     setLocalCriteria(updatedCriteria)
     setTogglingId(String(index))
@@ -75,8 +75,9 @@ export function AcceptanceCriteriaSection({
     if (!newCriteria.trim() || !ticketDetails?.ticket.id || loading || !canUpdate) return
 
     const newItem: AcceptanceCriteriaItem = {
+      id: `criteria-${Date.now()}`,
       text: newCriteria.trim(),
-      completed: false,
+      isCompleted: false,
     }
 
     // Optimistically update UI
@@ -155,13 +156,13 @@ export function AcceptanceCriteriaSection({
           {acceptanceCriteria.length > 0 && (
             <div className="space-y-2">
               {acceptanceCriteria.map((criteria, index) => (
-                <div key={`${criteria.text}-${index}`} className="flex items-center gap-2">
+                <div key={criteria.id ?? `${criteria.text}-${index}`} className="flex items-center gap-2">
                   <button
                     onClick={() => handleToggleCriteria(index)}
                     disabled={togglingId !== null || !canUpdate}
                     className={cn(
                       'flex-shrink-0 h-4 w-4 border rounded-sm flex items-center justify-center transition-colors',
-                      criteria.completed
+                      criteria.isCompleted
                         ? 'bg-primary border-primary text-primary-foreground'
                         : 'border-border bg-background hover:border-primary/50',
                       togglingId === String(index) && 'opacity-50 cursor-wait'
@@ -169,14 +170,14 @@ export function AcceptanceCriteriaSection({
                   >
                     {togglingId === String(index) ? (
                       <span className="text-xs">...</span>
-                    ) : criteria.completed ? (
+                    ) : criteria.isCompleted ? (
                       <Check className="h-3 w-3" />
                     ) : null}
                   </button>
                   <span
                     className={cn(
                       'text-sm flex-1',
-                      criteria.completed && 'line-through text-muted-foreground'
+                      criteria.isCompleted && 'line-through text-muted-foreground'
                     )}
                   >
                     {criteria.text}

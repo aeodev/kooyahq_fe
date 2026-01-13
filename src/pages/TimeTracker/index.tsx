@@ -15,7 +15,7 @@ import { AnalyticsView } from './components/AnalyticsView'
 import { ManualEntryModal } from './components/ManualEntryModal'
 import { EndDayModal } from './components/EndDayModal'
 import { OvertimeConfirmationModal } from './components/OvertimeConfirmationModal'
-import { formatDuration, formatTimeRange, calculateEntryDurationMinutes } from './components/utils'
+import { formatDuration, formatTimeRange, calculateEntryDurationMinutes, isActualTaskText } from './components/utils'
 import { transformEntriesToTeamMembers } from './components/team-utils'
 import { PERMISSIONS } from '@/constants/permissions'
 import { Card, CardContent } from '@/components/ui/card'
@@ -351,8 +351,13 @@ export function TimeTracker() {
   // Check if there are overtime entries
   const hasOvertimeEntries = todayMyEntries.some((entry) => entry.isOvertime)
 
-  // Show End Day button if day hasn't been ended, or if there are overtime entries
-  const showEndDayButton = !dayEndedToday || hasOvertimeEntries
+  const hasActualTasks = useMemo(() => {
+    const entriesToCheck = activeTimer ? [activeTimer, ...todayMyEntries] : todayMyEntries
+    return entriesToCheck.some((entry) => entry.tasks.some((task) => isActualTaskText(task.text)))
+  }, [activeTimer, todayMyEntries])
+
+  // Show End Day button if day hasn't been ended, or if there are overtime entries, and at least one real task exists
+  const showEndDayButton = (!dayEndedToday || hasOvertimeEntries) && hasActualTasks
 
   const handleOvertimeConfirm = async () => {
     setShowOvertimeModal(false)

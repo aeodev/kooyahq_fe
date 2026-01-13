@@ -119,7 +119,7 @@ export type Ticket = {
   tags: string[]
   assigneeId?: string
   reporterId: string
-  acceptanceCriteria: Array<{ text: string; completed: boolean }>
+  acceptanceCriteria: Array<{ id?: string; text: string; isCompleted: boolean }>
   documents: Array<{ url: string; label?: string }>
   attachments?: CardAttachment[]
   startDate?: string
@@ -274,7 +274,7 @@ export type CreateTicketInput = {
   priority?: 'highest' | 'high' | 'medium' | 'low' | 'lowest'
   tags?: string[]
   assigneeId?: string
-  acceptanceCriteria?: Array<{ text: string; completed: boolean }>
+  acceptanceCriteria?: Array<{ id?: string; text: string; isCompleted: boolean }>
   documents?: Array<{ url: string; label?: string }>
   startDate?: string
   endDate?: string
@@ -301,7 +301,7 @@ export type UpdateTicketInput = {
     priority?: 'highest' | 'high' | 'medium' | 'low' | 'lowest'
     tags?: string[]
     assigneeId?: string | null
-    acceptanceCriteria?: Array<{ text: string; completed: boolean }>
+    acceptanceCriteria?: Array<{ id?: string; text: string; isCompleted: boolean }>
     documents?: Array<{ url: string; label?: string }>
     startDate?: string | null
     endDate?: string | null
