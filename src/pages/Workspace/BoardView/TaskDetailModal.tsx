@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axiosInstance from '@/utils/axios.instance'
-import { GET_TICKET_BY_ID, GET_TICKETS_BY_BOARD, UPDATE_TICKET, GET_USERS, CREATE_COMMENT, ADD_RELATED_TICKET, REMOVE_RELATED_TICKET } from '@/utils/api.routes'
+import { GET_TICKET_BY_ID, GET_TICKETS_BY_BOARD, UPDATE_TICKET, GET_USERS, CREATE_COMMENT, ADD_RELATED_TICKET, REMOVE_RELATED_TICKET, IMPROVE_TICKET } from '@/utils/api.routes'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Task, Column, Assignee, Priority } from './types'
 import type { Ticket } from '@/types/board'
@@ -104,6 +104,132 @@ const normalizeTicketDetails = (data: TicketDetailResponse): TicketDetailRespons
     : [],
 })
 
+const TaskDetailContentSkeleton = () => (
+  <>
+    <div className="space-y-3">
+      <Skeleton className="h-8 w-full max-w-[36rem]" />
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-4 w-4 rounded" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+      <div className="ml-6 space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-11/12" />
+        <Skeleton className="h-4 w-5/6" />
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-4 w-4 rounded" />
+        <Skeleton className="h-4 w-36" />
+      </div>
+      <div className="ml-6 space-y-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded-sm" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded-sm" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-4 w-4 rounded" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+      <div className="ml-6 space-y-2">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <Skeleton className="h-10 w-5/6 rounded-lg" />
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <Skeleton className="h-6 w-6 rounded" />
+      </div>
+      <div className="ml-6 space-y-2">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <Skeleton className="h-10 w-11/12 rounded-lg" />
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <Skeleton className="h-6 w-6 rounded" />
+      </div>
+      <div className="ml-6 space-y-3">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-2 w-full rounded-full" />
+          <Skeleton className="h-3 w-10" />
+        </div>
+        <Skeleton className="h-28 w-full rounded-lg" />
+      </div>
+    </div>
+
+    <div className="space-y-3">
+      <Skeleton className="h-4 w-20" />
+      <div className="flex flex-wrap gap-2">
+        <Skeleton className="h-8 w-16 rounded-lg" />
+        <Skeleton className="h-8 w-20 rounded-lg" />
+        <Skeleton className="h-8 w-20 rounded-lg" />
+      </div>
+      <div className="space-y-4">
+        <div className="flex gap-3">
+          <Skeleton className="h-8 w-8 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <Skeleton className="h-8 w-8 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-5/6" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </>
+)
+
+const TaskDetailSidebarSkeleton = () => (
+  <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border/50 bg-muted/20 overflow-y-auto">
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-8 w-28" />
+        <Skeleton className="h-8 w-8 rounded" />
+      </div>
+      <Skeleton className="h-9 w-full rounded-md" />
+      <div className="space-y-3">
+        {[1, 2, 3, 4, 5].map((index) => (
+          <div key={index} className="space-y-1">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-20 w-full rounded-lg" />
+      </div>
+    </div>
+  </div>
+)
+
 export function TaskDetailModal({
   open,
   onClose,
@@ -128,10 +254,13 @@ export function TaskDetailModal({
   const [subtasksExpanded, setSubtasksExpanded] = useState(true)
   const [activityTab, setActivityTab] = useState<'all' | 'comments' | 'history'>('comments')
   const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
   const [linkCopied, setLinkCopied] = useState(false)
   const [newTag, setNewTag] = useState('')
   const [datePickerOpen, setDatePickerOpen] = useState<'dueDate' | 'startDate' | 'endDate' | null>(null)
   const [newBranchName, setNewBranchName] = useState('')
+  const [isImproving, setIsImproving] = useState(false)
 
   // Core Data State - ticketDetails is the single source of truth
   const [ticketDetails, setTicketDetails] = useState<TicketDetailResponse | null>(null)
@@ -415,6 +544,162 @@ export function TaskDetailModal({
         },
       } : null)
       toast.error('Failed to update description')
+    }
+  }
+
+  const handleStartEditingTitle = () => {
+    if (!canUpdateTicket || isImproving) return
+    setTitleDraft(editedTask.title)
+    setIsEditingTitle(true)
+  }
+
+  const handleCancelEditingTitle = () => {
+    setTitleDraft(editedTask.title)
+    setIsEditingTitle(false)
+  }
+
+  const handleUpdateTitle = async (nextTitle: string) => {
+    if (!canUpdateTicket) {
+      setTitleDraft(editedTask.title)
+      setIsEditingTitle(false)
+      return
+    }
+    if (!ticketDetails?.ticket.id) {
+      setTitleDraft(editedTask.title)
+      setIsEditingTitle(false)
+      return
+    }
+
+    const trimmedTitle = nextTitle.trim()
+    const previousTitle = ticketDetails.ticket.title
+    const previousTask = editedTask
+
+    if (!trimmedTitle) {
+      toast.error('Title cannot be empty')
+      setTitleDraft(previousTitle)
+      setIsEditingTitle(false)
+      return
+    }
+
+    if (trimmedTitle === previousTitle) {
+      setTitleDraft(previousTitle)
+      setIsEditingTitle(false)
+      return
+    }
+
+    setIsEditingTitle(false)
+    setTitleDraft(trimmedTitle)
+
+    setTicketDetails((prev) => prev ? {
+      ...prev,
+      ticket: {
+        ...prev.ticket,
+        title: trimmedTitle,
+      },
+    } : null)
+    onUpdate({ ...previousTask, title: trimmedTitle, updatedAt: new Date() })
+
+    try {
+      const response = await axiosInstance.put<{ success: boolean; data: Ticket }>(
+        UPDATE_TICKET(ticketDetails.ticket.id),
+        {
+          data: { title: trimmedTitle },
+        }
+      )
+
+      if (!response.data.success) {
+        throw new Error('Failed to update title')
+      }
+    } catch (error) {
+      setTicketDetails((prev) => prev ? {
+        ...prev,
+        ticket: {
+          ...prev.ticket,
+          title: previousTitle,
+        },
+      } : null)
+      onUpdate({ ...previousTask, title: previousTitle, updatedAt: new Date() })
+      setTitleDraft(previousTitle)
+      toast.error('Failed to update title')
+    }
+  }
+
+  const handleImproveTask = async () => {
+    if (!canUpdateTicket || !ticketDetails?.ticket.id || isImproving) return
+
+    const oldDescription = ticketDetails.ticket.description
+    const oldCriteria = ticketDetails.ticket.acceptanceCriteria || []
+
+    setIsEditingDescription(false)
+    setIsImproving(true)
+
+    try {
+      const response = await axiosInstance.post<{
+        success: boolean
+        data: { description: string; acceptanceCriteria: Array<{ text: string; completed?: boolean }> }
+      }>(
+        IMPROVE_TICKET(ticketDetails.ticket.id),
+      )
+
+      if (!response.data.success) {
+        toast.error('Failed to improve ticket')
+        return
+      }
+
+      const improvedDescription = typeof response.data.data?.description === 'string' ? response.data.data.description : ''
+      const improvedCriteria = Array.isArray(response.data.data?.acceptanceCriteria)
+        ? response.data.data.acceptanceCriteria
+            .map((item) => ({
+              text: typeof item?.text === 'string' ? item.text.trim() : '',
+              completed: Boolean(item?.completed),
+            }))
+            .filter((item) => item.text.length > 0)
+        : []
+
+      const descriptionDoc = toRichTextDoc(improvedDescription)
+
+      setTicketDetails((prev) => prev ? {
+        ...prev,
+        ticket: {
+          ...prev.ticket,
+          description: descriptionDoc,
+          acceptanceCriteria: improvedCriteria,
+        },
+      } : null)
+
+      const updateResponse = await axiosInstance.put<{ success: boolean; data: Ticket }>(
+        UPDATE_TICKET(ticketDetails.ticket.id),
+        {
+          data: {
+            description: descriptionDoc,
+            acceptanceCriteria: improvedCriteria,
+          },
+        }
+      )
+
+      if (!updateResponse.data.success) {
+        setTicketDetails((prev) => prev ? {
+          ...prev,
+          ticket: {
+            ...prev.ticket,
+            description: oldDescription,
+            acceptanceCriteria: oldCriteria,
+          },
+        } : null)
+        toast.error('Failed to update ticket with improvements')
+      }
+    } catch (error) {
+      setTicketDetails((prev) => prev ? {
+        ...prev,
+        ticket: {
+          ...prev.ticket,
+          description: oldDescription,
+          acceptanceCriteria: oldCriteria,
+        },
+      } : null)
+      toast.error('Failed to improve ticket')
+    } finally {
+      setIsImproving(false)
     }
   }
 
@@ -1456,6 +1741,10 @@ export function TaskDetailModal({
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
+      setIsImproving(false)
+      setIsEditingDescription(false)
+      setIsEditingTitle(false)
+      setTitleDraft('')
     }
     return () => {
       document.body.style.overflow = ''
@@ -1482,6 +1771,7 @@ export function TaskDetailModal({
   const subtasksProgress = editedTask.subtasks.length > 0 
     ? Math.round((subtasksDone / editedTask.subtasks.length) * 100) 
     : 0
+  const showSkeleton = loading && !ticketDetails
 
   if (!open) return null
 
@@ -1512,34 +1802,9 @@ export function TaskDetailModal({
 
           <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-              {loading && !ticketDetails ? (
+              {showSkeleton ? (
                 // Skeleton loading state for fullPage
-                <>
-                  <div className="space-y-4">
-                    <Skeleton className="h-10 w-3/4" />
-                    <Skeleton className="h-6 w-1/2" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-5/6" />
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <Skeleton className="h-6 w-32" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-12 w-full rounded-lg" />
-                      <Skeleton className="h-12 w-full rounded-lg" />
-                      <Skeleton className="h-12 w-full rounded-lg" />
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <Skeleton className="h-6 w-32" />
-                    <div className="grid grid-cols-2 gap-4">
-                      <Skeleton className="h-24 w-full rounded-lg" />
-                      <Skeleton className="h-24 w-full rounded-lg" />
-                    </div>
-                  </div>
-                </>
+                <TaskDetailContentSkeleton />
               ) : (
                 <>
                   <TaskTitleSection
@@ -1547,12 +1812,17 @@ export function TaskDetailModal({
                     ticketDetails={ticketDetails}
                     descriptionExpanded={descriptionExpanded}
                     isEditingDescription={isEditingDescription}
+                    isEditingTitle={isEditingTitle}
+                    titleValue={titleDraft}
+                    isDisabled={isImproving}
                     onToggleDescription={() => setDescriptionExpanded(!descriptionExpanded)}
                     onStartEditingDescription={() => setIsEditingDescription(true)}
+                    onStartEditingTitle={handleStartEditingTitle}
                     onUpdateDescription={(descriptionHtml: string) => {
                       handleUpdateDescription(descriptionHtml)
                       setIsEditingDescription(false)
                     }}
+                    onUpdateTitle={handleUpdateTitle}
                     onCancelEditingDescription={() => {
                       setIsEditingDescription(false)
                       // Revert to original description
@@ -1566,6 +1836,7 @@ export function TaskDetailModal({
                         })
                       }
                     }}
+                    onCancelEditingTitle={handleCancelEditingTitle}
                     onDescriptionChange={(descriptionHtml: string) => {
                       setTicketDetails((prev) => prev ? {
                         ...prev,
@@ -1575,13 +1846,14 @@ export function TaskDetailModal({
                         },
                       } : null)
                     }}
+                    onTitleChange={setTitleDraft}
                   />
 
                   <AcceptanceCriteriaSection
                     ticketDetails={ticketDetails}
                     acceptanceCriteriaExpanded={acceptanceCriteriaExpanded}
                     onToggleAcceptanceCriteria={() => setAcceptanceCriteriaExpanded(!acceptanceCriteriaExpanded)}
-                    canUpdate={canUpdateTicket}
+                    canUpdate={canUpdateTicket && !isImproving}
                   />
 
                   <DocumentsSection
@@ -1630,43 +1902,49 @@ export function TaskDetailModal({
               )}
             </div>
 
-            <TaskSidebar
-              {...{
-                editedTask,
-                ticketDetails,
-                columns,
-                currentColumn,
-                users,
-                detailsSettings,
-                newTag,
-                setNewTag,
-                datePickerOpen,
-                setDatePickerOpen,
-                githubBranches,
-                newBranchName,
-                setNewBranchName,
-                availableTicketsForParent: availableTickets.map(t => ({
-                  id: t.id,
-                  ticketKey: t.ticketKey,
-                  title: t.title,
-                  ticketType: t.ticketType,
-                })),
-                availableTags,
-                onFilterByTag: handleFilterByTag,
-                onStatusChange: handleUpdateStatus,
-                onUpdatePriority: handleUpdatePriority,
-                onUpdateField: handleUpdateField as any,
-                onUpdateDate: handleUpdateDate,
-                onAddTag: handleAddTag,
-                onRemoveTag: handleRemoveTag,
-                onUpdateParent: handleUpdateParent,
-                getAvailableParents,
-                onNavigateToTask,
-                onAddBranch: handleAddBranch,
-                onUpdateBranchStatus: handleUpdateBranchStatus,
-                onUpdatePullRequestUrl: handleUpdatePullRequestUrl,
-              } as any}
-            />
+            {showSkeleton ? (
+              <TaskDetailSidebarSkeleton />
+            ) : (
+              <TaskSidebar
+                {...{
+                  editedTask,
+                  ticketDetails,
+                  columns,
+                  currentColumn,
+                  users,
+                  detailsSettings,
+                  newTag,
+                  setNewTag,
+                  datePickerOpen,
+                  setDatePickerOpen,
+                  githubBranches,
+                  newBranchName,
+                  setNewBranchName,
+                  availableTicketsForParent: availableTickets.map(t => ({
+                    id: t.id,
+                    ticketKey: t.ticketKey,
+                    title: t.title,
+                    ticketType: t.ticketType,
+                  })),
+                  availableTags,
+                  onFilterByTag: handleFilterByTag,
+                  isImproving,
+                  onImproveTask: canUpdateTicket ? handleImproveTask : undefined,
+                  onStatusChange: handleUpdateStatus,
+                  onUpdatePriority: handleUpdatePriority,
+                  onUpdateField: handleUpdateField as any,
+                  onUpdateDate: handleUpdateDate,
+                  onAddTag: handleAddTag,
+                  onRemoveTag: handleRemoveTag,
+                  onUpdateParent: handleUpdateParent,
+                  getAvailableParents,
+                  onNavigateToTask,
+                  onAddBranch: handleAddBranch,
+                  onUpdateBranchStatus: handleUpdateBranchStatus,
+                  onUpdatePullRequestUrl: handleUpdatePullRequestUrl,
+                } as any}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1708,34 +1986,9 @@ export function TaskDetailModal({
 
           <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-              {loading && !ticketDetails ? (
+              {showSkeleton ? (
                 // Skeleton loading state for modal
-                <>
-                  <div className="space-y-4">
-                    <Skeleton className="h-10 w-3/4" />
-                    <Skeleton className="h-6 w-1/2" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-5/6" />
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <Skeleton className="h-6 w-32" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-12 w-full rounded-lg" />
-                      <Skeleton className="h-12 w-full rounded-lg" />
-                      <Skeleton className="h-12 w-full rounded-lg" />
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <Skeleton className="h-6 w-32" />
-                    <div className="grid grid-cols-2 gap-4">
-                      <Skeleton className="h-24 w-full rounded-lg" />
-                      <Skeleton className="h-24 w-full rounded-lg" />
-                    </div>
-                  </div>
-                </>
+                <TaskDetailContentSkeleton />
               ) : (
                 <>
                   <TaskTitleSection
@@ -1743,12 +1996,17 @@ export function TaskDetailModal({
                 ticketDetails={ticketDetails}
                 descriptionExpanded={descriptionExpanded}
                 isEditingDescription={isEditingDescription}
+                isEditingTitle={isEditingTitle}
+                titleValue={titleDraft}
+                isDisabled={isImproving}
                 onToggleDescription={() => setDescriptionExpanded(!descriptionExpanded)}
                 onStartEditingDescription={() => setIsEditingDescription(true)}
+                onStartEditingTitle={handleStartEditingTitle}
                 onUpdateDescription={(descriptionHtml: string) => {
                   handleUpdateDescription(descriptionHtml)
                   setIsEditingDescription(false)
                 }}
+                onUpdateTitle={handleUpdateTitle}
                 onCancelEditingDescription={() => {
                   setIsEditingDescription(false)
                   // Revert to original description
@@ -1762,6 +2020,7 @@ export function TaskDetailModal({
                     })
                   }
                 }}
+                onCancelEditingTitle={handleCancelEditingTitle}
                 onDescriptionChange={(descriptionHtml: string) => {
                   setTicketDetails((prev) => prev ? {
                     ...prev,
@@ -1771,13 +2030,14 @@ export function TaskDetailModal({
                     },
                   } : null)
                 }}
+                onTitleChange={setTitleDraft}
               />
 
               <AcceptanceCriteriaSection
                 ticketDetails={ticketDetails}
                 acceptanceCriteriaExpanded={acceptanceCriteriaExpanded}
                 onToggleAcceptanceCriteria={() => setAcceptanceCriteriaExpanded(!acceptanceCriteriaExpanded)}
-                canUpdate={canUpdateTicket}
+                canUpdate={canUpdateTicket && !isImproving}
               />
 
               <DocumentsSection
@@ -1826,43 +2086,49 @@ export function TaskDetailModal({
               )}
             </div>
 
-            <TaskSidebar
-              {...{
-                editedTask,
-                ticketDetails,
-                columns,
-                currentColumn,
-                users,
-                detailsSettings,
-                newTag,
-                setNewTag,
-                datePickerOpen,
-                setDatePickerOpen,
-                githubBranches,
-                newBranchName,
-                setNewBranchName,
-                availableTicketsForParent: availableTickets.map(t => ({
-                  id: t.id,
-                  ticketKey: t.ticketKey,
-                  title: t.title,
-                  ticketType: t.ticketType,
-                })),
-                availableTags,
-                onFilterByTag: handleFilterByTag,
-                onStatusChange: handleUpdateStatus,
-                onUpdatePriority: handleUpdatePriority,
-                onUpdateField: handleUpdateField as any,
-                onUpdateDate: handleUpdateDate,
-                onAddTag: handleAddTag,
-                onRemoveTag: handleRemoveTag,
-                onUpdateParent: handleUpdateParent,
-                getAvailableParents,
-                onNavigateToTask,
-                onAddBranch: handleAddBranch,
-                onUpdateBranchStatus: handleUpdateBranchStatus,
-                onUpdatePullRequestUrl: handleUpdatePullRequestUrl,
-              } as any}
-            />
+            {showSkeleton ? (
+              <TaskDetailSidebarSkeleton />
+            ) : (
+              <TaskSidebar
+                {...{
+                  editedTask,
+                  ticketDetails,
+                  columns,
+                  currentColumn,
+                  users,
+                  detailsSettings,
+                  newTag,
+                  setNewTag,
+                  datePickerOpen,
+                  setDatePickerOpen,
+                  githubBranches,
+                  newBranchName,
+                  setNewBranchName,
+                  availableTicketsForParent: availableTickets.map(t => ({
+                    id: t.id,
+                    ticketKey: t.ticketKey,
+                    title: t.title,
+                    ticketType: t.ticketType,
+                  })),
+                  availableTags,
+                  onFilterByTag: handleFilterByTag,
+                  isImproving,
+                  onImproveTask: canUpdateTicket ? handleImproveTask : undefined,
+                  onStatusChange: handleUpdateStatus,
+                  onUpdatePriority: handleUpdatePriority,
+                  onUpdateField: handleUpdateField as any,
+                  onUpdateDate: handleUpdateDate,
+                  onAddTag: handleAddTag,
+                  onRemoveTag: handleRemoveTag,
+                  onUpdateParent: handleUpdateParent,
+                  getAvailableParents,
+                  onNavigateToTask,
+                  onAddBranch: handleAddBranch,
+                  onUpdateBranchStatus: handleUpdateBranchStatus,
+                  onUpdatePullRequestUrl: handleUpdatePullRequestUrl,
+                } as any}
+              />
+            )}
           </div>
         </div>
       </div>

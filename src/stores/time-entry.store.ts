@@ -11,12 +11,13 @@ import {
   STOP_TIMER,
   END_DAY,
   GET_DAY_ENDED_STATUS,
+  GET_WORKSPACE_SUMMARY,
   LOG_MANUAL_ENTRY,
   UPDATE_TIME_ENTRY,
   DELETE_TIME_ENTRY,
 } from '@/utils/api.routes'
 import { normalizeError, type Errors } from '@/utils/error'
-import type { TimeEntry, StartTimerInput, UpdateTimeEntryInput, ManualEntryInput } from '@/types/time-entry'
+import type { TimeEntry, StartTimerInput, UpdateTimeEntryInput, ManualEntryInput, WorkspaceSummaryTicket } from '@/types/time-entry'
 import { setPendingTimerStop, clearPendingTimerStop, hasPendingStop } from '@/utils/server-health'
 import { toastManager } from '@/components/ui/toast'
 
@@ -57,6 +58,7 @@ type TimeEntryActions = {
   completePendingStop: () => Promise<boolean>
   endDay: () => Promise<TimeEntry[]>
   checkDayEndedStatus: () => Promise<{ dayEnded: boolean; endedAt: string | null }>
+  fetchWorkspaceSummary: () => Promise<WorkspaceSummaryTicket[]>
   logManualEntry: (input: ManualEntryInput) => Promise<TimeEntry | null>
   updateEntry: (id: string, updates: UpdateTimeEntryInput) => Promise<TimeEntry | null>
   deleteEntry: (id: string) => Promise<boolean>
@@ -305,6 +307,18 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
       return response.data.data
     } catch (err) {
       return { dayEnded: false, endedAt: null }
+    }
+  },
+
+  fetchWorkspaceSummary: async () => {
+    try {
+      const response = await axiosInstance.get<{ status: string; data: { workspaceTickets: WorkspaceSummaryTicket[] } }>(
+        GET_WORKSPACE_SUMMARY()
+      )
+      return response.data.data.workspaceTickets || []
+    } catch (err) {
+      handleError('load workspace summary', err)
+      return []
     }
   },
 

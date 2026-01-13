@@ -2214,7 +2214,7 @@ export function BoardView() {
         {/* Board Header Skeleton */}
         <header className="space-y-4 pb-4 border-b border-border">
           <div className="flex items-center justify-between">
-            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-3 w-20" />
             <div className="flex items-center gap-2">
               <Skeleton className="h-8 w-8 rounded" />
               <Skeleton className="h-8 w-8 rounded" />
@@ -2227,38 +2227,59 @@ export function BoardView() {
               <Skeleton className="h-4 w-24" />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-9 w-20 rounded-lg" />
+          <div className="flex items-center gap-1 border-b border-border">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-8 w-20 rounded-md" />
             ))}
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 flex-1 flex-wrap">
+              <Skeleton className="h-9 w-full sm:w-52" />
+              <Skeleton className="h-9 w-24 rounded-md" />
+              <Skeleton className="h-9 w-24 rounded-md" />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Skeleton className="h-9 w-24 rounded-md" />
+              <Skeleton className="h-9 w-24 rounded-md" />
+              <Skeleton className="h-9 w-24 rounded-md" />
+            </div>
           </div>
         </header>
 
         {/* Board Content Skeleton */}
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {[1, 2, 3, 4].map((colIndex) => (
-            <div key={colIndex} className="min-w-[280px] space-y-3">
-              <div className="flex items-center justify-between p-2">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-5 w-8 rounded" />
-              </div>
-              <div className="space-y-2">
-                {[1, 2, 3].map((taskIndex) => (
-                  <div key={taskIndex} className="border border-border rounded-lg p-3 space-y-2">
-                    <Skeleton className="h-5 w-full" />
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="h-4 w-4 rounded" />
-                      <Skeleton className="h-4 w-16" />
+        <div className="overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6">
+          <div className="flex gap-3 pb-4">
+            {[1, 2, 3, 4].map((colIndex) => (
+              <div
+                key={colIndex}
+                className="w-[280px] flex-shrink-0 flex flex-col rounded-lg bg-muted/30"
+              >
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/30">
+                  <Skeleton className="h-3 w-3 rounded-sm" />
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-6" />
+                </div>
+                <div className="flex-1 p-2 min-h-[120px]">
+                  {[1, 2, 3].map((taskIndex) => (
+                    <div key={taskIndex} className="mb-2">
+                      <div className="bg-card/30 border border-border/50 rounded-lg p-3 space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-4/5" />
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-4 w-4 rounded" />
+                          <Skeleton className="h-4 w-16" />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Skeleton className="h-6 w-6 rounded-full" />
+                          <Skeleton className="h-4 w-12" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <Skeleton className="h-6 w-6 rounded-full" />
-                      <Skeleton className="h-4 w-12" />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
     )

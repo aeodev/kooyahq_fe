@@ -5,6 +5,7 @@ import { useProjectTaskStore } from '@/stores/project-task.store'
 import { useTimerDuration } from '@/hooks/time-entry.hooks'
 import { useUsersQuery } from '@/hooks/queries/user.queries'
 import { useProjectsQuery } from '@/hooks/queries/project.queries'
+import type { WorkspaceSummaryTicket } from '@/types/time-entry'
 import { ActiveTimerCard } from './components/ActiveTimerCard'
 import { StartTimerForm } from './components/StartTimerForm'
 import { TodayOverview } from './components/TodayOverview'
@@ -28,6 +29,8 @@ export function TimeTracker() {
   const [showEndDayModal, setShowEndDayModal] = useState(false)
   const [showOvertimeModal, setShowOvertimeModal] = useState(false)
   const [dayEndedToday, setDayEndedToday] = useState(false)
+  const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummaryTicket[]>([])
+  const [workspaceSummaryLoading, setWorkspaceSummaryLoading] = useState(false)
   const [pendingTimerStart, setPendingTimerStart] = useState<(() => void) | null>(null)
   const [pendingManualEntryData, setPendingManualEntryData] = useState<{ projects: string[]; task: string; hours: number; minutes: number } | null>(null)
   const [isSwitchingProject, setIsSwitchingProject] = useState(false)
@@ -84,6 +87,7 @@ export function TimeTracker() {
   const stopTimer = useTimeEntryStore((state) => state.stopTimer)
   const endDay = useTimeEntryStore((state) => state.endDay)
   const checkDayEndedStatus = useTimeEntryStore((state) => state.checkDayEndedStatus)
+  const fetchWorkspaceSummary = useTimeEntryStore((state) => state.fetchWorkspaceSummary)
   const logManualEntry = useTimeEntryStore((state) => state.logManualEntry)
   const timerDuration = useTimerDuration(activeTimer)
   
@@ -274,9 +278,13 @@ export function TimeTracker() {
     }
   }
 
-  const handleEndDay = () => {
+  const handleEndDay = async () => {
     if (!canUpdateEntries) return
     setShowEndDayModal(true)
+    setWorkspaceSummaryLoading(true)
+    const summary = await fetchWorkspaceSummary()
+    setWorkspaceSummary(summary)
+    setWorkspaceSummaryLoading(false)
   }
 
   const handleEndDaySubmit = async () => {
@@ -648,6 +656,8 @@ export function TimeTracker() {
               onClose={() => setShowEndDayModal(false)}
               onSubmit={handleEndDaySubmit}
               entries={todayMyEntries}
+              workspaceTickets={workspaceSummary}
+              workspaceLoading={workspaceSummaryLoading}
               loading={false}
             />
           )}

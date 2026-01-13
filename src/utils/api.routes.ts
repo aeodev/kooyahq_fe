@@ -71,6 +71,8 @@ export const GET_TICKET_BY_ID = (ticketId: string) => `/tickets/${ticketId}`
 export const GET_ASSIGNED_TICKETS = () => `/tickets/assigned`
 export const UPDATE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
 export const DELETE_TICKET = (ticketId: string) => `/tickets/${ticketId}`
+export const IMPROVE_TICKET = (ticketId: string) => `/tickets/${ticketId}/improve`
+export const IMPROVE_TICKET_DRAFT = (boardId: string) => `/boards/${boardId}/tickets/improve`
 export const BULK_UPDATE_RANKS = (boardId: string) => `/boards/${boardId}/tickets/bulk-rank`
 export const ADD_RELATED_TICKET = (ticketId: string) => `/tickets/${ticketId}/related-tickets`
 export const REMOVE_RELATED_TICKET = (ticketId: string, relatedTicketId: string) => `/tickets/${ticketId}/related-tickets/${relatedTicketId}`
@@ -101,6 +103,7 @@ export const RESUME_TIMER = () => `/time-entries/timer/resume`
 export const STOP_TIMER = () => `/time-entries/timer/stop`
 export const END_DAY = () => `/time-entries/timer/end-day`
 export const GET_DAY_ENDED_STATUS = () => `/time-entries/timer/day-ended-status`
+export const GET_WORKSPACE_SUMMARY = () => `/time-entries/timer/workspace-summary`
 export const LOG_MANUAL_ENTRY = () => `/time-entries/manual`
 export const UPDATE_TIME_ENTRY = (id: string) => `/time-entries/${id}`
 export const DELETE_TIME_ENTRY = (id: string) => `/time-entries/${id}`

@@ -1,4 +1,4 @@
-import { ChevronDown, Sparkles } from 'lucide-react'
+import { ChevronDown, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -30,6 +30,8 @@ type TaskSidebarProps = {
   availableTicketsForParent: Array<{ id: string; ticketKey: string; title: string; ticketType: string }>
   availableTags: string[]
   onFilterByTag?: (tag: string) => void
+  isImproving?: boolean
+  onImproveTask?: () => void
   onStatusChange: (columnId: string) => void
   onUpdatePriority: (priority: Task['priority']) => void
   onUpdateField: <K extends keyof Task>(field: K, value: Task[K]) => void
@@ -61,6 +63,8 @@ export function TaskSidebar({
   availableTicketsForParent,
   availableTags,
   onFilterByTag,
+  isImproving,
+  onImproveTask,
   onStatusChange,
   onUpdatePriority,
   onUpdateField,
@@ -178,9 +182,17 @@ export function TaskSidebar({
           </DropdownMenu>
         </div>
 
-        <Button variant="outline" size="sm" className="w-full justify-start gap-2" type="button">
-          <Sparkles className="h-4 w-4" />
-          Improve Task
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2"
+          type="button"
+          onClick={onImproveTask}
+          disabled={!onImproveTask || isImproving}
+          aria-busy={isImproving}
+        >
+          {isImproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {isImproving ? 'Improving...' : 'Improve Task'}
         </Button>
 
         {/* Details fields */}

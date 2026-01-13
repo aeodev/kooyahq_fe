@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, ChevronDown, Plus, Trash2, CheckSquare, Link2, Sparkles } from 'lucide-react'
+import { X, ChevronDown, Plus, Trash2, CheckSquare, Link2, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/ui/rich-text-editor'
@@ -15,8 +15,9 @@ import type { Column, TaskType, Priority, Assignee } from './types'
 import { getTaskTypeIcon, getPriorityIcon, getPriorityLabel } from './index'
 import { AssigneeAvatar } from './AssigneeAvatar'
 import axiosInstance from '@/utils/axios.instance'
-import { CREATE_TICKET, GET_TICKETS_BY_BOARD } from '@/utils/api.routes'
+import { CREATE_TICKET, GET_TICKETS_BY_BOARD, IMPROVE_TICKET_DRAFT } from '@/utils/api.routes'
 import type { Ticket } from '@/types/board'
+import { toast } from 'sonner'
 
 type CreateTaskModalProps = {
   open: boolean
@@ -80,6 +81,7 @@ export function CreateTaskModal({
   const [parentTicketId, setParentTicketId] = useState<string | null>(null)
   const [rootEpicId, setRootEpicId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isImproving, setIsImproving] = useState(false)
   const [availableTickets, setAvailableTickets] = useState<Ticket[]>([])
 
   // Fetch tickets for parent/epic selection
@@ -119,6 +121,7 @@ export function CreateTaskModal({
       setDueDate('')
       setParentTicketId(null)
       setRootEpicId(null)
+      setIsImproving(false)
     }
   }, [open, selectedColumnId, columns])
 
@@ -141,6 +144,7 @@ export function CreateTaskModal({
   }
 
   const handleAddCriteria = () => {
+    if (isImproving) return
     if (newCriteria.trim()) {
       setAcceptanceCriteria([
         ...acceptanceCriteria,
@@ -151,10 +155,12 @@ export function CreateTaskModal({
   }
 
   const handleRemoveCriteria = (id: string) => {
+    if (isImproving) return
     setAcceptanceCriteria(acceptanceCriteria.filter((c) => c.id !== id))
   }
 
   const handleToggleCriteria = (id: string) => {
+    if (isImproving) return
     setAcceptanceCriteria(acceptanceCriteria.map(c => 
       c.id === id ? { ...c, completed: !c.completed } : c
     ))
@@ -177,6 +183,57 @@ export function CreateTaskModal({
 
   const handleRemoveDocument = (id: string) => {
     setDocuments(documents.filter((d) => d.id !== id))
+  }
+
+  const handleImproveTask = async () => {
+    if (isImproving) return
+    if (!canCreateTicket) return
+    if (!title.trim()) {
+      toast.error('Add a title before improving')
+      return
+    }
+
+    setIsImproving(true)
+    try {
+      const response = await axiosInstance.post<{
+        success: boolean
+        data: { description: string; acceptanceCriteria: Array<{ text: string; completed?: boolean }> }
+      }>(
+        IMPROVE_TICKET_DRAFT(boardId),
+        {
+          title: title.trim(),
+          description,
+          acceptanceCriteria: acceptanceCriteria.map((item) => ({
+            text: item.text,
+            completed: item.completed,
+          })),
+        }
+      )
+
+      if (!response.data.success) {
+        toast.error('Failed to improve ticket')
+        return
+      }
+
+      const improvedDescription = typeof response.data.data?.description === 'string' ? response.data.data.description : ''
+      const improvedCriteria = Array.isArray(response.data.data?.acceptanceCriteria)
+        ? response.data.data.acceptanceCriteria
+            .map((item, index) => ({
+              id: `criteria-${Date.now()}-${index}`,
+              text: typeof item?.text === 'string' ? item.text.trim() : '',
+              completed: Boolean(item?.completed),
+            }))
+            .filter((item) => item.text.length > 0)
+        : []
+
+      setDescription(improvedDescription)
+      setAcceptanceCriteria(improvedCriteria)
+      setNewCriteria('')
+    } catch (error) {
+      toast.error('Failed to improve ticket')
+    } finally {
+      setIsImproving(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -301,8 +358,12 @@ export function CreateTaskModal({
                 <label className="text-sm font-medium text-foreground block mb-2">Description</label>
                 <RichTextEditor
                   value={description}
-                  onChange={setDescription}
+                  onChange={(value) => {
+                    if (isImproving) return
+                    setDescription(value)
+                  }}
                   placeholder="Add a description..."
+                  className={cn(isImproving && 'pointer-events-none opacity-60')}
                 />
               </div>
 
@@ -317,6 +378,7 @@ export function CreateTaskModal({
                           type="button"
                           onClick={() => handleToggleCriteria(criteria.id)}
                           className="flex-shrink-0"
+                          disabled={isImproving}
                         >
                           <CheckSquare
                             className={cn(
@@ -338,6 +400,7 @@ export function CreateTaskModal({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveCriteria(criteria.id)}
+                          disabled={isImproving}
                           className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -352,6 +415,7 @@ export function CreateTaskModal({
                     onChange={(e) => setNewCriteria(e.target.value)}
                     placeholder="Add acceptance criteria"
                     className="h-9"
+                    disabled={isImproving}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
@@ -359,7 +423,7 @@ export function CreateTaskModal({
                       }
                     }}
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddCriteria}>
+                  <Button type="button" variant="outline" size="sm" onClick={handleAddCriteria} disabled={isImproving}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -419,9 +483,17 @@ export function CreateTaskModal({
             {/* Sidebar */}
             <div className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-border/50 bg-muted/20 overflow-y-auto">
               <div className="p-4 space-y-3">
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" type="button">
-                  <Sparkles className="h-4 w-4" />
-                  Improve Task
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2"
+                  type="button"
+                  onClick={handleImproveTask}
+                  disabled={isImproving || !canCreateTicket}
+                  aria-busy={isImproving}
+                >
+                  {isImproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {isImproving ? 'Improving...' : 'Improve Task'}
                 </Button>
 
                 {/* Issue Type */}
@@ -755,7 +827,7 @@ export function CreateTaskModal({
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" onClick={handleSubmit} disabled={!title.trim() || loading || !canCreateTicket}>
+            <Button type="submit" onClick={handleSubmit} disabled={!title.trim() || loading || isImproving || !canCreateTicket}>
               {loading ? 'Creating...' : 'Create'}
             </Button>
           </div>

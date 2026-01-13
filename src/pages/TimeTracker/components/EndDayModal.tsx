@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import type { TimeEntry } from '@/types/time-entry'
+import type { TimeEntry, WorkspaceSummaryTicket } from '@/types/time-entry'
 import { formatDuration, formatTimeRange } from './utils'
 
 type EndDayModalProps = {
@@ -15,10 +15,12 @@ type EndDayModalProps = {
   onClose: () => void
   onSubmit: () => void
   entries: TimeEntry[]
+  workspaceTickets?: WorkspaceSummaryTicket[]
+  workspaceLoading?: boolean
   loading?: boolean
 }
 
-export function EndDayModal({ open, onClose, onSubmit, entries, loading }: EndDayModalProps) {
+export function EndDayModal({ open, onClose, onSubmit, entries, workspaceTickets = [], workspaceLoading = false, loading }: EndDayModalProps) {
   const regularEntries = entries.filter((entry) => !entry.isOvertime)
   const overtimeEntries = entries.filter((entry) => entry.isOvertime)
 
@@ -133,6 +135,40 @@ export function EndDayModal({ open, onClose, onSubmit, entries, loading }: EndDa
             )}
             {entries.length === 0 && (
               <p className="text-center text-muted-foreground py-8">No entries for today</p>
+            )}
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <div>
+              <h3 className="text-sm font-semibold">Workspace Summary</h3>
+              <p className="text-xs text-muted-foreground">
+                Tickets assigned during your tracked time or currently assigned
+              </p>
+            </div>
+            {workspaceLoading ? (
+              <p className="text-sm text-muted-foreground">Loading workspace summary...</p>
+            ) : workspaceTickets.length > 0 ? (
+              <div className="space-y-2">
+                {workspaceTickets.map((ticket) => (
+                  <div
+                    key={ticket.ticketKey}
+                    className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-2 rounded-lg border border-border/50 bg-background/50 p-3"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{ticket.ticketKey}</div>
+                      <div className="text-xs text-muted-foreground">{ticket.project}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-sm text-foreground">{ticket.title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {ticket.status} · {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No workspace tickets assigned during this time.</p>
             )}
           </div>
         </div>

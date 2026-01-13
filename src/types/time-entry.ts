@@ -48,3 +48,11 @@ export type ManualEntryInput = {
 export type AddTaskInput = {
   task: string
 }
+
+export type WorkspaceSummaryTicket = {
+  ticketKey: string
+  title: string
+  project: string
+  status: string
+  priority: 'highest' | 'high' | 'medium' | 'low' | 'lowest'
+}
