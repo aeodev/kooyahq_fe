@@ -55,7 +55,6 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
       value: stats.totalUsers,
       description: 'All registered users',
       icon: Users,
-      color: 'text-blue-600',
       allowed: canViewUsers,
     },
     {
@@ -63,7 +62,6 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
       value: stats.totalAdmins,
       description: 'Users with user management rights',
       icon: Shield,
-      color: 'text-purple-600',
       allowed: canViewUsers,
     },
     {
@@ -71,7 +69,6 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
       value: stats.totalRegularUsers,
       description: 'Standard users',
       icon: UserCheck,
-      color: 'text-green-600',
       allowed: canViewUsers,
     },
     {
@@ -79,7 +76,6 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
       value: stats.totalProjects,
       description: 'Total projects',
       icon: FolderKanban,
-      color: 'text-orange-600',
       allowed: canViewProjects,
     },
     {
@@ -87,7 +83,6 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
       value: stats.recentActivityCount,
       description: 'New users (last 7 days)',
       icon: Activity,
-      color: 'text-red-600',
       allowed: canViewUsers,
     },
     {
@@ -95,7 +90,6 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
       value: stats.newUsersThisMonth,
       description: 'Users joined this month',
       icon: UserPlus,
-      color: 'text-indigo-600',
       allowed: canViewUsers,
     },
   ]
@@ -110,7 +104,7 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
       </div>
 
       {visibleCards.length === 0 ? (
-        <Card>
+        <Card className="border">
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground text-center py-8">
               No dashboard metrics available for your permissions.
@@ -122,14 +116,20 @@ export function DashboardSection({ canViewUsers, canViewProjects, canViewActivit
           {visibleCards.map((stat) => {
             const Icon = stat.icon
             return (
-              <Card key={stat.title}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                  <Icon className={`h-4 w-4 ${stat.color}`} />
+              <Card key={stat.title} className="border hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-sm font-medium text-foreground mb-1">{stat.title}</CardTitle>
+                      <CardDescription className="text-xs leading-relaxed">{stat.description}</CardDescription>
+                    </div>
+                    <div className="flex-shrink-0 p-2 rounded-lg border bg-muted/30">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <CardDescription className="text-xs mt-1">{stat.description}</CardDescription>
+                <CardContent className="pt-0">
+                  <div className="text-3xl font-semibold tracking-tight text-foreground">{stat.value}</div>
                 </CardContent>
               </Card>
             )

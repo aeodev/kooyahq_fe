@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useThemeSettingsStore, type ThemeSettings } from '@/stores/theme-settings.store'
-import { Loader2, Save, Sun, Moon, CheckCircle } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { useThemeSettingsStore, DEFAULT_THEME_SETTINGS, type ThemeSettings } from '@/stores/theme-settings.store'
+import { Loader2, Save, Sun, Moon, CheckCircle, RotateCcw, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Helper to validate hex color
@@ -122,9 +123,11 @@ const colorCategories = {
 }
 
 export function ThemeSettingsSection() {
-  const { settings, loading, fetchThemeSettings, updateThemeSettings } = useThemeSettingsStore()
+  const { settings, themeMandatory, loading, fetchThemeSettings, updateThemeSettings, updateThemeMandatory } = useThemeSettingsStore()
   const [localSettings, setLocalSettings] = useState<ThemeSettings | null>(null)
+  const [localMandatory, setLocalMandatory] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [savingMandatory, setSavingMandatory] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
 
   useEffect(() => {
@@ -132,8 +135,9 @@ export function ThemeSettingsSection() {
       fetchThemeSettings()
     } else {
       setLocalSettings(settings)
+      setLocalMandatory(themeMandatory)
     }
-  }, [settings, fetchThemeSettings])
+  }, [settings, themeMandatory, fetchThemeSettings])
 
   const handleColorChange = (mode: 'light' | 'dark', field: ColorField, hexValue: string) => {
     if (!localSettings) return
@@ -170,6 +174,24 @@ export function ThemeSettingsSection() {
       toast.error(error?.message || 'Failed to update theme settings')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleReset = () => {
+    setLocalSettings(DEFAULT_THEME_SETTINGS)
+    setHasChanges(true)
+  }
+
+  const handleMandatoryToggle = async (checked: boolean) => {
+    setSavingMandatory(true)
+    try {
+      await updateThemeMandatory(checked)
+      setLocalMandatory(checked)
+      toast.success(checked ? 'Theme is now mandatory for all users' : 'Users can now customize their theme')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update mandatory setting')
+    } finally {
+      setSavingMandatory(false)
     }
   }
 
@@ -222,21 +244,50 @@ export function ThemeSettingsSection() {
 
   return (
     <div className="space-y-8">
+      {/* Mandatory Theme Setting */}
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-background to-muted/20">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Lock className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <Label htmlFor="theme-mandatory" className="text-base font-medium">
+                  Enforce theme for all users
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, users cannot customize their own theme colors
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={localMandatory}
+              onCheckedChange={handleMandatoryToggle}
+              disabled={savingMandatory}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Color Editor */}
       <Card className="border-0 shadow-xl bg-gradient-to-br from-background to-muted/20">
 
         <CardContent>
           <Tabs defaultValue="light" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 h-12">
-              <TabsTrigger value="light" className="flex items-center gap-2 text-sm">
-                <Sun className="h-4 w-4" />
-                Light Mode
-              </TabsTrigger>
-              <TabsTrigger value="dark" className="flex items-center gap-2 text-sm">
-                <Moon className="h-4 w-4" />
-                Dark Mode
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-lg font-semibold text-foreground">Color Palette</h2>
+              <TabsList className="h-10 p-1 bg-muted/50 rounded-lg">
+                <TabsTrigger value="light" className="flex items-center gap-1.5 px-3 h-8 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <Sun className="h-3.5 w-3.5" />
+                  Light
+                </TabsTrigger>
+                <TabsTrigger value="dark" className="flex items-center gap-1.5 px-3 h-8 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <Moon className="h-3.5 w-3.5" />
+                  Dark
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {(['light', 'dark'] as const).map((mode) => (
               <TabsContent key={mode} value={mode} className="space-y-8 mt-0">
@@ -379,8 +430,18 @@ export function ThemeSettingsSection() {
         </CardContent>
       </Card>
 
-      {/* Save Button */}
-      <div className="flex justify-center">
+      {/* Action Buttons */}
+      <div className="flex justify-center gap-3">
+        <Button
+          onClick={handleReset}
+          disabled={saving}
+          size="lg"
+          variant="outline"
+          className="gap-2 px-8"
+        >
+          <RotateCcw className="h-5 w-5" />
+          Reset to Defaults
+        </Button>
         <Button
           onClick={handleSave}
           disabled={saving || !hasChanges}

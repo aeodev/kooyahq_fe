@@ -5,16 +5,22 @@ import { GET_PROJECTS, CREATE_PROJECT, UPDATE_PROJECT, DELETE_PROJECT } from '@/
 export type Project = {
   id: string
   name: string
+  emoji?: string
+  iconUrl?: string
   createdAt: string
   updatedAt: string
 }
 
 export type CreateProjectInput = {
   name: string
+  emoji?: string
+  iconUrl?: string
 }
 
 export type UpdateProjectInput = {
   name?: string
+  emoji?: string
+  iconUrl?: string
 }
 
 export type Errors = {

@@ -1,14 +1,16 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, ClipboardList, TrendingUp, User, Check, Circle, Minus } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, ClipboardList, TrendingUp } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
 import { useTheme } from '@/composables/useTheme'
 import { useUnreadCount } from '@/hooks/notification.hooks'
 import { useAuthStore } from '@/stores/auth.store'
+import { useUserPreferencesStore } from '@/stores/user-preferences.store'
 import { PERMISSIONS, type Permission } from '@/constants/permissions'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { StatusIndicator } from '@/components/ui/status-indicator'
+import { UserProfileDropdown } from './components/UserProfileDropdown'
 
 type NavItem = {
   name: string
@@ -142,7 +144,12 @@ const MANAGEMENT_ITEMS: NavItem[] = [
     name: 'Cost Analytics',
     to: '/cost-analytics',
     icon: TrendingUp,
-    requiredPermissions: [PERMISSIONS.SYSTEM_FULL_ACCESS],
+    requiredPermissions: [
+      PERMISSIONS.SYSTEM_FULL_ACCESS,
+      PERMISSIONS.COST_ANALYTICS_VIEW,
+      PERMISSIONS.COST_ANALYTICS_EDIT,
+      PERMISSIONS.COST_ANALYTICS_FULL_ACCESS
+    ],
   },
   {
     name: 'Admin Logs',
@@ -164,17 +171,23 @@ type NavGroupKey = (typeof NAV_GROUPS)[number]['key']
 type SidebarState = {
   collapsed: boolean
   mobileOpen: boolean
+  initialized: boolean
   toggleCollapse: () => void
+  setCollapsed: (collapsed: boolean) => void
   openMobile: () => void
   closeMobile: () => void
+  setInitialized: () => void
 }
 
 export const useSidebarStore = create<SidebarState>((set) => ({
   collapsed: false,
   mobileOpen: false,
+  initialized: false,
   toggleCollapse: () => set((s) => ({ collapsed: !s.collapsed })),
+  setCollapsed: (collapsed) => set({ collapsed }),
   openMobile: () => set({ mobileOpen: true }),
   closeMobile: () => set({ mobileOpen: false }),
+  setInitialized: () => set({ initialized: true }),
 }))
 
 // Reusable NavGroup accordion component
@@ -197,7 +210,7 @@ function NavGroup({ label, icon: GroupIcon, items, isOpen, isActive, onToggle, c
         type="button"
         onClick={onToggle}
         className={cn(
-          'group relative flex w-full items-center rounded-xl text-[14px] font-medium transition-all duration-300 ease-out',
+          'group relative flex w-full items-center rounded-xl text-[14px] font-medium transition-[background-color,color,opacity,transform,shadow] duration-300 ease-out',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
           isActive
             ? 'bg-primary/10 dark:bg-primary/20 backdrop-blur-sm text-primary border border-primary/30 shadow-md'
@@ -247,7 +260,7 @@ function NavGroup({ label, icon: GroupIcon, items, isOpen, isActive, onToggle, c
                 to={item.to}
                 onClick={closeMobile}
                 className={cn(
-                  'group relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-300 ease-out',
+                  'group relative flex items-center rounded-xl text-[13px] font-medium transition-[background-color,color,opacity,transform,shadow] duration-300 ease-out',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                   itemIsActive
                     ? 'bg-primary/10 dark:bg-primary/20 backdrop-blur-sm text-primary border border-primary/30 shadow-md'
@@ -288,11 +301,23 @@ export function Sidebar() {
     can(PERMISSIONS.NOTIFICATION_FULL_ACCESS) ||
     can(PERMISSIONS.NOTIFICATION_COUNT)
   const hasAnyPermission = Array.isArray(user?.permissions) && user.permissions.length > 0
+  const userPreferences = useUserPreferencesStore((s) => s.preferences)
   
   const collapsed = useSidebarStore((s) => s.collapsed)
   const mobileOpen = useSidebarStore((s) => s.mobileOpen)
+  const initialized = useSidebarStore((s) => s.initialized)
   const toggleCollapse = useSidebarStore((s) => s.toggleCollapse)
+  const setCollapsed = useSidebarStore((s) => s.setCollapsed)
   const closeMobile = useSidebarStore((s) => s.closeMobile)
+  const setInitialized = useSidebarStore((s) => s.setInitialized)
+
+  // Apply user's sidebar preference on initial load
+  useEffect(() => {
+    if (!initialized && user && userPreferences.sidebarCollapsed !== undefined) {
+      setCollapsed(userPreferences.sidebarCollapsed)
+      setInitialized()
+    }
+  }, [initialized, user, userPreferences.sidebarCollapsed, setCollapsed, setInitialized])
 
   const [imageError, setImageError] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<NavGroupKey, boolean>>({
@@ -312,7 +337,6 @@ export function Sidebar() {
     .slice(0, 2)
     .join('') ?? ''
   const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
-  const isValidBanner = user?.banner && user.banner !== 'undefined' && user.banner.trim() !== ''
   
   // Filter function for nav items based on permissions
   const filterByPermissions = (items: NavItem[]) => items.filter((item) => {
@@ -441,7 +465,7 @@ export function Sidebar() {
                 to={DASHBOARD_ITEM.to}
                 onClick={closeMobile}
                 className={cn(
-                  'group relative flex items-center rounded-xl text-[14px] font-medium transition-all duration-300 ease-out',
+                  'group relative flex items-center rounded-xl text-[14px] font-medium transition-[background-color,color,opacity,transform,shadow] duration-300 ease-out',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
                   isActive
                     ? 'bg-primary/10 dark:bg-primary/20 backdrop-blur-sm text-primary border border-primary/30 shadow-md'
@@ -534,149 +558,11 @@ export function Sidebar() {
               </div>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80 p-0 ml-3 mb-4 overflow-hidden" side="top" sideOffset={4}>
-            {/* Banner Section */}
-            <div className="relative h-24 bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5">
-              {isValidBanner ? (
-                <img
-                  src={user.banner}
-                  alt="Banner"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary/30 via-primary/20 to-primary/10" />
-              )}
-              
-              {/* Avatar Overlay */}
-              <div className="absolute bottom-0 left-4 translate-y-1/2">
-                <div className="relative">
-                  {isValidProfilePic && !imageError ? (
-                    <img
-                      key={user.profilePic}
-                      src={user.profilePic}
-                      alt={firstName}
-                      className="h-20 w-20 rounded-full object-cover ring-4 ring-[hsl(var(--ios-sidebar-bg))]"
-                      onError={() => setImageError(true)}
-                    />
-                  ) : (
-                    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-lg font-medium text-primary-foreground ring-4 ring-[hsl(var(--ios-sidebar-bg))]">
-                      {initials || 'KH'}
-                    </span>
-                  )}
-                  <div className="absolute -bottom-0.5 -right-0.5">
-                    <StatusIndicator status={user.status} size="lg" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* User Info Section */}
-            <div className="pt-12 pb-3 px-4 bg-[hsl(var(--ios-sidebar-bg))]">
-              <div className="mb-1">
-                <p className="text-base font-semibold text-foreground">{firstName}</p>
-                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-              </div>
-              {user.bio && (
-                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{user.bio}</p>
-              )}
-            </div>
-
-            <DropdownMenuSeparator />
-
-            {/* Status Selection with Submenu */}
-            <div className="p-1">
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="flex items-center gap-3 cursor-pointer w-full">
-                  <div className="flex items-center gap-3 flex-1">
-                    <StatusIndicator status={user.status || 'offline'} size="sm" />
-                    <span className="text-sm">
-                      {user.status === 'online' && 'Online'}
-                      {user.status === 'busy' && 'Do Not Disturb'}
-                      {user.status === 'away' && 'Idle'}
-                      {user.status === 'offline' && 'Invisible'}
-                      {!user.status && 'Set Status'}
-                    </span>
-                  </div>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent alignOffset={-8} sideOffset={4}>
-                  <DropdownMenuItem
-                    className="flex items-center gap-3 cursor-pointer"
-                    onClick={() => updateStatus('online')}
-                  >
-                    <div className="relative">
-                      <Circle className="h-4 w-4 text-green-500 fill-green-500" />
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-sm">Online</span>
-                    </div>
-                    {user.status === 'online' && (
-                      <Check className="h-4 w-4 text-primary" />
-                    )}
-                  </DropdownMenuItem>
-                  
-                  <DropdownMenuItem
-                    className="flex items-center gap-3 cursor-pointer"
-                    onClick={() => updateStatus('away')}
-                  >
-                    <Moon className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                    <div className="flex-1">
-                      <span className="text-sm">Idle</span>
-                    </div>
-                    {user.status === 'away' && (
-                      <Check className="h-4 w-4 text-primary" />
-                    )}
-                  </DropdownMenuItem>
-                  
-                  <DropdownMenuItem
-                    className="flex items-center gap-3 cursor-pointer"
-                    onClick={() => updateStatus('busy')}
-                  >
-                    <div className="relative">
-                      <Circle className="h-4 w-4 text-red-500 fill-red-500" />
-                      <Minus className="h-2 w-2 text-white absolute inset-0 m-auto" strokeWidth={3} />
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-sm">Do Not Disturb</span>
-                      <p className="text-xs text-muted-foreground">You will not receive desktop notifications</p>
-                    </div>
-                    {user.status === 'busy' && (
-                      <Check className="h-4 w-4 text-primary" />
-                    )}
-                  </DropdownMenuItem>
-                  
-                  <DropdownMenuItem
-                    className="flex items-center gap-3 cursor-pointer"
-                    onClick={() => updateStatus('offline')}
-                  >
-                    <div className="relative">
-                      <Circle className="h-4 w-4 text-gray-500 fill-gray-500" />
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-sm">Invisible</span>
-                      <p className="text-xs text-muted-foreground">You will appear offline</p>
-                    </div>
-                    {user.status === 'offline' && (
-                      <Check className="h-4 w-4 text-primary" />
-                    )}
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </div>
-
-            <DropdownMenuSeparator />
-
-            {/* Profile Link */}
-            <DropdownMenuItem
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={() => {
-                navigate('/profile')
-                closeMobile()
-              }}
-            >
-              <User className="h-4 w-4" />
-              <span className="text-sm">View Profile</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
+          <UserProfileDropdown
+            user={user}
+            onStatusUpdate={updateStatus}
+            onCloseMobile={closeMobile}
+          />
         </DropdownMenu>
 
         {/* Divider */}

@@ -10,6 +10,8 @@ import {
 import { useCostAnalyticsStore } from '@/stores/cost-analytics.store'
 import type { Budget, BudgetComparison } from '@/types/cost-analytics'
 import { normalizeError } from '@/utils/error'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 type CreateBudgetInputFrontend = {
   project?: string | null
@@ -36,6 +38,9 @@ type UpdateBudgetInputFrontend = {
 }
 
 export function useBudgetManagement() {
+  const can = useAuthStore((state) => state.can)
+  const canEditBudgets = can(PERMISSIONS.COST_ANALYTICS_EDIT) || can(PERMISSIONS.COST_ANALYTICS_FULL_ACCESS)
+
   const {
     budgets,
     budgetsLoading,
@@ -82,6 +87,11 @@ export function useBudgetManagement() {
   }, [setBudgetComparisons])
 
   const createBudget = useCallback(async (input: CreateBudgetInputFrontend): Promise<Budget | null> => {
+    if (!canEditBudgets) {
+      setBudgetsError('You do not have permission to create budgets')
+      return null
+    }
+
     setBudgetsLoading(true)
     setBudgetsError(null)
     try {
@@ -105,9 +115,14 @@ export function useBudgetManagement() {
     } finally {
       setBudgetsLoading(false)
     }
-  }, [budgets, setBudgets, setBudgetsLoading, setBudgetsError, fetchBudgetComparisons])
+  }, [budgets, setBudgets, setBudgetsLoading, setBudgetsError, fetchBudgetComparisons, canEditBudgets])
 
   const updateBudget = useCallback(async (id: string, input: UpdateBudgetInputFrontend): Promise<Budget | null> => {
+    if (!canEditBudgets) {
+      setBudgetsError('You do not have permission to update budgets')
+      return null
+    }
+
     setBudgetsLoading(true)
     setBudgetsError(null)
     try {
@@ -130,9 +145,14 @@ export function useBudgetManagement() {
     } finally {
       setBudgetsLoading(false)
     }
-  }, [budgets, setBudgets, setBudgetsLoading, setBudgetsError, fetchBudgetComparisons])
+  }, [budgets, setBudgets, setBudgetsLoading, setBudgetsError, fetchBudgetComparisons, canEditBudgets])
 
   const deleteBudget = useCallback(async (id: string): Promise<boolean> => {
+    if (!canEditBudgets) {
+      setBudgetsError('You do not have permission to delete budgets')
+      return false
+    }
+
     setBudgetsLoading(true)
     setBudgetsError(null)
     try {
@@ -151,13 +171,14 @@ export function useBudgetManagement() {
     } finally {
       setBudgetsLoading(false)
     }
-  }, [budgets, setBudgets, setBudgetsLoading, setBudgetsError, fetchBudgetComparisons])
+  }, [budgets, setBudgets, setBudgetsLoading, setBudgetsError, fetchBudgetComparisons, canEditBudgets])
 
   return {
     budgets,
     budgetsLoading,
     budgetsError,
     budgetComparisons,
+    canEditBudgets,
     fetchBudgets,
     createBudget,
     updateBudget,

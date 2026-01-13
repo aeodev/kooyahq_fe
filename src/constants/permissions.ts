@@ -79,6 +79,10 @@ export const PERMISSIONS = {
   TIME_ENTRY_UPDATE: 'time-entry:update',
   TIME_ENTRY_DELETE: 'time-entry:delete',
 
+  COST_ANALYTICS_FULL_ACCESS: 'cost-analytics:fullAccess',
+  COST_ANALYTICS_VIEW: 'cost-analytics:view',
+  COST_ANALYTICS_EDIT: 'cost-analytics:edit',
+
   GAME_FULL_ACCESS: 'game:fullAccess',
   GAME_READ: 'game:read',
   GAME_PLAY: 'game:play',
@@ -197,6 +201,11 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   { value: PERMISSIONS.TIME_ENTRY_CREATE, label: 'Create Time Entries' },
   { value: PERMISSIONS.TIME_ENTRY_UPDATE, label: 'Update Time Entries' },
   { value: PERMISSIONS.TIME_ENTRY_DELETE, label: 'Delete Time Entries' },
+
+  // Cost Analytics
+  { value: PERMISSIONS.COST_ANALYTICS_FULL_ACCESS, label: 'Cost Analytics Full Access' },
+  { value: PERMISSIONS.COST_ANALYTICS_VIEW, label: 'View Cost Analytics', description: 'View cost data, analytics, and live tracking' },
+  { value: PERMISSIONS.COST_ANALYTICS_EDIT, label: 'Edit Cost Analytics', description: 'View plus export data and manage budgets' },
 
   // Games
   { value: PERMISSIONS.GAME_FULL_ACCESS, label: 'Game Full Access' },

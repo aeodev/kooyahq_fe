@@ -6,6 +6,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   ChevronLeft,
+  ChevronRight,
   Lock,
   MoreHorizontal,
   Pencil,
@@ -2345,35 +2346,37 @@ export function ServerManagement() {
       : null
 
   const renderProjectsList = () => (
-    <section className="space-y-6">
+    <section className="space-y-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
             Server Management
           </p>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Projects</h1>
           <p className="text-sm text-muted-foreground">
-            {projects.length} projects - {totalServers} servers
+            {projects.length} {projects.length === 1 ? 'project' : 'projects'} · {totalServers} {totalServers === 1 ? 'server' : 'servers'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canManage && (
             <Button
-              variant="secondary"
               size="sm"
-              className="border border-border/60"
               onClick={openCreateProject}
+              className="shadow-sm"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Create Project
+              New Project
             </Button>
           )}
         </div>
       </header>
 
       {projectsError && (
-        <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span>{projectsError}</span>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+            <span>{projectsError}</span>
+          </div>
           <Button variant="outline" size="sm" onClick={() => void fetchProjects()}>
             Retry
           </Button>
@@ -2381,76 +2384,126 @@ export function ServerManagement() {
       )}
 
       {projectsLoading && (
-        <p className="text-sm text-muted-foreground">Loading projects...</p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-xl border bg-card p-5 animate-pulse">
+              <div className="flex items-start gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-muted" />
+                <div className="flex-1 space-y-3">
+                  <div className="h-5 w-32 rounded bg-muted" />
+                  <div className="h-4 w-full rounded bg-muted" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {projects.map((project) => (
-          <div
-            key={project.id}
-            className={cn(cardClassName, 'cursor-pointer hover:border-border transition-colors')}
-            onClick={() => navigate(`/server-management/projects/${project.id}`)}
-            role="button"
-            tabIndex={0}
-            aria-label={`Open ${project.name}`}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                navigate(`/server-management/projects/${project.id}`)
-              }
-            }}
-          >
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 aspect-square items-center justify-center rounded-full border border-border bg-muted text-lg">
-                {project.emoji}
-              </div>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold">{project.name}</h2>
-                  <Badge variant="outline" className="text-xs">
-                    {project.servers.length} servers
-                  </Badge>
+      {!projectsLoading && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project) => (
+            <div
+              key={project.id}
+              className="group relative rounded-xl border bg-card md:overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 hover:border-primary/20"
+              onClick={() => navigate(`/server-management/projects/${project.id}`)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${project.name}`}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  navigate(`/server-management/projects/${project.id}`)
+                }
+              }}
+            >
+              {/* Decorative gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              
+              {/* Main content */}
+              <div className="relative p-5">
+                <div className="flex items-start gap-4">
+                  {/* Project icon */}
+                  <div className="flex-shrink-0 h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent ring-1 ring-primary/10 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                    <span className="text-2xl">{project.emoji || '📁'}</span>
+                  </div>
+                  
+                  {/* Project info */}
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <h2 className="text-base font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                      {project.name}
+                    </h2>
+                    {project.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {project.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{project.description}</p>
-              </div>
-            </div>
 
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
+                {/* Server count badge */}
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "h-2 w-2 rounded-full",
+                      project.servers.length > 0 ? "bg-emerald-500" : "bg-muted-foreground/30"
+                    )} />
+                    <span className="text-xs text-muted-foreground">
+                      {project.servers.length} {project.servers.length === 1 ? 'server' : 'servers'}
+                    </span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+
+              {/* Action buttons - always visible on mobile, slide up on hover for desktop */}
               {canManage && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openEditProject(project)
-                    }}
-                  >
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openRemoveProject(project)
-                    }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                </>
+                <div className="relative md:absolute md:bottom-0 md:left-0 md:right-0 md:translate-y-full md:group-hover:translate-y-0 transition-transform duration-300 ease-out">
+                  <div className="flex border-t bg-card/95 backdrop-blur-sm">
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openEditProject(project)
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border-r"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openRemoveProject(project)
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {!projectsLoading && !projectsError && projects.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-border/60 p-10 text-center text-sm text-muted-foreground">
-          No projects yet. Create one to start managing servers.
+        <div className="rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/5 p-12 flex flex-col items-center gap-4">
+          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center ring-1 ring-primary/10">
+            <span className="text-3xl">🖥️</span>
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">No projects yet</p>
+            <p className="text-xs text-muted-foreground/60">
+              {canManage ? 'Create your first project to start managing servers' : 'No projects available to view'}
+            </p>
+          </div>
+          {canManage && (
+            <Button size="sm" onClick={openCreateProject} className="mt-2">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Project
+            </Button>
+          )}
         </div>
       )}
     </section>

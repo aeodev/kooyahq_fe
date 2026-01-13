@@ -356,8 +356,11 @@ export function TimeTracker() {
     return entriesToCheck.some((entry) => entry.tasks.some((task) => isActualTaskText(task.text)))
   }, [activeTimer, todayMyEntries])
 
-  // Show End Day button if day hasn't been ended, or if there are overtime entries, and at least one real task exists
-  const showEndDayButton = (!dayEndedToday || hasOvertimeEntries) && hasActualTasks
+  // Check if there are any entries for today
+  const hasEntriesForToday = todayMyEntries.length > 0
+
+  // Show End Day button if day hasn't been ended AND there are entries to end, or if there are overtime entries, and at least one real task exists
+  const showEndDayButton = ((!dayEndedToday && hasEntriesForToday) || hasOvertimeEntries) && hasActualTasks
 
   const handleOvertimeConfirm = async () => {
     setShowOvertimeModal(false)

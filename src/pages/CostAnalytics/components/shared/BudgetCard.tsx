@@ -10,11 +10,12 @@ import type { BudgetComparison, CurrencyConfig } from '@/types/cost-analytics'
 interface BudgetCardProps {
   comparison: BudgetComparison
   currencyConfig: CurrencyConfig
+  canEdit?: boolean
   onEdit: (budget: BudgetComparison['budget']) => void
   onDelete: (budgetId: string) => void
 }
 
-export function BudgetCard({ comparison, currencyConfig, onEdit, onDelete }: BudgetCardProps) {
+export function BudgetCard({ comparison, currencyConfig, canEdit = false, onEdit, onDelete }: BudgetCardProps) {
   const { budget, actualCost, remainingBudget, utilizationPercentage, alertLevel, remainingDays } = comparison
 
   const getAlertColor = () => {
@@ -54,24 +55,26 @@ export function BudgetCard({ comparison, currencyConfig, onEdit, onDelete }: Bud
                 {new Date(budget.endDate).toLocaleDateString()}
               </p>
             </div>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(budget)}
-                className="h-8 w-8 p-0"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDelete(budget.id)}
-                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
+            {canEdit && (
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onEdit(budget)}
+                  className="h-8 w-8 p-0"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDelete(budget.id)}
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Progress Bar */}

@@ -16,6 +16,8 @@ import {
   exportLiveDataToCSV,
   downloadCSV,
 } from '@/utils/cost-analytics-export.utils'
+import { useAuthStore } from '@/stores/auth.store'
+import { PERMISSIONS } from '@/constants/permissions'
 
 interface CostAnalyticsHeaderProps {
   currency: keyof typeof CURRENCIES
@@ -48,6 +50,9 @@ export function CostAnalyticsHeader({
   onTabChange,
   lastUpdated,
 }: CostAnalyticsHeaderProps) {
+  const can = useAuthStore((state) => state.can)
+  const canExport = can(PERMISSIONS.COST_ANALYTICS_EDIT) || can(PERMISSIONS.COST_ANALYTICS_FULL_ACCESS)
+
   const currencyConfig = CURRENCIES[currency]
   const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleString() : 'Not updated yet'
 
@@ -130,7 +135,7 @@ export function CostAnalyticsHeader({
           {/* Export button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={!canExportSummary && !canExportLive} className="gap-2">
+              <Button variant="outline" size="sm" disabled={(!canExportSummary && !canExportLive) || !canExport} className="gap-2">
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Export</span>
               </Button>

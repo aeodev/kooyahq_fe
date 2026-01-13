@@ -137,6 +137,8 @@ export const GET_CESIUM_TOKEN = () => `/cesium/token`
 // Profile routes
 export const GET_PROFILE = () => `/users/profile`
 export const UPDATE_PROFILE = () => `/users/profile`
+export const GET_USER_PREFERENCES = () => `/users/preferences`
+export const UPDATE_USER_PREFERENCES = () => `/users/preferences`
 export const GET_PROFILE_POSTS = () => `/posts/me`
 export const CREATE_PROFILE_POST = () => `/posts`
 export const UPDATE_POST = (postId: string) => `/posts/${postId}`
@@ -257,6 +259,7 @@ export const EXPORT_USERS = (format: 'csv' | 'json') => `/user-management/export
 // Settings routes
 export const GET_THEME_SETTINGS = () => `/settings/theme`
 export const UPDATE_THEME_SETTINGS = () => `/settings/theme`
+export const UPDATE_THEME_MANDATORY = () => `/settings/theme/mandatory`
 
 // Cost Analytics routes (Super Admin only)
 export const GET_LIVE_COST = () => `/cost-analytics/live`

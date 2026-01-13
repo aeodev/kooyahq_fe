@@ -24,6 +24,7 @@ import { TicketDetailPage } from '@/pages/Workspace/BoardView/TicketDetailPage'
 import { Gallery } from '@/pages/Gallery'
 import { AINews } from '@/pages/AINews'
 import { Profile } from '@/pages/Profile'
+import { Personalization } from '@/pages/Personalization'
 import { Notifications } from '@/pages/Notifications'
 import { KooyaFeed } from '@/pages/KooyaFeed'
 import { Games } from '@/pages/Games'
@@ -190,6 +191,16 @@ function App() {
               <PrivateRoute fallback={null}>
                 <DashboardLayout>
                   <Profile />
+                </DashboardLayout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile/personalization"
+            element={
+              <PrivateRoute fallback={null}>
+                <DashboardLayout>
+                  <Personalization />
                 </DashboardLayout>
               </PrivateRoute>
             }
@@ -386,7 +397,12 @@ function App() {
             path="/cost-analytics"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[PERMISSIONS.SYSTEM_FULL_ACCESS]}>
+                <PermissionGate anyOf={[
+                  PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  PERMISSIONS.COST_ANALYTICS_VIEW,
+                  PERMISSIONS.COST_ANALYTICS_EDIT,
+                  PERMISSIONS.COST_ANALYTICS_FULL_ACCESS
+                ]}>
                   <DashboardLayout>
                     <CostAnalytics />
                   </DashboardLayout>
