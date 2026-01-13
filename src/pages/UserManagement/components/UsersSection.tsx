@@ -22,7 +22,9 @@ import {
   XCircle,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { StatusIndicator } from '@/components/ui/status-indicator'
 import { useEmployees, useUpdateEmployee, useDeleteEmployee, useCreateUser } from '@/hooks/user-management.hooks'
+import { useActiveUsers } from '@/hooks/game.hooks'
 import type { User } from '@/types/user'
 import { toast } from 'sonner'
 import axiosInstance from '@/utils/axios.instance'
@@ -38,10 +40,10 @@ const MAX_USERS_FETCH = 500
 const SEARCH_DEBOUNCE_MS = 300
 
 const STATUS_OPTIONS: Array<{ value: 'online' | 'busy' | 'away' | 'offline'; label: string }> = [
-  { value: 'away', label: 'Away' },
-  { value: 'busy', label: 'Busy' },
-  { value: 'offline', label: 'Offline' },
   { value: 'online', label: 'Online' },
+  { value: 'away', label: 'Idle' },
+  { value: 'busy', label: 'Do Not Disturb' },
+  { value: 'offline', label: 'Offline' },
 ]
 
 const DEFAULT_NEW_USER_PERMISSIONS = [
@@ -77,7 +79,7 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
   {
     label: 'SuperAdmin',
     description: 'System-wide access override',
-    permissions: [PERMISSIONS.SYSTEM_FULL_ACCESS, PERMISSIONS.SYSTEM_LOGS],
+    permissions: [PERMISSIONS.SYSTEM_FULL_ACCESS, PERMISSIONS.SYSTEM_LOGS, PERMISSIONS.COST_ANALYTICS_FULL_ACCESS],
   },
   {
     label: 'Admin',
@@ -90,6 +92,7 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
       PERMISSIONS.AI_NEWS_FULL_ACCESS,
       PERMISSIONS.GALLERY_FULL_ACCESS,
       PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
+      PERMISSIONS.COST_ANALYTICS_FULL_ACCESS,
       PERMISSIONS.MEDIA_FULL_ACCESS,
       PERMISSIONS.POST_FULL_ACCESS,
       PERMISSIONS.NOTIFICATION_FULL_ACCESS,
@@ -122,6 +125,7 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
       PERMISSIONS.TIME_ENTRY_CREATE,
       PERMISSIONS.TIME_ENTRY_UPDATE,
       PERMISSIONS.TIME_ENTRY_DELETE,
+      PERMISSIONS.COST_ANALYTICS_VIEW,
       PERMISSIONS.GAME_FULL_ACCESS,
       PERMISSIONS.PRESENCE_FULL_ACCESS,
       PERMISSIONS.MEDIA_UPLOAD,
@@ -154,6 +158,7 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
       PERMISSIONS.GALLERY_READ,
       PERMISSIONS.MEET_FULL_ACCESS,
       PERMISSIONS.GAME_FULL_ACCESS,
+      PERMISSIONS.COST_ANALYTICS_VIEW,
       PERMISSIONS.MEDIA_UPLOAD,
       PERMISSIONS.MEDIA_READ,
       PERMISSIONS.MEDIA_DELETE,
@@ -194,6 +199,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
   const { updateEmployee, loading: updating } = useUpdateEmployee()
   const { deleteEmployee } = useDeleteEmployee()
   const { createUser, loading: creatingUser } = useCreateUser()
+  const { activeUsers, fetchActiveUsers } = useActiveUsers()
 
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -279,10 +285,53 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
 
   const permissionLookup = useMemo(() => new Set<string>(PERMISSION_LIST.map((p) => p.value)), [])
 
+  // Helper to check if user is online (in active users list)
+  const isUserOnline = useMemo(() => {
+    const activeUserIds = new Set(activeUsers.map((u) => u.id))
+    return (userId: string) => activeUserIds.has(userId)
+  }, [activeUsers])
+
+  // Helper to get effective status (online/offline based on active users, or status preference if online)
+  const getEffectiveStatus = (user: User): 'online' | 'busy' | 'away' | 'offline' => {
+    const online = isUserOnline(user.id)
+    if (!online) {
+      return 'offline'
+    }
+    // If online, use their status preference, default to 'online'
+    return (user.status as 'online' | 'busy' | 'away' | 'offline') || 'online'
+  }
+
+  // Helper to get status label matching UserProfileDropdown
+  const getStatusLabel = (status: 'online' | 'busy' | 'away' | 'offline'): string => {
+    switch (status) {
+      case 'online':
+        return 'Online'
+      case 'busy':
+        return 'Do Not Disturb'
+      case 'away':
+        return 'Idle'
+      case 'offline':
+        return 'Offline'
+      default:
+        return 'Offline'
+    }
+  }
+
   useEffect(() => {
     if (!canViewUsers) return
     fetchEmployees({ page: 1, limit: MAX_USERS_FETCH })
   }, [fetchEmployees, canViewUsers])
+
+  useEffect(() => {
+    if (canViewUsers) {
+      fetchActiveUsers()
+      // Refresh active users every 30 seconds
+      const interval = setInterval(() => {
+        fetchActiveUsers()
+      }, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [canViewUsers, fetchActiveUsers])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(normalizeText(searchInput)), SEARCH_DEBOUNCE_MS)
@@ -313,7 +362,10 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     }
 
     if (statusFilter !== 'all') {
-      list = list.filter((emp) => emp.status === statusFilter)
+      list = list.filter((emp) => {
+        const effectiveStatus = getEffectiveStatus(emp)
+        return effectiveStatus === statusFilter
+      })
     }
 
     if (dateFromFilter) {
@@ -998,13 +1050,10 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                         <td className="py-3 pr-3 align-top text-muted-foreground">{employee.email}</td>
                         <td className="py-3 pr-3 align-top">{employee.position || '—'}</td>
                         <td className="py-3 pr-3 align-top">
-                          {employee.status ? (
-                            <Badge variant="outline" className="capitalize">
-                              {employee.status}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <StatusIndicator status={getEffectiveStatus(employee)} size="sm" />
+                            <span className="text-sm text-foreground">{getStatusLabel(getEffectiveStatus(employee))}</span>
+                          </div>
                         </td>
                         <td className="py-3 pr-3 align-top text-muted-foreground">{formatDate(employee.createdAt)}</td>
                         <td className="py-3 pr-3 align-top">

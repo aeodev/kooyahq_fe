@@ -351,8 +351,11 @@ export function TimeTracker() {
   // Check if there are overtime entries
   const hasOvertimeEntries = todayMyEntries.some((entry) => entry.isOvertime)
 
-  // Show End Day button if day hasn't been ended, or if there are overtime entries
-  const showEndDayButton = !dayEndedToday || hasOvertimeEntries
+  // Check if there are any entries for today
+  const hasEntriesForToday = todayMyEntries.length > 0
+
+  // Show End Day button if day hasn't been ended AND there are entries to end, or if there are overtime entries
+  const showEndDayButton = (!dayEndedToday && hasEntriesForToday) || hasOvertimeEntries
 
   const handleOvertimeConfirm = async () => {
     setShowOvertimeModal(false)

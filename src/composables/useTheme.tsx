@@ -8,7 +8,9 @@ import {
   useState,
 } from 'react'
 import { type ColorScheme, usePrefersColorScheme } from './usePrefersColorScheme'
-import { useThemeSettingsStore } from '@/stores/theme-settings.store'
+import { useThemeSettingsStore, type ThemeColors } from '@/stores/theme-settings.store'
+import { useUserPreferencesStore } from '@/stores/user-preferences.store'
+import { useAuthStore } from '@/stores/auth.store'
 
 const THEME_STORAGE_KEY = 'kooyahq-theme'
 
@@ -76,21 +78,61 @@ function useThemeState() {
   }
 }
 
+function applyThemeColors(colors: ThemeColors) {
+  const root = document.documentElement
+  root.style.setProperty('--primary', colors.primary)
+  root.style.setProperty('--secondary', colors.secondary)
+  root.style.setProperty('--accent', colors.accent)
+  root.style.setProperty('--destructive', colors.destructive)
+  root.style.setProperty('--muted', colors.muted)
+  root.style.setProperty('--background', colors.background)
+  root.style.setProperty('--foreground', colors.foreground)
+  root.style.setProperty('--border', colors.border)
+}
+
 export function ThemeProvider({ children }: PropsWithChildren) {
   const value = useThemeState()
-  const { fetchThemeSettings, applyTheme, settings } = useThemeSettingsStore()
+  const { fetchThemeSettings, settings, themeMandatory } = useThemeSettingsStore()
+  const { fetchPreferences, preferences, applyPreferences } = useUserPreferencesStore()
+  const user = useAuthStore((state) => state.user)
 
   // Fetch theme settings on mount
   useEffect(() => {
     fetchThemeSettings()
   }, [fetchThemeSettings])
 
-  // Apply theme when settings are loaded or theme mode changes
+  // Fetch user preferences when user is authenticated
   useEffect(() => {
-    if (settings) {
-      applyTheme(value.theme)
+    if (user) {
+      fetchPreferences()
     }
-  }, [settings, value.theme, applyTheme])
+  }, [user, fetchPreferences])
+
+  // Apply theme when settings are loaded or theme mode changes
+  // Priority: if themeMandatory is false AND user has custom colors, use user's colors
+  // Otherwise, use system theme
+  useEffect(() => {
+    if (!settings) return
+
+    const mode = value.theme
+    const systemColors = mode === 'dark' ? settings.dark : settings.light
+    const userColors = preferences.themeColors?.[mode]
+
+    // If theme is mandatory OR user has no custom colors, use system theme
+    if (themeMandatory || !userColors) {
+      applyThemeColors(systemColors)
+    } else {
+      // User has custom colors and theme is not mandatory
+      applyThemeColors(userColors)
+    }
+  }, [settings, value.theme, themeMandatory, preferences.themeColors])
+
+  // Apply other user preferences (font size, etc.)
+  useEffect(() => {
+    if (user) {
+      applyPreferences()
+    }
+  }, [user, preferences, applyPreferences])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

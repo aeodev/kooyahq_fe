@@ -1,4 +1,4 @@
-import { Users, ChevronRight, Circle, Gamepad2, Hand, CheckCircle2, Clock, Moon, Disc } from 'lucide-react'
+import { Users, ChevronRight, Circle, Gamepad2, Hand, Check } from 'lucide-react'
 import type { ActiveUser, GameTypeInfo } from '@/types/game'
 import { useState, useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth.store'
@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { StatusIndicator } from '@/components/ui/status-indicator'
 import { cn } from '@/utils/cn'
 import { getInitialsFallback } from '@/utils/image.utils'
 
@@ -55,10 +56,15 @@ export function ActiveUsersSidebar({
   })()
 
   const statusConfig = {
-    online: { color: 'bg-green-500', label: 'Online', icon: CheckCircle2 },
-    busy: { color: 'bg-red-500', label: 'Busy', icon: Disc },
-    away: { color: 'bg-amber-500', label: 'Away', icon: Clock },
-    offline: { color: 'bg-slate-500', label: 'Invisible', icon: Moon },
+    online: { label: 'Online' },
+    busy: { label: 'Do Not Disturb' },
+    away: { label: 'Idle' },
+    offline: { label: 'Invisible' },
+  }
+
+  const getStatusLabel = (status: 'online' | 'busy' | 'away' | 'offline' | undefined): string => {
+    if (!status) return 'Set Status'
+    return statusConfig[status]?.label || 'Online'
   }
 
   const handleInviteClick = (gameType: string, invitedUserId: string) => {
@@ -181,7 +187,6 @@ export function ActiveUsersSidebar({
             const isCurrentUser = activeUser.id === currentUserId
             const isLoading = inviting === activeUser.id || poking === activeUser.id
             const status = isCurrentUser && currentUser?.status ? currentUser.status : 'online'
-            const currentStatusConfig = statusConfig[status as keyof typeof statusConfig] || statusConfig.online
 
             // Different Dropdown content for Current User vs Other Users
             if (isCurrentUser) {
@@ -214,9 +219,9 @@ export function ActiveUsersSidebar({
                             {getUserInitials(activeUser.name)}
                           </div>
                         )}
-                        <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className={cn("relative inline-flex h-2.5 w-2.5 rounded-full ring-2 ring-[hsl(var(--ios-sidebar-bg))]", currentStatusConfig.color)} />
-                        </span>
+                        <div className="absolute -bottom-0.5 -right-0.5">
+                          <StatusIndicator status={status} size="sm" />
+                        </div>
                       </div>
 
                       {!collapsed && (
@@ -225,14 +230,14 @@ export function ActiveUsersSidebar({
                             <p className="text-[14px] font-medium text-foreground truncate">{activeUser.name}</p>
                             <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-primary/10 text-[10px] font-medium text-primary">You</span>
                           </div>
-                          <p className="text-[12px] text-muted-foreground">{currentStatusConfig.label}</p>
+                          <p className="text-[12px] text-muted-foreground">{getStatusLabel(status)}</p>
                         </div>
                       )}
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" side="left" className="w-48 rounded-xl border-[hsl(var(--ios-sidebar-border))] bg-[hsl(var(--ios-sidebar-bg))] backdrop-blur-xl shadow-lg p-1">
                     <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Set Status</div>
-                    {(Object.keys(statusConfig) as Array<keyof typeof statusConfig>).map((key) => {
+                    {(Object.keys(statusConfig) as Array<'online' | 'busy' | 'away' | 'offline'>).map((key) => {
                       const config = statusConfig[key]
                       return (
                         <DropdownMenuItem
@@ -240,9 +245,9 @@ export function ActiveUsersSidebar({
                           onClick={() => updateStatus(key)}
                           className={cn("flex items-center gap-2 px-2 py-2 cursor-pointer rounded-lg", status === key && "bg-primary/10 text-primary")}
                         >
-                          <span className={cn("h-2 w-2 rounded-full", config.color)} />
+                          <StatusIndicator status={key} size="sm" />
                           <span className="flex-1">{config.label}</span>
-                          {status === key && <CheckCircle2 className="h-4 w-4" />}
+                          {status === key && <Check className="h-4 w-4 text-primary" />}
                         </DropdownMenuItem>
                       )
                     })}
@@ -282,10 +287,9 @@ export function ActiveUsersSidebar({
                           {getUserInitials(activeUser.name)}
                         </div>
                       )}
-                      {/* Online status indicator */}
-                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-[hsl(var(--ios-sidebar-bg))]" />
-                      </span>
+                      <div className="absolute -bottom-0.5 -right-0.5">
+                        <StatusIndicator status="online" size="sm" />
+                      </div>
                     </div>
 
                     {/* User info - only when expanded */}
@@ -333,7 +337,7 @@ export function ActiveUsersSidebar({
                     <div className="px-2 py-1.5 mb-1">
                       <p className="text-[13px] font-semibold text-foreground truncate">{activeUser.name}</p>
                       <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                        <StatusIndicator status="online" size="sm" />
                         Online now
                       </p>
                     </div>

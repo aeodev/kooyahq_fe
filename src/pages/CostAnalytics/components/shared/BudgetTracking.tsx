@@ -23,6 +23,7 @@ export function BudgetTracking({ currencyConfig, projectList, selectedProject }:
   const {
     budgetsLoading,
     budgetComparisons,
+    canEditBudgets,
     fetchBudgets,
     createBudget,
     updateBudget,
@@ -112,17 +113,19 @@ export function BudgetTracking({ currencyConfig, projectList, selectedProject }:
                 {activeComparisons.length} active budget{activeComparisons.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditingBudget(null)
-                setIsModalOpen(true)
-              }}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Add Budget
-            </Button>
+            {canEditBudgets && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingBudget(null)
+                  setIsModalOpen(true)
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Budget
+              </Button>
+            )}
           </div>
 
           {/* Budget Cards */}
@@ -144,6 +147,7 @@ export function BudgetTracking({ currencyConfig, projectList, selectedProject }:
                   <BudgetCard
                     comparison={comparison}
                     currencyConfig={currencyConfig}
+                    canEdit={canEditBudgets}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                   />
