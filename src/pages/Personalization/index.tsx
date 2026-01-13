@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useUserPreferencesStore, type FontSize, type UserPreferences } from '@/stores/user-preferences.store'
 import { useThemeSettingsStore, DEFAULT_THEME_SETTINGS, type ThemeColors } from '@/stores/theme-settings.store'
-import { Loader2, Sun, Moon, Palette, Type, PanelLeftClose, RotateCcw, Save, Lock } from 'lucide-react'
+import { Loader2, Sun, Moon, Palette, Type, PanelLeftClose, RotateCcw, Save, Lock, Mic } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Helper to convert HSL string to hex
@@ -119,7 +119,7 @@ const colorCategories: Record<ColorField, { label: string; description: string }
 }
 
 export function Personalization() {
-  const { preferences, loading, fetchPreferences, updatePreferences, resetPreferences } = useUserPreferencesStore()
+  const { preferences, loading, fetchPreferences, updatePreferences, resetPreferences, heyKooyaEnabled, toggleHeyKooya } = useUserPreferencesStore()
   const { themeMandatory, fetchThemeSettings } = useThemeSettingsStore()
   
   const [localPreferences, setLocalPreferences] = useState<UserPreferences>(preferences)
@@ -173,6 +173,16 @@ export function Personalization() {
       sidebarCollapsed: collapsed,
     })
     setHasChanges(true)
+  }
+
+  const handleHeyKooyaToggle = (enabled: boolean) => {
+    toggleHeyKooya()
+    // Note: toggleHeyKooya already updates the store, but we update localPreferences for consistency
+    setLocalPreferences({
+      ...localPreferences,
+      heyKooyaEnabled: enabled,
+    })
+    // Don't set hasChanges since toggleHeyKooya handles the save automatically
   }
 
   const handleSave = async () => {
@@ -458,9 +468,39 @@ export function Personalization() {
                   </p>
                 </div>
                 <Switch
-                  id="sidebar-collapsed"
                   checked={localPreferences.sidebarCollapsed || false}
                   onCheckedChange={handleSidebarToggle}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Hey Kooya Section */}
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-background to-muted/20">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5">
+                  <Mic className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Hey Kooya</CardTitle>
+                  <CardDescription>Voice activation for AI assistant</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-muted/10">
+                <div className="space-y-1">
+                  <Label className="font-medium cursor-pointer">
+                    Enable voice activation
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Say "Hey Kooya" to activate the AI assistant
+                  </p>
+                </div>
+                <Switch
+                  checked={heyKooyaEnabled}
+                  onCheckedChange={handleHeyKooyaToggle}
                 />
               </div>
             </CardContent>

@@ -262,7 +262,6 @@ export function ThemeSettingsSection() {
               </div>
             </div>
             <Switch
-              id="theme-mandatory"
               checked={localMandatory}
               onCheckedChange={handleMandatoryToggle}
               disabled={savingMandatory}

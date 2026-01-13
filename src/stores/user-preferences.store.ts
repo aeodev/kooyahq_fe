@@ -13,12 +13,14 @@ export type UserPreferences = {
   }
   fontSize?: FontSize
   sidebarCollapsed?: boolean
+  heyKooyaEnabled?: boolean
 }
 
 type UserPreferencesState = {
   preferences: UserPreferences
   loading: boolean
   error: string | null
+  heyKooyaEnabled: boolean
 }
 
 type UserPreferencesActions = {
@@ -26,12 +28,14 @@ type UserPreferencesActions = {
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>
   applyPreferences: () => void
   resetPreferences: () => Promise<void>
+  toggleHeyKooya: () => void
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   themeColors: { light: null, dark: null },
   fontSize: 'medium',
   sidebarCollapsed: false,
+  heyKooyaEnabled: false,
 }
 
 const FONT_SIZE_MAP: Record<FontSize, string> = {
@@ -46,13 +50,18 @@ export const useUserPreferencesStore = create<UserPreferencesState & UserPrefere
       preferences: DEFAULT_PREFERENCES,
       loading: false,
       error: null,
+      heyKooyaEnabled: DEFAULT_PREFERENCES.heyKooyaEnabled || false,
 
       fetchPreferences: async () => {
         set({ loading: true, error: null })
         try {
           const response = await axiosInstance.get(GET_USER_PREFERENCES())
           const preferences = response.data.data || DEFAULT_PREFERENCES
-          set({ preferences, loading: false })
+          set({ 
+            preferences, 
+            loading: false,
+            heyKooyaEnabled: preferences.heyKooyaEnabled ?? DEFAULT_PREFERENCES.heyKooyaEnabled ?? false
+          })
           get().applyPreferences()
         } catch (error) {
           set({ error: 'Failed to fetch preferences', loading: false })
@@ -64,7 +73,11 @@ export const useUserPreferencesStore = create<UserPreferencesState & UserPrefere
         try {
           const response = await axiosInstance.put(UPDATE_USER_PREFERENCES(), updates)
           const preferences = response.data.data || get().preferences
-          set({ preferences, loading: false })
+          set({ 
+            preferences, 
+            loading: false,
+            heyKooyaEnabled: preferences.heyKooyaEnabled ?? get().heyKooyaEnabled
+          })
           get().applyPreferences()
         } catch (error: any) {
           const errorMessage = error?.response?.data?.error?.message || 'Failed to update preferences'
@@ -92,8 +105,13 @@ export const useUserPreferencesStore = create<UserPreferencesState & UserPrefere
             themeColors: { light: null, dark: null },
             fontSize: 'medium',
             sidebarCollapsed: false,
+            heyKooyaEnabled: false,
           })
-          set({ preferences: DEFAULT_PREFERENCES, loading: false })
+          set({ 
+            preferences: DEFAULT_PREFERENCES, 
+            loading: false,
+            heyKooyaEnabled: false
+          })
           get().applyPreferences()
         } catch (error: any) {
           const errorMessage = error?.response?.data?.error?.message || 'Failed to reset preferences'
@@ -101,11 +119,34 @@ export const useUserPreferencesStore = create<UserPreferencesState & UserPrefere
           throw error
         }
       },
+
+      toggleHeyKooya: () => {
+        const current = get().heyKooyaEnabled
+        const newValue = !current
+        set({ heyKooyaEnabled: newValue })
+        // Update preferences in backend
+        get().updatePreferences({ heyKooyaEnabled: newValue }).catch((error) => {
+          // Revert on error
+          set({ heyKooyaEnabled: current })
+          console.error('Failed to update heyKooyaEnabled:', error)
+        })
+      },
     }),
     {
       name: 'kooyahq.user-preferences',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ preferences: state.preferences }),
+      partialize: (state) => ({ 
+        preferences: state.preferences,
+        heyKooyaEnabled: state.heyKooyaEnabled
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Initialize heyKooyaEnabled from preferences if not already set
+          if (state.heyKooyaEnabled === undefined) {
+            state.heyKooyaEnabled = state.preferences?.heyKooyaEnabled ?? false
+          }
+        }
+      },
     }
   )
 )

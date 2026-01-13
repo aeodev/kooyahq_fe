@@ -103,7 +103,7 @@ export function ProjectsSection({ canViewProjects, canManageProjects }: Projects
     }
   }, [showEmojiPicker])
 
-  const handleImageUpload = async (file: File, mode: 'create' | string): Promise<string | null> => {
+  const handleImageUpload = async (file: File): Promise<string | null> => {
     try {
       setUploadingImage(true)
       const formData = new FormData()
@@ -141,7 +141,7 @@ export function ProjectsSection({ canViewProjects, canManageProjects }: Projects
       return
     }
 
-    const url = await handleImageUpload(file, mode)
+    const url = await handleImageUpload(file)
     if (url) {
       if (mode === 'create') {
         setNewProjectIconUrl(url)
