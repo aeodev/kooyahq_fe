@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, FileVideo, ClipboardList, TrendingUp } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, ClipboardList, TrendingUp, User, Check, Circle, Minus } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -7,6 +7,8 @@ import { useTheme } from '@/composables/useTheme'
 import { useUnreadCount } from '@/hooks/notification.hooks'
 import { useAuthStore } from '@/stores/auth.store'
 import { PERMISSIONS, type Permission } from '@/constants/permissions'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu'
+import { StatusIndicator } from '@/components/ui/status-indicator'
 
 type NavItem = {
   name: string
@@ -44,22 +46,12 @@ const PRODUCTIVITY_ITEMS: NavItem[] = [
     ],
   },
   {
-    name: 'Gallery',
-    to: '/gallery',
-    icon: Images,
+    name: 'Meet',
+    to: '/meet',
+    icon: Video,
     requiredPermissions: [
-      PERMISSIONS.GALLERY_READ,
-      PERMISSIONS.GALLERY_FULL_ACCESS,
-      PERMISSIONS.SYSTEM_FULL_ACCESS,
-    ],
-  },
-  {
-    name: 'AI News',
-    to: '/ai-news',
-    icon: Sparkles,
-    requiredPermissions: [
-      PERMISSIONS.AI_NEWS_READ,
-      PERMISSIONS.AI_NEWS_FULL_ACCESS,
+      PERMISSIONS.MEET_TOKEN,
+      PERMISSIONS.MEET_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
   },
@@ -94,22 +86,22 @@ const SOCIAL_ITEMS: NavItem[] = [
     ],
   },
   {
-    name: 'Meet',
-    to: '/meet',
-    icon: Video,
+    name: 'Gallery',
+    to: '/gallery',
+    icon: Images,
     requiredPermissions: [
-      PERMISSIONS.MEET_TOKEN,
-      PERMISSIONS.MEET_FULL_ACCESS,
+      PERMISSIONS.GALLERY_READ,
+      PERMISSIONS.GALLERY_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
   },
   {
-    name: 'Meet Files',
-    to: '/meet/files',
-    icon: FileVideo,
+    name: 'AI News',
+    to: '/ai-news',
+    icon: Sparkles,
     requiredPermissions: [
-      PERMISSIONS.MEET_TOKEN,
-      PERMISSIONS.MEET_FULL_ACCESS,
+      PERMISSIONS.AI_NEWS_READ,
+      PERMISSIONS.AI_NEWS_FULL_ACCESS,
       PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
   },
@@ -289,6 +281,7 @@ export function Sidebar() {
   
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+  const updateStatus = useAuthStore((s) => s.updateStatus)
   const can = useAuthStore((s) => s.can)
   const canViewNotifications =
     can(PERMISSIONS.NOTIFICATION_READ) ||
@@ -319,6 +312,7 @@ export function Sidebar() {
     .slice(0, 2)
     .join('') ?? ''
   const isValidProfilePic = user?.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== ''
+  const isValidBanner = user?.banner && user.banner !== 'undefined' && user.banner.trim() !== ''
   
   // Filter function for nav items based on permissions
   const filterByPermissions = (items: NavItem[]) => items.filter((item) => {
@@ -507,33 +501,183 @@ export function Sidebar() {
         'transition-[padding] duration-300 ease-out',
         collapsed ? 'px-2 py-3' : 'px-3 py-3'
       )}>
-        {/* User Profile */}
-        <Link
-          to="/profile"
-          onClick={closeMobile}
-          className={cn(
-            'flex items-center rounded-lg py-2 hover:bg-[hsl(var(--ios-selection-bg))] cursor-pointer transition-all duration-200 ease-out',
-            collapsed ? 'justify-center px-0' : 'gap-3 px-2',
-          )}
-        >
-          {isValidProfilePic && !imageError ? (
-            <img
-              key={user.profilePic}
-              src={user.profilePic}
-              alt={firstName}
-              className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-[hsl(var(--ios-divider))] transition-all duration-300 ease-out"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-xs font-medium text-primary-foreground transition-all duration-300 ease-out">
-              {initials || 'KH'}
-            </span>
-          )}
-          <div className={cn('sidebar-content-fade min-w-0 flex-1', collapsed ? 'collapsed' : 'expanded')}>
-            <p className="truncate text-[14px] font-semibold text-foreground whitespace-nowrap">{firstName}</p>
-            <p className="truncate text-[12px] text-muted-foreground whitespace-nowrap">{user.email}</p>
-          </div>
-        </Link>
+        {/* User Profile Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className={cn(
+                'flex items-center rounded-lg py-2 hover:bg-[hsl(var(--ios-selection-bg))] cursor-pointer transition-all duration-200 ease-out w-full',
+                collapsed ? 'justify-center px-0' : 'gap-3 px-2',
+              )}
+            >
+              <div className="relative">
+                {isValidProfilePic && !imageError ? (
+                  <img
+                    key={user.profilePic}
+                    src={user.profilePic}
+                    alt={firstName}
+                    className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-[hsl(var(--ios-divider))] transition-all duration-300 ease-out"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-xs font-medium text-primary-foreground transition-all duration-300 ease-out">
+                    {initials || 'KH'}
+                  </span>
+                )}
+                <div className="absolute -bottom-0.5 -right-0.5">
+                  <StatusIndicator status={user.status} size="sm" />
+                </div>
+              </div>
+              <div className={cn('sidebar-content-fade min-w-0 flex-1', collapsed ? 'collapsed' : 'expanded')}>
+                <p className="truncate text-[14px] font-semibold text-foreground whitespace-nowrap">{firstName}</p>
+                <p className="truncate text-[12px] text-muted-foreground whitespace-nowrap">{user.email}</p>
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80 p-0 ml-3 mb-4 overflow-hidden" side="top" sideOffset={4}>
+            {/* Banner Section */}
+            <div className="relative h-24 bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5">
+              {isValidBanner ? (
+                <img
+                  src={user.banner}
+                  alt="Banner"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-primary/30 via-primary/20 to-primary/10" />
+              )}
+              
+              {/* Avatar Overlay */}
+              <div className="absolute bottom-0 left-4 translate-y-1/2">
+                <div className="relative">
+                  {isValidProfilePic && !imageError ? (
+                    <img
+                      key={user.profilePic}
+                      src={user.profilePic}
+                      alt={firstName}
+                      className="h-20 w-20 rounded-full object-cover ring-4 ring-[hsl(var(--ios-sidebar-bg))]"
+                      onError={() => setImageError(true)}
+                    />
+                  ) : (
+                    <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-lg font-medium text-primary-foreground ring-4 ring-[hsl(var(--ios-sidebar-bg))]">
+                      {initials || 'KH'}
+                    </span>
+                  )}
+                  <div className="absolute -bottom-0.5 -right-0.5">
+                    <StatusIndicator status={user.status} size="lg" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* User Info Section */}
+            <div className="pt-12 pb-3 px-4 bg-[hsl(var(--ios-sidebar-bg))]">
+              <div className="mb-1">
+                <p className="text-base font-semibold text-foreground">{firstName}</p>
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              </div>
+              {user.bio && (
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{user.bio}</p>
+              )}
+            </div>
+
+            <DropdownMenuSeparator />
+
+            {/* Status Selection with Submenu */}
+            <div className="p-1">
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="flex items-center gap-3 cursor-pointer w-full">
+                  <div className="flex items-center gap-3 flex-1">
+                    <StatusIndicator status={user.status || 'offline'} size="sm" />
+                    <span className="text-sm">
+                      {user.status === 'online' && 'Online'}
+                      {user.status === 'busy' && 'Do Not Disturb'}
+                      {user.status === 'away' && 'Idle'}
+                      {user.status === 'offline' && 'Invisible'}
+                      {!user.status && 'Set Status'}
+                    </span>
+                  </div>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent alignOffset={-8} sideOffset={4}>
+                  <DropdownMenuItem
+                    className="flex items-center gap-3 cursor-pointer"
+                    onClick={() => updateStatus('online')}
+                  >
+                    <div className="relative">
+                      <Circle className="h-4 w-4 text-green-500 fill-green-500" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-sm">Online</span>
+                    </div>
+                    {user.status === 'online' && (
+                      <Check className="h-4 w-4 text-primary" />
+                    )}
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem
+                    className="flex items-center gap-3 cursor-pointer"
+                    onClick={() => updateStatus('away')}
+                  >
+                    <Moon className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                    <div className="flex-1">
+                      <span className="text-sm">Idle</span>
+                    </div>
+                    {user.status === 'away' && (
+                      <Check className="h-4 w-4 text-primary" />
+                    )}
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem
+                    className="flex items-center gap-3 cursor-pointer"
+                    onClick={() => updateStatus('busy')}
+                  >
+                    <div className="relative">
+                      <Circle className="h-4 w-4 text-red-500 fill-red-500" />
+                      <Minus className="h-2 w-2 text-white absolute inset-0 m-auto" strokeWidth={3} />
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-sm">Do Not Disturb</span>
+                      <p className="text-xs text-muted-foreground">You will not receive desktop notifications</p>
+                    </div>
+                    {user.status === 'busy' && (
+                      <Check className="h-4 w-4 text-primary" />
+                    )}
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem
+                    className="flex items-center gap-3 cursor-pointer"
+                    onClick={() => updateStatus('offline')}
+                  >
+                    <div className="relative">
+                      <Circle className="h-4 w-4 text-gray-500 fill-gray-500" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-sm">Invisible</span>
+                      <p className="text-xs text-muted-foreground">You will appear offline</p>
+                    </div>
+                    {user.status === 'offline' && (
+                      <Check className="h-4 w-4 text-primary" />
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </div>
+
+            <DropdownMenuSeparator />
+
+            {/* Profile Link */}
+            <DropdownMenuItem
+              className="flex items-center gap-3 cursor-pointer"
+              onClick={() => {
+                navigate('/profile')
+                closeMobile()
+              }}
+            >
+              <User className="h-4 w-4" />
+              <span className="text-sm">View Profile</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Divider */}
         <div className={cn('my-2 h-px bg-[hsl(var(--ios-divider))] transition-[margin] duration-300 ease-out', collapsed && 'mx-1')} />

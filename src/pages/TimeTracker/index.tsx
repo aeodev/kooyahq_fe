@@ -112,7 +112,10 @@ export function TimeTracker() {
         setInitialFetchDone(true)
       })
     } else if (hasStoreData && !initialFetchDone) {
-      // If we already have store data, mark as done immediately
+      // If we already have store data, still check day ended status
+      checkDayEndedStatus().then((status) => {
+        setDayEndedToday(status.dayEnded)
+      })
       setInitialFetchDone(true)
     }
   }, [user, isLoading, fetchMyEntries, fetchActiveTimer, checkDayEndedStatus, canReadEntries, initialFetchDone, hasStoreData])
@@ -128,6 +131,15 @@ export function TimeTracker() {
       fetchAllEntries()
     }
   }, [activeTab, user, isLoading, fetchAllEntries, canReadEntries])
+
+  // Re-check day ended status when switching back to "you" tab
+  useEffect(() => {
+    if (activeTab === 'you' && user && !isLoading && canReadEntries && initialFetchDone) {
+      checkDayEndedStatus().then((status) => {
+        setDayEndedToday(status.dayEnded)
+      })
+    }
+  }, [activeTab, user, isLoading, canReadEntries, initialFetchDone, checkDayEndedStatus])
 
   // Socket handles real-time updates, no need for polling
 
