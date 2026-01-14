@@ -95,8 +95,8 @@ export function UserProfileDropdown({ user, onStatusUpdate, onCloseMobile }: Use
               <StatusIndicator status={user.status || 'offline'} size="sm" />
               <span className="text-sm">
                 {user.status === 'online' && 'Online'}
-                {user.status === 'busy' && 'Do Not Disturb'}
-                {user.status === 'away' && 'Idle'}
+                {user.status === 'busy' && 'Busy'}
+                {user.status === 'away' && 'Away'}
                 {user.status === 'offline' && 'Invisible'}
                 {!user.status && 'Set Status'}
               </span>
@@ -124,7 +124,7 @@ export function UserProfileDropdown({ user, onStatusUpdate, onCloseMobile }: Use
             >
               <Moon className="h-4 w-4 text-yellow-500 fill-yellow-500" />
               <div className="flex-1">
-                <span className="text-sm">Idle</span>
+                <span className="text-sm">Away</span>
               </div>
               {user.status === 'away' && (
                 <Check className="h-4 w-4 text-primary" />
@@ -140,7 +140,7 @@ export function UserProfileDropdown({ user, onStatusUpdate, onCloseMobile }: Use
                 <Minus className="h-2 w-2 text-white absolute inset-0 m-auto" strokeWidth={3} />
               </div>
               <div className="flex-1">
-                <span className="text-sm">Do Not Disturb</span>
+                <span className="text-sm">Busy</span>
                 <p className="text-xs text-muted-foreground">You will not receive desktop notifications</p>
               </div>
               {user.status === 'busy' && (

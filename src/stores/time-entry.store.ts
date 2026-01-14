@@ -65,6 +65,9 @@ type TimeEntryActions = {
   setActiveTimer: (timer: TimeEntry | null) => void
   setActiveTimerIfNotPending: (timer: TimeEntry | null) => void
   updateTimerDuration: () => void
+  // Actions for updating all users' entries (used by socket handlers)
+  updateAllTodayEntry: (entry: TimeEntry) => void
+  removeFromAllTodayEntries: (entryId: string) => void
 }
 
 type TimeEntryStore = TimeEntryState & TimeEntryActions
@@ -391,5 +394,21 @@ export const useTimeEntryStore = create<TimeEntryStore>((set, get) => ({
     const timer = get().activeTimer
     if (timer && timer.isActive) {
     }
+  },
+
+  // Update or add an entry in allTodayEntries (for socket updates from any user)
+  updateAllTodayEntry: (entry: TimeEntry) => {
+    const current = get().allTodayEntries
+    const exists = current.find(e => e.id === entry.id)
+    if (exists) {
+      set({ allTodayEntries: current.map(e => e.id === entry.id ? entry : e) })
+    } else {
+      set({ allTodayEntries: [...current, entry] })
+    }
+  },
+
+  // Remove an entry from allTodayEntries (for socket delete events)
+  removeFromAllTodayEntries: (entryId: string) => {
+    set({ allTodayEntries: get().allTodayEntries.filter(e => e.id !== entryId) })
   },
 }))

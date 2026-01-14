@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useProjectTaskStore } from '@/stores/project-task.store'
@@ -23,7 +24,9 @@ import { Card, CardContent } from '@/components/ui/card'
 type TabType = 'you' | 'all' | 'analytics'
 
 export function TimeTracker() {
-  const [activeTab, setActiveTab] = useState<TabType>('you')
+  const [searchParams] = useSearchParams()
+  const tabFromUrl = searchParams.get('tab') as TabType | null
+  const [activeTab, setActiveTab] = useState<TabType>(tabFromUrl && ['you', 'all', 'analytics'].includes(tabFromUrl) ? tabFromUrl : 'you')
   const [taskDescription, setTaskDescription] = useState('')
   const [showManualModal, setShowManualModal] = useState(false)
   const [showEndDayModal, setShowEndDayModal] = useState(false)
@@ -49,10 +52,12 @@ export function TimeTracker() {
     return tabs
   }, [canReadEntries, canViewAnalytics])
   useEffect(() => {
-    if (!availableTabs.includes(activeTab)) {
+    if (tabFromUrl && ['you', 'all', 'analytics'].includes(tabFromUrl) && availableTabs.includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl)
+    } else if (!availableTabs.includes(activeTab)) {
       setActiveTab(availableTabs[0])
     }
-  }, [activeTab, availableTabs])
+  }, [tabFromUrl, activeTab, availableTabs])
 
   const {
     projectTasks,

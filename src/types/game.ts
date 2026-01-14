@@ -42,4 +42,5 @@ export interface ActiveUser {
   name: string
   email: string
   profilePic?: string
+  status?: 'online' | 'busy' | 'away' | 'offline'
 }

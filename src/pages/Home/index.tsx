@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Megaphone, CalendarDays, Zap, CheckCircle2, Timer } from 'lucide-react'
+import { Megaphone, CalendarDays, Timer, ArrowUpRight, PlayCircle, Ticket } from 'lucide-react'
 import { useHomeData } from './hooks/useHomeData'
 import { HeroSection } from './components/HeroSection'
 import { AssignedTicketsWidget } from './components/SideWidgets'
@@ -8,6 +8,9 @@ import { QuickTasks } from '@/components/quick-tasks/QuickTasks'
 import { CreateAnnouncementForm } from '@/components/announcements/CreateAnnouncementForm'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { Button } from '@/components/ui/button'
+import { ActiveUsersSection } from '@/components/layout/components/ActiveUsersSection'
+import { cn } from '@/utils/cn'
+import { Link } from 'react-router-dom'
 
 // Ambient mesh gradient background
 function AmbientMesh() {
@@ -41,9 +44,11 @@ interface StatCardProps {
   value: string | number
   accent?: string
   delay?: number
+  secondaryValue?: string | number
+  secondaryLabel?: string
 }
 
-function StatCard({ icon, label, value, accent = 'primary', delay = 0 }: StatCardProps) {
+function StatCard({ icon, label, value, accent = 'primary', delay = 0, secondaryValue, secondaryLabel }: StatCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -57,9 +62,19 @@ function StatCard({ icon, label, value, accent = 'primary', delay = 0 }: StatCar
       >
         <span style={{ color: `hsl(var(--${accent}))` }}>{icon}</span>
       </div>
-      <div className="min-w-0">
-        <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</p>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-3">
+          <div>
+            <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</p>
+          </div>
+          {secondaryValue !== undefined && secondaryLabel && (
+            <div className="ml-auto">
+              <p className="text-xl font-bold tracking-tight tabular-nums">{secondaryValue}</p>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{secondaryLabel}</p>
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   )
@@ -130,7 +145,6 @@ export function Home() {
     : 0
   
   const totalTimeToday = completedTime + activeElapsed
-  const completedSessions = data.todayEntries.filter(e => !e.isActive).length
   const activeTickets = data.assignedTickets.length
 
   // Bento card base styles
@@ -201,9 +215,9 @@ export function Home() {
           )}
         </motion.header>
 
-        {/* Stats Row */}
-        {permissions.canReadTimeEntries && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Stats Row - Desktop: 3 stat cards */}
+        <div className="hidden sm:grid grid-cols-3 gap-4">
+          {permissions.canReadTimeEntries && (
             <StatCard 
               icon={<Timer className="h-5 w-5" />}
               label="Tracked Today"
@@ -211,22 +225,52 @@ export function Home() {
               accent="primary"
               delay={0.1}
             />
+          )}
+          
+          {permissions.canReadTimeEntries && (
             <StatCard 
-              icon={<CheckCircle2 className="h-5 w-5" />}
-              label={completedSessions === 1 ? 'Session' : 'Sessions'}
-              value={completedSessions}
-              accent="primary"
+              icon={<PlayCircle className="h-5 w-5" />}
+              label="Sessions"
+              value={data.todayEntries.length}
+              accent="chart-2"
               delay={0.15}
             />
+          )}
+          
+          {permissions.canReadBoards && (
             <StatCard 
-              icon={<Zap className="h-5 w-5" />}
-              label={activeTickets === 1 ? 'Active Ticket' : 'Active Tickets'}
+              icon={<Ticket className="h-5 w-5" />}
+              label="Active Tickets"
               value={activeTickets}
-              accent="primary"
+              accent="chart-3"
               delay={0.2}
             />
+          )}
+        </div>
+
+        {/* Active Users Section - Mobile Only (desktop has it in sidebar) */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className={cn(
+            "block sm:hidden rounded-2xl bg-card/50 dark:bg-card/30 border border-border/40 backdrop-blur-md hover:bg-card/70 dark:hover:bg-card/40 transition-all duration-300",
+            bentoBase
+          )}
+          style={{ height: '96px' }}
+        >
+          <div className="p-4 h-full flex items-center gap-4">
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <ActiveUsersSection collapsed={false} />
+            </div>
+            <Link 
+              to="/time-tracker?tab=all"
+              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:bg-muted/50 hover:scale-110"
+            >
+              <ArrowUpRight className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </Link>
           </div>
-        )}
+        </motion.div>
 
         {/* Announcements */}
         {activeAnnouncement && (

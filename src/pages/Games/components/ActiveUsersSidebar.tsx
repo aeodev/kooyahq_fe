@@ -57,8 +57,8 @@ export function ActiveUsersSidebar({
 
   const statusConfig = {
     online: { label: 'Online' },
-    busy: { label: 'Do Not Disturb' },
-    away: { label: 'Idle' },
+    busy: { label: 'Busy' },
+    away: { label: 'Away' },
     offline: { label: 'Invisible' },
   }
 

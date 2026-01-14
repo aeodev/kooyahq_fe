@@ -13,6 +13,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const aiAssistantStore = useAIAssistantStore.getState()
     const { user } = useAuthStore.getState()
     
+    // Update allTodayEntries for ALL users (for active users display)
+    timeEntryStore.updateAllTodayEntry(data.entry)
+    
     if (data.userId === user?.id) {
       timeEntryStore.setActiveTimerIfNotPending(data.entry)
       
@@ -39,6 +42,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
+    // Update allTodayEntries for ALL users (for active users display)
+    timeEntryStore.updateAllTodayEntry(data.entry)
+    
     if (data.userId === user?.id) {
       timeEntryStore.setActiveTimer(null)
       timeEntryStore.fetchEntries()
@@ -49,6 +55,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
+    // Update allTodayEntries for ALL users (for active users display)
+    timeEntryStore.updateAllTodayEntry(data.entry)
+    
     if (data.userId === user?.id) {
       timeEntryStore.setActiveTimerIfNotPending(data.entry)
     }
@@ -57,6 +66,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
   const handleTimerResumed = (data: { entry: TimeEntry; userId: string }) => {
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
+    
+    // Update allTodayEntries for ALL users (for active users display)
+    timeEntryStore.updateAllTodayEntry(data.entry)
     
     if (data.userId === user?.id) {
       timeEntryStore.setActiveTimerIfNotPending(data.entry)
@@ -75,6 +87,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
+    // Update allTodayEntries for ALL users (for active users display)
+    timeEntryStore.updateAllTodayEntry(data.entry)
+    
     if (data.userId === user?.id) {
       const entries = timeEntryStore.entries.map(e => 
         e.id === data.entry.id ? data.entry : e
@@ -91,6 +106,9 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
     
+    // Remove from allTodayEntries for ALL users (for active users display)
+    timeEntryStore.removeFromAllTodayEntries(data.id)
+    
     if (data.userId === user?.id) {
       const entries = timeEntryStore.entries.filter(e => e.id !== data.id)
       useTimeEntryStore.setState({ entries })
@@ -104,6 +122,11 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
   const handleTimerHeartbeat = (data: { entry: TimeEntry; userId: string }) => {
     const timeEntryStore = useTimeEntryStore.getState()
     const { user } = useAuthStore.getState()
+    
+    // Update allTodayEntries for ALL users (for active users display)
+    if (data.entry.isActive) {
+      timeEntryStore.updateAllTodayEntry(data.entry)
+    }
     
     if (data.userId === user?.id && data.entry.isActive) {
       timeEntryStore.setActiveTimerIfNotPending(data.entry)

@@ -41,8 +41,8 @@ const SEARCH_DEBOUNCE_MS = 300
 
 const STATUS_OPTIONS: Array<{ value: 'online' | 'busy' | 'away' | 'offline'; label: string }> = [
   { value: 'online', label: 'Online' },
-  { value: 'away', label: 'Idle' },
-  { value: 'busy', label: 'Do Not Disturb' },
+  { value: 'away', label: 'Away' },
+  { value: 'busy', label: 'Busy' },
   { value: 'offline', label: 'Offline' },
 ]
 
@@ -307,9 +307,9 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       case 'online':
         return 'Online'
       case 'busy':
-        return 'Do Not Disturb'
+        return 'Busy'
       case 'away':
-        return 'Idle'
+        return 'Away'
       case 'offline':
         return 'Offline'
       default:

@@ -5,12 +5,14 @@ import { create } from 'zustand'
 import { cn } from '@/utils/cn'
 import { useTheme } from '@/composables/useTheme'
 import { useUnreadCount } from '@/hooks/notification.hooks'
+import { usePresenceChannel } from '@/hooks/presence.hooks'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUserPreferencesStore } from '@/stores/user-preferences.store'
 import { PERMISSIONS, type Permission } from '@/constants/permissions'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { StatusIndicator } from '@/components/ui/status-indicator'
 import { UserProfileDropdown } from './components/UserProfileDropdown'
+import { ActiveUsersSection } from './components/ActiveUsersSection'
 
 type NavItem = {
   name: string
@@ -292,6 +294,9 @@ export function Sidebar() {
   const { isDark, toggleTheme } = useTheme()
   const { count: unreadCount } = useUnreadCount()
   
+  // Initialize presence channel for active users
+  usePresenceChannel()
+  
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const updateStatus = useAuthStore((s) => s.updateStatus)
@@ -516,6 +521,14 @@ export function Sidebar() {
           ))}
         </div>
       </nav>
+
+      {/* Active Users Section - Outside footer */}
+      <div className={cn(
+        'mx-2 mb-3',
+        collapsed ? 'px-0' : 'px-1'
+      )}>
+        <ActiveUsersSection collapsed={collapsed} />
+      </div>
 
       {/* Footer */}
       <div className={cn(

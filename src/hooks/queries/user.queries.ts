@@ -25,8 +25,18 @@ export function useUserQueryActions() {
     queryClient.invalidateQueries({ queryKey: userKeys.all })
   }
 
+  const updateUserStatus = (userId: string, status: User['status']) => {
+    queryClient.setQueryData<User[]>(userKeys.list(), (oldUsers) => {
+      if (!oldUsers) return oldUsers
+      return oldUsers.map((user) =>
+        user.id === userId ? { ...user, status } : user
+      )
+    })
+  }
+
   return {
     invalidateUsers,
+    updateUserStatus,
   }
 }
 
