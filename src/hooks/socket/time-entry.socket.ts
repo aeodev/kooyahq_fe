@@ -17,7 +17,7 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     timeEntryStore.updateAllTodayEntry(data.entry)
     
     if (data.userId === user?.id) {
-      timeEntryStore.setActiveTimerIfNotPending(data.entry)
+      timeEntryStore.setActiveTimer(data.entry)
       
       const existingProjects = projectTaskStore.selectedProjects.length > 0
         ? projectTaskStore.selectedProjects
@@ -59,7 +59,7 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     timeEntryStore.updateAllTodayEntry(data.entry)
     
     if (data.userId === user?.id) {
-      timeEntryStore.setActiveTimerIfNotPending(data.entry)
+      timeEntryStore.setActiveTimer(data.entry)
     }
   }
 
@@ -71,7 +71,7 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
     timeEntryStore.updateAllTodayEntry(data.entry)
     
     if (data.userId === user?.id) {
-      timeEntryStore.setActiveTimerIfNotPending(data.entry)
+      timeEntryStore.setActiveTimer(data.entry)
     }
   }
 
@@ -128,8 +128,21 @@ export function registerTimeEntryHandlers(socket: Socket, eventHandlers: Map<str
       timeEntryStore.updateAllTodayEntry(data.entry)
     }
     
-    if (data.userId === user?.id && data.entry.isActive) {
-      timeEntryStore.setActiveTimerIfNotPending(data.entry)
+    if (data.userId !== user?.id) return
+    
+    const currentTimer = timeEntryStore.activeTimer
+    
+    if (data.entry.isActive) {
+      // Only update if we have no timer OR this heartbeat matches our current timer
+      // This prevents stale heartbeats from a previous timer overwriting state
+      if (!currentTimer || currentTimer.id === data.entry.id) {
+        timeEntryStore.setActiveTimer(data.entry)
+      }
+    } else {
+      // Timer is not active - if it matches our current timer, clear it
+      if (currentTimer && currentTimer.id === data.entry.id) {
+        timeEntryStore.setActiveTimer(null)
+      }
     }
   }
   socket.on(SocketTimeEntriesEvents.TIMER_STARTED, handleTimerStarted)

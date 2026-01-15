@@ -447,7 +447,7 @@ function UserTooltip({ user, isVisible, anchorRef, collapsed }: UserTooltipProps
                 "text-[10px] font-black uppercase tracking-widest",
                 isBirthday ? "text-primary-foreground/90" : "text-muted-foreground"
               )}>Out of Office</span>
-            </div>
+              </div>
           </div>
         )}
       </div>

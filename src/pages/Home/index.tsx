@@ -65,8 +65,8 @@ function StatCard({ icon, label, value, accent = 'primary', delay = 0, secondary
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-3">
           <div>
-            <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</p>
+        <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</p>
           </div>
           {secondaryValue !== undefined && secondaryLabel && (
             <div className="ml-auto">
@@ -217,7 +217,7 @@ export function Home() {
 
         {/* Stats Row - Desktop: 3 stat cards */}
         <div className="hidden sm:grid grid-cols-3 gap-4">
-          {permissions.canReadTimeEntries && (
+        {permissions.canReadTimeEntries && (
             <StatCard 
               icon={<Timer className="h-5 w-5" />}
               label="Tracked Today"

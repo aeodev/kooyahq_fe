@@ -2,7 +2,6 @@ import type { PropsWithChildren, ReactElement } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSocket } from '@/composables/useSocket'
-import { useTimerGuard } from '@/composables/useTimerGuard'
 
 type PrivateRouteProps = PropsWithChildren<{
   redirectTo?: string
@@ -20,9 +19,6 @@ export function PrivateRoute({
 
   // Initialize socket connection when authenticated
   useSocket()
-
-  // Initialize timer guard to auto-stop timer when server becomes unreachable
-  useTimerGuard()
 
   if (isLoading) {
     return fallback
