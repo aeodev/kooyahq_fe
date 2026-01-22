@@ -83,6 +83,11 @@ export const PERMISSIONS = {
   COST_ANALYTICS_VIEW: 'cost-analytics:view',
   COST_ANALYTICS_EDIT: 'cost-analytics:edit',
 
+  FINANCE_FULL_ACCESS: 'finance:fullAccess',
+  FINANCE_VIEW: 'finance:view',
+  FINANCE_EDIT: 'finance:edit',
+  FINANCE_MANAGE_EMPLOYEE_COSTS: 'finance:manageEmployeeCosts',
+
   GAME_FULL_ACCESS: 'game:fullAccess',
   GAME_READ: 'game:read',
   GAME_PLAY: 'game:play',
@@ -206,6 +211,12 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
   { value: PERMISSIONS.COST_ANALYTICS_FULL_ACCESS, label: 'Cost Analytics Full Access' },
   { value: PERMISSIONS.COST_ANALYTICS_VIEW, label: 'View Cost Analytics', description: 'View cost data, analytics, and live tracking' },
   { value: PERMISSIONS.COST_ANALYTICS_EDIT, label: 'Edit Cost Analytics', description: 'View plus export data and manage budgets' },
+
+  // Finance
+  { value: PERMISSIONS.FINANCE_FULL_ACCESS, label: 'Finance Full Access' },
+  { value: PERMISSIONS.FINANCE_VIEW, label: 'View Finance', description: 'View expenses, employee costs, and financial summaries' },
+  { value: PERMISSIONS.FINANCE_EDIT, label: 'Edit Finance', description: 'Create, edit, and delete expenses' },
+  { value: PERMISSIONS.FINANCE_MANAGE_EMPLOYEE_COSTS, label: 'Manage Employee Costs', description: 'Manage employee cost assignments (salary, subscriptions, items)' },
 
   // Games
   { value: PERMISSIONS.GAME_FULL_ACCESS, label: 'Game Full Access' },

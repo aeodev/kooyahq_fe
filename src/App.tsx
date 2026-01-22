@@ -34,6 +34,7 @@ import { AdminLogs } from '@/pages/AdminLogs'
 import { ServerManagement } from '@/pages/ServerManagement'
 import { SystemManagement } from '@/pages/SystemManagement'
 import { CostAnalytics } from '@/pages/CostAnalytics'
+import { Finance } from '@/pages/Finance'
 import { Presence } from '@/pages/Presence'
 import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
@@ -405,6 +406,22 @@ function App() {
                 ]}>
                   <DashboardLayout>
                     <CostAnalytics />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/finance"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate anyOf={[
+                  PERMISSIONS.FINANCE_VIEW,
+                  PERMISSIONS.FINANCE_FULL_ACCESS,
+                  PERMISSIONS.SYSTEM_FULL_ACCESS
+                ]}>
+                  <DashboardLayout>
+                    <Finance />
                   </DashboardLayout>
                 </PermissionGate>
               </PrivateRoute>

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, ClipboardList, TrendingUp } from 'lucide-react'
+import { type LucideIcon, ChevronLeft, ChevronDown, LogOut, Bell, Sun, Moon, Clock4, Globe, Home, LayoutGrid, Images, Sparkles, MessageSquare, Gamepad2, Users, Video, Server, Settings, Briefcase, UsersRound, Shield, ClipboardList, TrendingUp, DollarSign } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { cn } from '@/utils/cn'
@@ -151,6 +151,16 @@ const MANAGEMENT_ITEMS: NavItem[] = [
       PERMISSIONS.COST_ANALYTICS_VIEW,
       PERMISSIONS.COST_ANALYTICS_EDIT,
       PERMISSIONS.COST_ANALYTICS_FULL_ACCESS
+    ],
+  },
+  {
+    name: 'Finance',
+    to: '/finance',
+    icon: DollarSign,
+    requiredPermissions: [
+      PERMISSIONS.FINANCE_VIEW,
+      PERMISSIONS.FINANCE_FULL_ACCESS,
+      PERMISSIONS.SYSTEM_FULL_ACCESS,
     ],
   },
   {

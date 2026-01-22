@@ -313,3 +313,36 @@ export const GET_PERIOD_COMPARISON = (
   if (project !== undefined) params.append('project', project === null ? 'null' : project)
   return `/cost-analytics/compare?${params.toString()}`
 }
+
+// Finance routes
+export const GET_FINANCE_SUMMARY = (startDate?: string, endDate?: string) => {
+  const params = new URLSearchParams()
+  if (startDate) params.append('startDate', startDate)
+  if (endDate) params.append('endDate', endDate)
+  return `/finance/summary${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const GET_EXPENSES = (filters?: { startDate?: string; endDate?: string; category?: string; vendor?: string; employeeId?: string; search?: string }) => {
+  const params = new URLSearchParams()
+  if (filters?.startDate) params.append('startDate', filters.startDate)
+  if (filters?.endDate) params.append('endDate', filters.endDate)
+  if (filters?.category) params.append('category', filters.category)
+  if (filters?.vendor) params.append('vendor', filters.vendor)
+  if (filters?.employeeId) params.append('employeeId', filters.employeeId)
+  if (filters?.search) params.append('search', filters.search)
+  return `/finance/expenses${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const GET_EXPENSE = (id: string) => `/finance/expenses/${id}`
+export const CREATE_EXPENSE = () => `/finance/expenses`
+export const UPDATE_EXPENSE = (id: string) => `/finance/expenses/${id}`
+export const DELETE_EXPENSE = (id: string) => `/finance/expenses/${id}`
+export const GET_EMPLOYEE_COSTS = (filters?: { startDate?: string; endDate?: string; employeeId?: string; costType?: string }) => {
+  const params = new URLSearchParams()
+  if (filters?.startDate) params.append('startDate', filters.startDate)
+  if (filters?.endDate) params.append('endDate', filters.endDate)
+  if (filters?.employeeId) params.append('employeeId', filters.employeeId)
+  if (filters?.costType) params.append('costType', filters.costType)
+  return `/finance/employee-costs${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const CREATE_EMPLOYEE_COST = () => `/finance/employee-costs`
+export const UPDATE_EMPLOYEE_COST = (id: string) => `/finance/employee-costs/${id}`
+export const DELETE_EMPLOYEE_COST = (id: string) => `/finance/employee-costs/${id}`
