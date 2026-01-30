@@ -418,7 +418,7 @@ export function Sidebar() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="relative flex items-center px-4 py-3.5 h-[52px]">
-        {/* Collapsed "K" logo */}
+        {/* Collapsed icon */}
         <div
           className={cn(
             'sidebar-icon-center absolute inset-0 flex items-center justify-center',
@@ -427,12 +427,15 @@ export function Sidebar() {
         >
           <button
             type="button"
-            className="text-[22px] font-bold tracking-tight text-primary hover:opacity-80 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md cursor-pointer"
-            style={{ fontFamily: "'Poppins', sans-serif" }}
+            className="hover:opacity-80 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md cursor-pointer flex items-center justify-center"
             onClick={toggleCollapse}
             aria-label="Expand sidebar"
           >
-            K
+            <img
+              src="/kooyaicon/apple-touch-icon.png"
+              alt="Kooya"
+              className="h-8 w-8"
+            />
           </button>
         </div>
 
@@ -445,11 +448,14 @@ export function Sidebar() {
         >
           <Link
             to="/"
-            className="text-[20px] font-bold tracking-tight text-primary hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md flex-1"
-            style={{ fontFamily: "'Poppins', sans-serif" }}
+            className="hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md flex-1 flex items-center"
             onClick={closeMobile}
           >
-            KooyaHQ
+            <img
+              src="/kooya-logo-white.png"
+              alt="KooyaHQ"
+              className="h-8"
+            />
           </Link>
           <button
             type="button"
