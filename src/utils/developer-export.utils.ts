@@ -23,17 +23,17 @@ export function exportDevelopersToCSV(
   ]
 
   const rows = performers.map((performer) => {
-    const cost = convertFromPHPSync(performer.totalCost, currencyConfig.code)
-    const hourlyRate = convertFromPHPSync(performer.hourlyRate, currencyConfig.code)
+    const cost = convertFromPHPSync(performer.totalCost ?? 0, currencyConfig.code)
+    const hourlyRate = convertFromPHPSync(performer.hourlyRate ?? 0, currencyConfig.code)
 
     return [
       performer.userName,
       performer.position || '',
       performer.userEmail,
       cost.toFixed(2),
-      performer.totalHours.toFixed(2),
+      (performer.totalHours ?? 0).toFixed(2),
       hourlyRate.toFixed(2),
-      performer.projectCount.toString(),
+      (performer.projectCount ?? 0).toString(),
       performer.projects.join('; '),
     ]
   })
@@ -72,8 +72,8 @@ export function exportDeveloperReport(
 
   const headers = ['Project', 'Hours', 'Cost']
   const rows = projectBreakdown.map((p) => {
-    const cost = convertFromPHPSync(p.cost, currencyConfig.code)
-    return [p.project, p.hours.toFixed(2), cost.toFixed(2)]
+    const cost = convertFromPHPSync(p.cost ?? 0, currencyConfig.code)
+    return [p.project, (p.hours ?? 0).toFixed(2), cost.toFixed(2)]
   })
 
   const summary = [
@@ -81,10 +81,10 @@ export function exportDeveloperReport(
     ['Name', performer.userName],
     ['Position', performer.position || 'N/A'],
     ['Email', performer.userEmail],
-    ['Total Cost', convertFromPHPSync(performer.totalCost, currencyConfig.code).toFixed(2)],
-    ['Total Hours', performer.totalHours.toFixed(2)],
-    ['Hourly Rate', convertFromPHPSync(performer.hourlyRate, currencyConfig.code).toFixed(2)],
-    ['Project Count', performer.projectCount.toString()],
+    ['Total Cost', convertFromPHPSync(performer.totalCost ?? 0, currencyConfig.code).toFixed(2)],
+    ['Total Hours', (performer.totalHours ?? 0).toFixed(2)],
+    ['Hourly Rate', convertFromPHPSync(performer.hourlyRate ?? 0, currencyConfig.code).toFixed(2)],
+    ['Project Count', (performer.projectCount ?? 0).toString()],
     [],
     ['Project Breakdown'],
     headers,

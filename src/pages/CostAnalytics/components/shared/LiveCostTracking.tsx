@@ -144,7 +144,7 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {currencyConfig.symbol}
-                            {convertFromPHPSync(project.burnRate, currencyConfig.code).toFixed(0)}/hr
+                            {convertFromPHPSync(project.burnRate ?? 0, currencyConfig.code).toFixed(0)}/hr
                           </p>
                         </div>
                       </motion.div>
@@ -209,7 +209,7 @@ export const LiveCostTracking = memo(function LiveCostTracking({ liveData, curre
                             </td>
                             <td className="py-2 px-3 text-right text-sm text-muted-foreground">
                               {currencyConfig.symbol}
-                              {convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(0)}/hr
+                              {convertFromPHPSync(dev.hourlyRate ?? 0, currencyConfig.code).toFixed(0)}/hr
                             </td>
                             <td className="py-2 px-3 text-right text-sm text-foreground">
                               {formatHours(dev.activeMinutes / 60)}

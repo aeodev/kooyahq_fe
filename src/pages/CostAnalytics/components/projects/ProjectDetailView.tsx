@@ -103,7 +103,7 @@ export function ProjectDetailView({
                 <p className="text-xs text-muted-foreground mb-1">Avg Rate</p>
                 <p className="text-xl font-bold text-foreground">
                   {currencyConfig.symbol}
-                  {convertFromPHPSync(projectDetail.avgHourlyRate, currencyConfig.code).toFixed(0)}/hr
+                  {convertFromPHPSync(projectDetail.avgHourlyRate ?? 0, currencyConfig.code).toFixed(0)}/hr
                 </p>
               </motion.div>
             </motion.div>
@@ -122,18 +122,18 @@ export function ProjectDetailView({
                     </tr>
                   </thead>
                   <tbody>
-                    {projectDetail.developers.map((dev) => (
+                      {projectDetail.developers.map((dev) => (
                       <tr key={dev.userId} className="border-t border-border/50">
                         <td className="py-2 px-3 text-sm text-foreground">{dev.userName}</td>
                         <td className="py-2 px-3 text-right text-sm text-muted-foreground">
                           {currencyConfig.symbol}
-                          {convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(0)}/hr
+                          {convertFromPHPSync(dev.hourlyRate ?? 0, currencyConfig.code).toFixed(0)}/hr
                         </td>
                         <td className="py-2 px-3 text-right text-sm text-foreground">
-                          {formatHours(dev.hours)}
+                          {formatHours(dev.hours ?? 0)}
                         </td>
                         <td className="py-2 px-3 text-right text-sm font-medium text-primary">
-                          {formatCurrency(dev.cost, currencyConfig)}
+                          {formatCurrency(dev.cost ?? 0, currencyConfig)}
                         </td>
                       </tr>
                     ))}

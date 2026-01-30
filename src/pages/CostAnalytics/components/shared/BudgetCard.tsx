@@ -82,10 +82,10 @@ export function BudgetCard({ comparison, currencyConfig, canEdit = false, onEdit
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Utilization</span>
               <span className={cn('font-semibold', getAlertColor())}>
-                {utilizationPercentage.toFixed(1)}%
+                {(utilizationPercentage ?? 0).toFixed(1)}%
               </span>
             </div>
-            <Progress value={Math.min(100, utilizationPercentage)} className="h-2" />
+            <Progress value={Math.min(100, utilizationPercentage ?? 0)} className="h-2" />
           </div>
 
           {/* Metrics Grid */}

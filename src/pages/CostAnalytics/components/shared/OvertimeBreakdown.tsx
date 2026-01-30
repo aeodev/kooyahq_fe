@@ -120,12 +120,12 @@ export function OvertimeBreakdown({ breakdown, currencyConfig }: OvertimeBreakdo
                     </div>
                   </div>
 
-                  {overtimePercentage > 0 && (
+                  {(overtimePercentage ?? 0) > 0 && (
                     <div className="pt-2 border-t border-border/50">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground">
-                          Overtime represents {overtimePercentage.toFixed(1)}% of total cost
+                          Overtime represents {(overtimePercentage ?? 0).toFixed(1)}% of total cost
                         </span>
                       </div>
                     </div>

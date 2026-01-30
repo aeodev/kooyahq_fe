@@ -426,14 +426,14 @@ export function AnalyticsView() {
         <StatCard
           title="Total Hours"
           value={formatHours(data.totalHours)}
-          subtitle={`${insights?.avgHoursPerDay.toFixed(1)}h avg/day`}
+          subtitle={`${(insights?.avgHoursPerDay ?? 0).toFixed(1)}h avg/day`}
           icon={Clock}
           sparklineData={dailyHoursTrend}
         />
         <StatCard
           title="Total Entries"
           value={data.totalEntries.toString()}
-          subtitle={`${insights?.avgEntriesPerDay.toFixed(1)} avg/day`}
+          subtitle={`${(insights?.avgEntriesPerDay ?? 0).toFixed(1)} avg/day`}
           icon={BarChart3}
           sparklineData={dailyEntriesTrend}
         />
@@ -446,7 +446,7 @@ export function AnalyticsView() {
         <StatCard
           title="Overtime"
           value={data.totalOvertimeEntries.toString()}
-          subtitle={`${insights?.overtimePercentage.toFixed(1)}% of entries`}
+          subtitle={`${(insights?.overtimePercentage ?? 0).toFixed(1)}% of entries`}
           icon={Moon}
         />
       </div>

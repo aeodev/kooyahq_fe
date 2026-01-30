@@ -92,30 +92,30 @@ export function PeriodComparison({ comparison, currencyConfig }: PeriodCompariso
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  {getTrendIcon(change.costPercentage)}
+                  {getTrendIcon(change.costPercentage ?? 0)}
                   <span className="text-xs text-muted-foreground">Cost Change</span>
                 </div>
-                <p className={cn('text-lg font-bold', getTrendColor(change.costPercentage))}>
-                  {change.costPercentage >= 0 ? '+' : ''}
-                  {formatCurrency(change.cost, currencyConfig)}
+                <p className={cn('text-lg font-bold', getTrendColor(change.costPercentage ?? 0))}>
+                  {(change.costPercentage ?? 0) >= 0 ? '+' : ''}
+                  {formatCurrency(change.cost ?? 0, currencyConfig)}
                 </p>
-                <p className={cn('text-xs', getTrendColor(change.costPercentage))}>
-                  {change.costPercentage >= 0 ? '+' : ''}
-                  {change.costPercentage.toFixed(1)}%
+                <p className={cn('text-xs', getTrendColor(change.costPercentage ?? 0))}>
+                  {(change.costPercentage ?? 0) >= 0 ? '+' : ''}
+                  {(change.costPercentage ?? 0).toFixed(1)}%
                 </p>
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  {getTrendIcon(change.hoursPercentage)}
+                  {getTrendIcon(change.hoursPercentage ?? 0)}
                   <span className="text-xs text-muted-foreground">Hours Change</span>
                 </div>
-                <p className={cn('text-lg font-bold', getTrendColor(change.hoursPercentage))}>
-                  {change.hoursPercentage >= 0 ? '+' : ''}
-                  {formatHours(change.hours)}
+                <p className={cn('text-lg font-bold', getTrendColor(change.hoursPercentage ?? 0))}>
+                  {(change.hoursPercentage ?? 0) >= 0 ? '+' : ''}
+                  {formatHours(change.hours ?? 0)}
                 </p>
-                <p className={cn('text-xs', getTrendColor(change.hoursPercentage))}>
-                  {change.hoursPercentage >= 0 ? '+' : ''}
-                  {change.hoursPercentage.toFixed(1)}%
+                <p className={cn('text-xs', getTrendColor(change.hoursPercentage ?? 0))}>
+                  {(change.hoursPercentage ?? 0) >= 0 ? '+' : ''}
+                  {(change.hoursPercentage ?? 0).toFixed(1)}%
                 </p>
               </div>
             </div>

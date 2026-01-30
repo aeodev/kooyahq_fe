@@ -40,10 +40,10 @@ export function exportSummaryToCSV(
   summaryData.projectCosts.forEach((project) => {
     rows.push([
       project.project,
-      formatCurrency(project.totalCost, currencyConfig),
-      formatHours(project.totalHours),
+      formatCurrency(project.totalCost ?? 0, currencyConfig),
+      formatHours(project.totalHours ?? 0),
       project.developers.length,
-      `${currencyConfig.symbol}${convertFromPHPSync(project.avgHourlyRate, currencyConfig.code).toFixed(2)}/hr`,
+      `${currencyConfig.symbol}${convertFromPHPSync(project.avgHourlyRate ?? 0, currencyConfig.code).toFixed(2)}/hr`,
     ])
   })
 
@@ -64,9 +64,9 @@ export function exportProjectDetailToCSV(
   projectDetail.developers.forEach((dev) => {
     rows.push([
       dev.userName,
-      `${currencyConfig.symbol}${convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(2)}/hr`,
-      formatHours(dev.hours),
-      formatCurrency(dev.cost, currencyConfig),
+      `${currencyConfig.symbol}${convertFromPHPSync(dev.hourlyRate ?? 0, currencyConfig.code).toFixed(2)}/hr`,
+      formatHours(dev.hours ?? 0),
+      formatCurrency(dev.cost ?? 0, currencyConfig),
     ])
   })
 
@@ -74,9 +74,9 @@ export function exportProjectDetailToCSV(
   rows.push([])
   rows.push([
     'Total',
-    `${currencyConfig.symbol}${convertFromPHPSync(projectDetail.avgHourlyRate, currencyConfig.code).toFixed(2)}/hr`,
-    formatHours(projectDetail.totalHours),
-    formatCurrency(projectDetail.totalCost, currencyConfig),
+    `${currencyConfig.symbol}${convertFromPHPSync(projectDetail.avgHourlyRate ?? 0, currencyConfig.code).toFixed(2)}/hr`,
+    formatHours(projectDetail.totalHours ?? 0),
+    formatCurrency(projectDetail.totalCost ?? 0, currencyConfig),
   ])
 
   return arrayToCSV(rows)
@@ -102,10 +102,10 @@ export function exportComparisonToCSV(
   compareData.forEach((project) => {
     rows.push([
       project.project,
-      formatCurrency(project.totalCost, currencyConfig),
-      formatHours(project.totalHours),
+      formatCurrency(project.totalCost ?? 0, currencyConfig),
+      formatHours(project.totalHours ?? 0),
       project.developers.length,
-      `${currencyConfig.symbol}${convertFromPHPSync(project.avgHourlyRate, currencyConfig.code).toFixed(2)}/hr`,
+      `${currencyConfig.symbol}${convertFromPHPSync(project.avgHourlyRate ?? 0, currencyConfig.code).toFixed(2)}/hr`,
     ])
   })
 
@@ -127,18 +127,18 @@ export function exportLiveDataToCSV(
     rows.push([
       dev.userName,
       dev.projects.join('; '),
-      `${currencyConfig.symbol}${convertFromPHPSync(dev.hourlyRate, currencyConfig.code).toFixed(2)}/hr`,
-      formatHours(dev.activeMinutes / 60),
-      formatCurrency(dev.liveCost, currencyConfig),
+      `${currencyConfig.symbol}${convertFromPHPSync(dev.hourlyRate ?? 0, currencyConfig.code).toFixed(2)}/hr`,
+      formatHours((dev.activeMinutes ?? 0) / 60),
+      formatCurrency(dev.liveCost ?? 0, currencyConfig),
       dev.isPaused ? 'Paused' : 'Active',
     ])
   })
 
   // Add summary rows
   rows.push([])
-  rows.push(['Total Burn Rate', `${currencyConfig.symbol}${convertFromPHPSync(liveData.totalBurnRate, currencyConfig.code).toFixed(2)}/hr`])
-  rows.push(['Total Live Cost', formatCurrency(liveData.totalLiveCost, currencyConfig)])
-  rows.push(['Active Hours', formatHours(liveData.activeHours)])
+  rows.push(['Total Burn Rate', `${currencyConfig.symbol}${convertFromPHPSync(liveData.totalBurnRate ?? 0, currencyConfig.code).toFixed(2)}/hr`])
+  rows.push(['Total Live Cost', formatCurrency(liveData.totalLiveCost ?? 0, currencyConfig)])
+  rows.push(['Active Hours', formatHours(liveData.activeHours ?? 0)])
   rows.push(['Active Developers', liveData.activeDevelopers.length])
 
   return arrayToCSV(rows)
