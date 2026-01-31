@@ -518,6 +518,7 @@ export function ActiveUsersSection({ collapsed }: ActiveUsersSectionProps) {
   const { updateUserStatus } = useUserQueryActions()
   const allTodayEntries = useTimeEntryStore((state) => state.allTodayEntries)
   const fetchAllEntries = useTimeEntryStore((state) => state.fetchAllTodayEntries)
+  const hasFetchedEntriesRef = useRef(false)
   
   // Force re-render every minute to update duration display
   const [, setTick] = useState(0)
@@ -627,9 +628,17 @@ export function ActiveUsersSection({ collapsed }: ActiveUsersSectionProps) {
   }, [otherUsers, activeUsersMap, entriesMap])
 
   // Fetch all entries if we have users but no entries yet
-  if (otherUsers.length > 0 && allTodayEntries.length === 0) {
-    fetchAllEntries()
-  }
+  useEffect(() => {
+    if (otherUsers.length > 0 && allTodayEntries.length === 0 && !hasFetchedEntriesRef.current) {
+      hasFetchedEntriesRef.current = true
+      fetchAllEntries()
+    }
+    // Reset ref when entries are loaded
+    if (allTodayEntries.length > 0) {
+      hasFetchedEntriesRef.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otherUsers.length, allTodayEntries.length])
 
   if (usersWithDetails.length === 0) {
     return null

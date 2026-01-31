@@ -99,6 +99,12 @@ export const PERMISSIONS = {
 
   AI_ASSISTANT_ACCESS: 'ai-assistant:access',
 
+  CHAT_FULL_ACCESS: 'chat:fullAccess',
+  CHAT_READ: 'chat:read',
+  CHAT_SEND: 'chat:send',
+  CHAT_CREATE_GROUP: 'chat:createGroup',
+  CHAT_MANAGE_GROUP: 'chat:manageGroup',
+
   SETTINGS_FULL_ACCESS: 'settings:fullAccess',
   SETTINGS_VIEW: 'settings:view',
   SETTINGS_MANAGE: 'settings:manage',
@@ -231,6 +237,13 @@ export const PERMISSION_LIST: { value: Permission; label: string; description?: 
 
   // AI Assistant
   { value: PERMISSIONS.AI_ASSISTANT_ACCESS, label: 'AI Assistant Access', description: 'Use the Kooya AI assistant' },
+
+  // Chat
+  { value: PERMISSIONS.CHAT_FULL_ACCESS, label: 'Chat Full Access', description: 'Full access to chat features' },
+  { value: PERMISSIONS.CHAT_READ, label: 'Read Chat', description: 'Read messages and conversations' },
+  { value: PERMISSIONS.CHAT_SEND, label: 'Send Messages', description: 'Send messages in conversations' },
+  { value: PERMISSIONS.CHAT_CREATE_GROUP, label: 'Create Group Chat', description: 'Create group conversations' },
+  { value: PERMISSIONS.CHAT_MANAGE_GROUP, label: 'Manage Group Chat', description: 'Manage group settings and members' },
 
   // Settings
   { value: PERMISSIONS.SETTINGS_FULL_ACCESS, label: 'Settings Full Access', description: 'Full control over system settings' },

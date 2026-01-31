@@ -40,6 +40,7 @@ import { Meet } from '@/pages/Meet'
 import { MeetLanding } from '@/pages/Meet/Landing'
 import { PreJoin } from '@/pages/Meet/PreJoin'
 import { MeetFiles } from '@/pages/Meet/Files'
+import { Chat } from '@/pages/Chat'
 import { PrivateRoute } from '@/routes/PrivateRoute'
 import { PublicRoute } from '@/routes/PublicRoute'
 import { UserManagementRoute } from '@/routes/UserManagementRoute'
@@ -238,6 +239,24 @@ function App() {
                 >
                   <DashboardLayout>
                     <KooyaFeed />
+                  </DashboardLayout>
+                </PermissionGate>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <PrivateRoute fallback={null}>
+                <PermissionGate
+                  anyOf={[
+                    PERMISSIONS.CHAT_READ,
+                    PERMISSIONS.CHAT_FULL_ACCESS,
+                    PERMISSIONS.SYSTEM_FULL_ACCESS,
+                  ]}
+                >
+                  <DashboardLayout>
+                    <Chat />
                   </DashboardLayout>
                 </PermissionGate>
               </PrivateRoute>

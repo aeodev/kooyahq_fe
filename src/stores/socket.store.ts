@@ -8,6 +8,7 @@ import { registerTicketHandlers } from '@/hooks/socket/ticket.socket'
 import { registerAIAssistantHandlers } from '@/hooks/socket/ai-assistant.socket'
 import { registerThemeSettingsHandlers } from '@/hooks/socket/theme-settings.socket'
 import { registerAnnouncementHandlers } from '@/hooks/socket/announcement.socket'
+import { registerChatHandlers } from '@/hooks/socket/chat.socket'
 
 type SocketState = {
   socket: Socket | null
@@ -106,6 +107,7 @@ export const useSocketStore = create<SocketStore>((set) => {
     registerAIAssistantHandlers(socketInstance, eventHandlers)
     registerThemeSettingsHandlers(socketInstance, eventHandlers)
     registerAnnouncementHandlers(socketInstance, eventHandlers)
+    registerChatHandlers(socketInstance, eventHandlers)
 
     set({ socket: socketInstance })
   }

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Sidebar, useSidebarStore } from '@/components/layout/Sidebar'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { AISpotlight } from '@/components/ai-assistant/AISpotlight'
+import { ChatWidget } from '@/components/chat/ChatWidget'
 import { cn } from '@/utils/cn'
 
 type DashboardLayoutProps = PropsWithChildren<{
@@ -19,6 +20,7 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
     <div className={cn('flex h-screen bg-background text-foreground', className)}>
       <Sidebar />
       <AISpotlight />
+      <ChatWidget />
 
       <div className="flex h-screen flex-1 min-h-0 flex-col overflow-hidden">
         {/* Mobile Header */}
@@ -41,7 +43,7 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 min-h-0 overflow-hidden p-0">
           {children}
         </main>
 

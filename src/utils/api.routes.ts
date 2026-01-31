@@ -247,6 +247,24 @@ export const GET_MEET_RECORDING_ANALYSIS = (id: string) => `/meet/recordings/${i
 export const START_MEET_EGRESS = (roomName: string) => `/meet/egress/start/${roomName}`
 export const STOP_MEET_EGRESS = (egressId: string) => `/meet/egress/stop/${egressId}`
 export const GET_EGRESS_STATUS = (egressId: string) => `/meet/egress/status/${egressId}`
+
+// Chat routes
+export const GET_CHAT_CONVERSATIONS = () => `/chat/conversations`
+export const GET_CHAT_CONVERSATION = (id: string) => `/chat/conversations/${id}`
+export const CREATE_DIRECT_CONVERSATION = () => `/chat/conversations/direct`
+export const CREATE_GROUP_CONVERSATION = () => `/chat/conversations/group`
+export const UPDATE_CHAT_CONVERSATION = (id: string) => `/chat/conversations/${id}`
+export const ADD_GROUP_MEMBER = (id: string) => `/chat/conversations/${id}/members`
+export const REMOVE_GROUP_MEMBER = (id: string, userId: string) => `/chat/conversations/${id}/members/${userId}`
+export const LEAVE_GROUP = (id: string) => `/chat/conversations/${id}/leave`
+export const GET_CHAT_MESSAGES = (conversationId: string) => `/chat/conversations/${conversationId}/messages`
+export const SEND_CHAT_MESSAGE = (conversationId: string) => `/chat/conversations/${conversationId}/messages`
+export const UPDATE_CHAT_MESSAGE = (id: string) => `/chat/messages/${id}`
+export const DELETE_CHAT_MESSAGE = (id: string) => `/chat/messages/${id}`
+export const MARK_CONVERSATION_READ = (id: string) => `/chat/conversations/${id}/read`
+export const GET_CHAT_UNREAD_COUNT = (id: string) => `/chat/conversations/${id}/unread`
+export const GET_CHAT_TEAM_CONTACTS = () => `/chat/team-contacts`
+export const GET_LINK_PREVIEW = () => `/link-preview`
 export const GET_ACTIVE_EGRESS = (roomName: string) => `/meet/egress/active/${roomName}`
 
 // Media upload routes (for rich text editor)
