@@ -25,10 +25,12 @@ export interface ConversationWithParticipants extends Conversation {
 
 export interface Message {
   id: string
+  cid: string // Client Correlation ID for idempotency
   conversationId: string
   senderId: string
   content: string
   type: 'text' | 'image' | 'file' | 'system'
+  status: 'sending' | 'sent' | 'error' // Client-side status tracking
   attachments: Array<{
     url: string
     type: string
@@ -46,7 +48,7 @@ export interface Message {
   updatedAt: string
 }
 
-export interface MessageWithSender extends Message {
+export interface MessageWithSender extends Omit<Message, 'sender'> {
   sender: {
     id: string
     name: string
@@ -76,6 +78,13 @@ export interface TypingIndicator {
 }
 
 // Socket event types
+export interface ChatMessageAckEvent {
+  cid: string
+  id: string
+  status: 'success' | 'duplicate' | 'error'
+  error?: string
+}
+
 export interface ChatMessageReceivedEvent {
   message: MessageWithSender
   conversationId: string
@@ -123,6 +132,12 @@ export interface ChatMessageEditedEvent {
 export interface ChatMessageDeletedEvent {
   messageId: string
   conversationId: string
+  timestamp: string
+}
+
+export interface ChatDeltaSyncEvent {
+  conversationId: string
+  messages: MessageWithSender[]
   timestamp: string
 }
 

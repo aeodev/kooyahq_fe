@@ -12,12 +12,15 @@ const URL_REGEX = /(https?:\/\/[^\s]+)/g
 
 export function MessageBubble({ message, isOwn, className }: MessageBubbleProps) {
   // Extract URLs from message content
-  const urls = message.content.match(URL_REGEX) || []
+  const urls = message.content?.match(URL_REGEX) || []
   const hasUrls = urls.length > 0
 
   // Check for image attachments
   const imageAttachments = message.attachments?.filter((att) => att.type === 'image') || []
   const linkAttachments = message.attachments?.filter((att) => att.type === 'link') || []
+  
+  // Check if content exists and is not just whitespace
+  const hasContent = message.content && message.content.trim().length > 0
 
   // Split content by URLs to render text and links separately
   const renderContent = () => {
@@ -52,26 +55,29 @@ export function MessageBubble({ message, isOwn, className }: MessageBubbleProps)
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      <div
-        className={cn(
-          'rounded-2xl px-4 py-2 shadow-sm',
-          isOwn
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-muted text-foreground'
-        )}
-      >
-        {renderContent()}
-      </div>
+      {/* Only show text bubble if there's actual content */}
+      {hasContent && (
+        <div
+          className={cn(
+            'rounded-2xl px-4 py-2 shadow-sm',
+            isOwn
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-foreground'
+          )}
+        >
+          {renderContent()}
+        </div>
+      )}
 
-      {/* Image attachments */}
+      {/* Image attachments - WhatsApp style: larger, rounded corners */}
       {imageAttachments.length > 0 && (
         <div className={cn('flex flex-col gap-2', isOwn && 'items-end')}>
           {imageAttachments.map((att, idx) => (
-            <div key={idx} className="max-w-xs rounded-lg overflow-hidden">
+            <div key={idx} className="max-w-sm rounded-2xl overflow-hidden shadow-md">
               <img
                 src={att.url}
                 alt={att.name || 'Image attachment'}
-                className="max-w-full h-auto rounded-lg"
+                className="max-w-full h-auto rounded-2xl"
               />
             </div>
           ))}

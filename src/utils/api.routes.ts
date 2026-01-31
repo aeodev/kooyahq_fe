@@ -264,6 +264,9 @@ export const DELETE_CHAT_MESSAGE = (id: string) => `/chat/messages/${id}`
 export const MARK_CONVERSATION_READ = (id: string) => `/chat/conversations/${id}/read`
 export const GET_CHAT_UNREAD_COUNT = (id: string) => `/chat/conversations/${id}/unread`
 export const GET_CHAT_TEAM_CONTACTS = () => `/chat/team-contacts`
+export const ARCHIVE_CONVERSATION = (id: string) => `/chat/conversations/${id}/archive`
+export const UNARCHIVE_CONVERSATION = (id: string) => `/chat/conversations/${id}/unarchive`
+export const DELETE_CONVERSATION = (id: string) => `/chat/conversations/${id}`
 export const GET_LINK_PREVIEW = () => `/link-preview`
 export const GET_ACTIVE_EGRESS = (roomName: string) => `/meet/egress/active/${roomName}`
 

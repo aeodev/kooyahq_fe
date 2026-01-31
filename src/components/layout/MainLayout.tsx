@@ -1,5 +1,5 @@
 import { type PropsWithChildren } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Button } from '@/components/ui/button'
@@ -15,12 +15,14 @@ type DashboardLayoutProps = PropsWithChildren<{
 
 export function DashboardLayout({ children, className }: DashboardLayoutProps) {
   const openMobile = useSidebarStore((s) => s.openMobile)
+  const location = useLocation()
+  const isOnChatPage = location.pathname === '/chat'
 
   return (
     <div className={cn('flex h-screen bg-background text-foreground', className)}>
       <Sidebar />
       <AISpotlight />
-      <ChatWidget />
+      {!isOnChatPage && <ChatWidget />}
 
       <div className="flex h-screen flex-1 min-h-0 flex-col overflow-hidden">
         {/* Mobile Header */}
@@ -43,18 +45,21 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 min-h-0 overflow-hidden p-0">
+        <main className={cn(
+          "flex-1 min-h-0 overflow-y-auto",
+          isOnChatPage ? "p-0" : "p-4 md:p-6"
+        )}>
           {children}
         </main>
 
-        <footer className="border-t border-border bg-background">
+        {/* <footer className="border-t border-border bg-background">
           <div className="mx-auto w-full max-w-5xl px-4 py-3 sm:py-4">
             <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
               <span className="whitespace-nowrap">© {new Date().getFullYear()} KooyaHQ</span>
               <span className="font-medium text-primary whitespace-nowrap">Ship work that matters.</span>
             </div>
           </div>
-        </footer>
+        </footer> */}
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useChatStore } from '@/stores/chat.store'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_USERS } from '@/utils/api.routes'
@@ -8,6 +8,8 @@ import { Avatar } from '@/components/ui/avatar'
 import { X, Search, MessageCircle } from 'lucide-react'
 import { StatusIndicator } from '@/components/ui/status-indicator'
 import { useAuthStore } from '@/stores/auth.store'
+import { useActiveUsersQuery } from '@/hooks/queries/game.queries'
+import { useUsersQuery } from '@/hooks/queries/user.queries'
 
 interface User {
   id: string
@@ -30,6 +32,55 @@ export function UserSearchModal({ isOpen, onClose, onStartConversation }: UserSe
   const { user } = useAuthStore()
   const { getOrCreateDirectConversation } = useChatStore()
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const { data: activeUsers = [] } = useActiveUsersQuery()
+  const { data: allUsers = [] } = useUsersQuery()
+
+  // Create a map of active users for quick lookup (same logic as TeamContacts)
+  const activeUsersMap = useMemo(() => {
+    const map = new Map<string, boolean>()
+    activeUsers.forEach((activeUser) => {
+      map.set(activeUser.id, true)
+    })
+    return map
+  }, [activeUsers])
+
+  // Create a map of all users for status lookup
+  const usersMap = useMemo(() => {
+    const map = new Map<string, { status?: string }>()
+    allUsers.forEach((u) => {
+      map.set(u.id, { status: u.status })
+    })
+    return map
+  }, [allUsers])
+
+  // Merge users with real-time status from active users (same logic as TeamContacts)
+  const usersWithStatus = useMemo(() => {
+    return users.map((contact) => {
+      const isOnline = activeUsersMap.get(contact.id) || false
+      const userData = usersMap.get(contact.id)
+      
+      // Determine status: if user is in activeUsers, they're online (or use their status preference), otherwise offline
+      let status: 'online' | 'busy' | 'away' | 'offline' = 'offline'
+      
+      if (isOnline) {
+        // If online, use their status preference, default to 'online'
+        status = (userData?.status as 'online' | 'busy' | 'away' | 'offline') || 'online'
+      } else {
+        // Always show offline status explicitly
+        status = 'offline'
+      }
+
+      return {
+        ...contact,
+        status,
+      }
+    }).sort((a, b) => {
+      // Sort: online users first, then by name
+      if (a.status !== 'offline' && b.status === 'offline') return -1
+      if (a.status === 'offline' && b.status !== 'offline') return 1
+      return a.name.localeCompare(b.name)
+    })
+  }, [users, activeUsersMap, usersMap])
 
   useEffect(() => {
     if (!isOpen) {
@@ -135,7 +186,7 @@ export function UserSearchModal({ isOpen, onClose, onStartConversation }: UserSe
             </div>
           ) : (
             <div className="space-y-1">
-              {users.map((contact) => (
+              {usersWithStatus.map((contact) => (
                 <button
                   key={contact.id}
                   onClick={() => handleStartConversation(contact.id)}
@@ -143,12 +194,10 @@ export function UserSearchModal({ isOpen, onClose, onStartConversation }: UserSe
                 >
                   <div className="relative">
                     <Avatar src={contact.profilePic} name={contact.name} size="md" />
-                    {contact.status && (
-                      <StatusIndicator
-                        status={contact.status as 'online' | 'busy' | 'away' | 'offline'}
-                        className="absolute bottom-0 right-0"
-                      />
-                    )}
+                    <StatusIndicator
+                      status={(contact.status || 'offline') as 'online' | 'busy' | 'away' | 'offline'}
+                      className="absolute bottom-0 right-0"
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{contact.name}</p>

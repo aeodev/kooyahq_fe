@@ -10,6 +10,8 @@ import type {
   ChatMessageEditedEvent,
   ChatMessageDeletedEvent,
   ChatErrorEvent,
+  ChatMessageAckEvent,
+  ChatDeltaSyncEvent,
 } from '@/types/chat'
 
 /**
@@ -20,15 +22,43 @@ export function registerChatHandlers(
   socket: Socket,
   eventHandlers: Map<string, (...args: unknown[]) => void>
 ): void {
-  const handleMessageReceived = (data: ChatMessageReceivedEvent) => {
-    const { addMessage, updateUnreadCount } = useChatStore.getState()
+  const handleMessageAck = (data: ChatMessageAckEvent) => {
+    const { updateMessageStatus } = useChatStore.getState()
+
+    if (data.status === 'success') {
+      // Update message with server ID and mark as sent
+      updateMessageStatus(data.cid, {
+        id: data.id,
+        status: 'sent'
+      })
+    } else if (data.status === 'error') {
+      // Mark message as failed
+      updateMessageStatus(data.cid, {
+        status: 'error'
+      })
+    }
+    // For 'duplicate' status, we don't need to do anything as message is already processed
+  }
+
+  const handleNewMessage = (data: ChatMessageReceivedEvent) => {
+    const { addMessage, updateUnreadCount, activeConversationId } = useChatStore.getState()
     addMessage(data.conversationId, data.message)
-    
+
     // Update unread count if not active conversation
-    const { activeConversationId } = useChatStore.getState()
     if (activeConversationId !== data.conversationId) {
       const currentCount = useChatStore.getState().unreadCounts[data.conversationId] || 0
       updateUnreadCount(data.conversationId, currentCount + 1)
+    }
+  }
+
+  const handleDeltaMessages = (data: ChatDeltaSyncEvent) => {
+    const { syncMessages, setLastSyncPoint } = useChatStore.getState()
+    syncMessages(data.conversationId, data.messages)
+
+    // Update sync timestamp
+    if (data.messages.length > 0) {
+      const latestMessage = data.messages[data.messages.length - 1]
+      setLastSyncPoint(data.conversationId, latestMessage.id, latestMessage.createdAt)
     }
   }
 
@@ -42,7 +72,7 @@ export function registerChatHandlers(
     
     if (data.messageId) {
       // Update specific message read status
-      const messages = useChatStore.getState().messages[data.conversationId] || []
+      const messages = useChatStore.getState().messages.get(data.conversationId) || []
       const message = messages.find((m) => m.id === data.messageId)
       if (message) {
         const readBy = message.readBy || []
@@ -60,7 +90,7 @@ export function registerChatHandlers(
       }
     } else if (activeConversationId === data.conversationId) {
       // Mark all messages as read for this user
-      const messages = useChatStore.getState().messages[data.conversationId] || []
+      const messages = useChatStore.getState().messages.get(data.conversationId) || []
       messages.forEach((message) => {
         const readBy = message.readBy || []
         if (!readBy.some((r) => r.userId === data.userId)) {
@@ -114,7 +144,9 @@ export function registerChatHandlers(
   }
 
   // Register event listeners
-  socket.on('chat:message-received', handleMessageReceived)
+  socket.on('message_ack', handleMessageAck)
+  socket.on('new_message', handleNewMessage)
+  socket.on('delta_messages', handleDeltaMessages)
   socket.on('chat:typing', handleTyping)
   socket.on('chat:read', handleRead)
   socket.on('chat:conversation-updated', handleConversationUpdated)
@@ -125,7 +157,9 @@ export function registerChatHandlers(
   socket.on('chat:error', handleError)
 
   // Store handlers for cleanup
-  eventHandlers.set('chat:message-received', handleMessageReceived)
+  eventHandlers.set('message_ack', handleMessageAck)
+  eventHandlers.set('new_message', handleNewMessage)
+  eventHandlers.set('delta_messages', handleDeltaMessages)
   eventHandlers.set('chat:typing', handleTyping)
   eventHandlers.set('chat:read', handleRead)
   eventHandlers.set('chat:conversation-updated', handleConversationUpdated)

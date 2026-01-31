@@ -1,0 +1,38 @@
+To properly audit and help you build a robust chat feature, I need to understand the "skeleton" of your application. Before we dive into the messaging logic, I need to see how you’ve organized your project to ensure it can handle real-time state, concurrency, and persistence.
+
+Please provide the following details about your current setup:
+
+### 1. High-Level Tech Stack
+*   **Frontend:** (e.g., React, Vue, Next.js, Flutter, etc.)
+*   **Backend:** (e.g., Node.js/Express, Go, Python/FastAPI, etc.)
+*   **Real-time Protocol:** (e.g., Socket.io, native WebSockets, MQTT, WebRTC, or a managed service like Firebase/Ably?)
+*   **Database:** (e.g., PostgreSQL for relations + Redis for caching, or a NoSQL like MongoDB/Cassandra for message history?)
+
+### 2. File Structure
+Please provide a high-level tree of your project directory. I’m specifically looking for:
+*   **Frontend:** Where do you store your chat components, hooks, and state management logic?
+*   **Backend:** How are your controllers, services, and socket handlers separated?
+*   *Example format:*
+    ```text
+    /src
+      /components/chat
+      /hooks
+      /store (Redux/Zustand)
+    /server
+      /sockets
+      /services
+      /models
+    ```
+
+### 3. Core Chat Features
+What is the "Definition of Done" for this feature?
+*   1-on-1 only or Group Chats?
+*   Message persistence (loading history on refresh)?
+*   Real-time indicators (Typing..., Online/Offline status, Read receipts)?
+*   Media handling (Images, files, voice notes)?
+
+### 4. Current Architectural Approach
+*   **State Management:** How are you handling the incoming message stream on the frontend? (e.g., appending to a local state, using an optimistic UI update?)
+*   **Auth:** How are you securing the socket connection? (e.g., JWT in the handshake?)
+
+**Once you provide this "map," I can tell you exactly where the potential bottlenecks or architectural flaws are before you write more code.**

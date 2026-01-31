@@ -32,7 +32,7 @@ export function useChatConversations() {
  */
 export function useChatMessages(conversationId: string | null) {
   const { messages, loading, fetchMessages, activeConversationId } = useChatStore()
-  const messagesList = conversationId ? messages[conversationId] || [] : []
+  const messagesList = conversationId ? messages.get(conversationId) || [] : []
 
   const loadMore = useCallback(
     (before?: string) => {
@@ -135,7 +135,7 @@ export function useChatUnread() {
  * Hook to manage active conversation and socket room
  */
 export function useActiveConversation() {
-  const { activeConversationId, setActiveConversation, markAsRead } = useChatStore()
+  const { activeConversationId, setActiveConversation, markAsRead, getLastMessageTimestamp } = useChatStore()
   const socket = useSocketStore((state) => state.socket)
 
   useEffect(() => {
@@ -152,6 +152,27 @@ export function useActiveConversation() {
       socket.emit('chat:leave', activeConversationId)
     }
   }, [socket, activeConversationId, markAsRead])
+
+  // Handle reconnection sync
+  useEffect(() => {
+    if (!socket) return
+
+    const handleReconnect = () => {
+      if (activeConversationId) {
+        const lastSync = getLastMessageTimestamp(activeConversationId)
+        socket.emit('get_delta_messages', {
+          conversationId: activeConversationId,
+          lastSyncTimestamp: lastSync || undefined
+        })
+      }
+    }
+
+    socket.on('reconnect', handleReconnect)
+
+    return () => {
+      socket.off('reconnect', handleReconnect)
+    }
+  }, [socket, activeConversationId, getLastMessageTimestamp])
 
   return {
     activeConversationId,

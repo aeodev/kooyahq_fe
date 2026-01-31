@@ -31,7 +31,7 @@ export function EmojiPickerButton({ onEmojiSelect, className }: EmojiPickerButto
 
   const handleEmojiSelect = (emoji: string) => {
     onEmojiSelect(emoji)
-    setShowEmojiPicker(false)
+    // Don't close the picker - let user select multiple emojis
   }
 
   return (
