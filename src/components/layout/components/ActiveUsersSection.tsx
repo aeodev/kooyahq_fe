@@ -646,14 +646,14 @@ export function ActiveUsersSection({ collapsed }: ActiveUsersSectionProps) {
 
   return (
     <div 
-      className="w-full overflow-x-auto overflow-y-hidden px-1" 
-      style={{ height: '64px' }}
+      className="w-full overflow-y-auto px-1 py-1" 
+      style={{ minHeight: '64px', maxHeight: '80px' }}
     >
       <div className={cn(
-        'flex gap-x-2 items-center h-full', 
+        'grid grid-cols-5 gap-x-2 gap-y-2 items-center', 
       )}>
         {usersWithDetails.map((user) => (
-          <div key={user.id} className="flex items-center justify-center shrink-0">
+          <div key={user.id} className="flex items-center justify-center">
             <ActiveUserAvatar user={user} collapsed={collapsed} />
           </div>
         ))}
