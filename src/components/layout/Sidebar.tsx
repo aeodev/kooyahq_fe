@@ -156,22 +156,13 @@ const MANAGEMENT_ITEMS: NavItem[] = [
     name: 'Cost Analytics',
     to: '/cost-analytics',
     icon: TrendingUp,
-    requiredPermissions: [
-      PERMISSIONS.SYSTEM_FULL_ACCESS,
-      PERMISSIONS.COST_ANALYTICS_VIEW,
-      PERMISSIONS.COST_ANALYTICS_EDIT,
-      PERMISSIONS.COST_ANALYTICS_FULL_ACCESS
-    ],
+    requiredPermissions: [PERMISSIONS.SYSTEM_FULL_ACCESS],
   },
   {
     name: 'Finance',
     to: '/finance',
     icon: DollarSign,
-    requiredPermissions: [
-      PERMISSIONS.FINANCE_VIEW,
-      PERMISSIONS.FINANCE_FULL_ACCESS,
-      PERMISSIONS.SYSTEM_FULL_ACCESS,
-    ],
+    requiredPermissions: [PERMISSIONS.SYSTEM_FULL_ACCESS],
   },
   {
     name: 'Admin Logs',
@@ -441,10 +432,20 @@ export function Sidebar() {
             onClick={toggleCollapse}
             aria-label="Expand sidebar"
           >
-            <img
-              src="/kooyaicon/apple-touch-icon.png"
-              alt="Kooya"
-              className="h-8 w-8"
+            <span
+              role="img"
+              aria-label="Kooya"
+              className="inline-block h-8 w-8 bg-primary"
+              style={{
+                maskImage: "url('/kooyaicon/apple-touch-icon.png')",
+                maskRepeat: 'no-repeat',
+                maskSize: 'contain',
+                maskPosition: 'center',
+                WebkitMaskImage: "url('/kooyaicon/apple-touch-icon.png')",
+                WebkitMaskRepeat: 'no-repeat',
+                WebkitMaskSize: 'contain',
+                WebkitMaskPosition: 'center',
+              }}
             />
           </button>
         </div>
@@ -461,10 +462,20 @@ export function Sidebar() {
             className="hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md flex-1 flex items-center"
             onClick={closeMobile}
           >
-            <img
-              src="/kooya-logo-white.png"
-              alt="KooyaHQ"
-              className="h-8"
+            <span
+              role="img"
+              aria-label="KooyaHQ"
+              className="inline-block h-8 aspect-[800/264] bg-primary"
+              style={{
+                maskImage: "url('/kooya-logo-white.png')",
+                maskRepeat: 'no-repeat',
+                maskSize: 'contain',
+                maskPosition: 'center',
+                WebkitMaskImage: "url('/kooya-logo-white.png')",
+                WebkitMaskRepeat: 'no-repeat',
+                WebkitMaskSize: 'contain',
+                WebkitMaskPosition: 'center',
+              }}
             />
           </Link>
           <button

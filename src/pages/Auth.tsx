@@ -46,9 +46,21 @@ export function Auth() {
           <CardContent className="space-y-7 p-8">
             <div className="space-y-4">
               <div className="flex justify-center sm:justify-start">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-background text-lg font-semibold text-primary font-[Poppins]">
-                  K
-                </div>
+                <span
+                  role="img"
+                  aria-label="KooyaHQ"
+                  className="inline-block h-8 aspect-[800/264] bg-primary"
+                  style={{
+                    maskImage: "url('/kooya-logo-white.png')",
+                    maskRepeat: 'no-repeat',
+                    maskSize: 'contain',
+                    maskPosition: 'center',
+                    WebkitMaskImage: "url('/kooya-logo-white.png')",
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskPosition: 'center',
+                  }}
+                />
               </div>
               <div className="space-y-1 text-center sm:text-left">
                 <div className="text-2xl font-semibold tracking-tight text-foreground">

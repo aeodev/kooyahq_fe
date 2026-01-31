@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Clock4, Briefcase, Tag, PartyPopper } from 'lucide-react'
+import { Clock4, Briefcase, Tag, PartyPopper, Users } from 'lucide-react'
 import { useActiveUsersQuery, useGameQueryActions } from '@/hooks/queries/game.queries'
 import { useUsersQuery, useUserQueryActions } from '@/hooks/queries/user.queries'
 import { useTimeEntryStore } from '@/stores/time-entry.store'
 import { useSocketStore } from '@/stores/socket.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { StatusIndicator } from '@/components/ui/status-indicator'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
 import type { User } from '@/types/user'
 import type { ActiveUser } from '@/types/game'
@@ -61,6 +62,18 @@ function getUserInitials(name: string): string {
     .map((n) => n.charAt(0).toUpperCase())
     .slice(0, 2)
     .join('')
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  online: 'Online',
+  busy: 'Busy',
+  away: 'Away',
+  offline: 'Offline',
+}
+
+function getStatusLabel(status?: User['status']): string {
+  if (!status) return STATUS_LABELS.offline
+  return STATUS_LABELS[status] || STATUS_LABELS.offline
 }
 
 type UserTooltipProps = {
@@ -171,14 +184,7 @@ function UserTooltip({ user, isVisible, anchorRef, collapsed }: UserTooltipProps
 
   if (!isVisible || !position) return null
 
-  const statusLabels: Record<string, string> = {
-    online: 'Online',
-    busy: 'Busy',
-    away: 'Away',
-    offline: 'Offline',
-  }
-
-  const statusLabel = user.status ? statusLabels[user.status] || 'Offline' : 'Offline'
+  const statusLabel = getStatusLabel(user.status)
   const isBirthday = isBirthdayToday(user.birthday)
   const isLeave = user.status === 'offline' && !isBirthday
 
@@ -505,6 +511,78 @@ function ActiveUserAvatar({ user, collapsed }: ActiveUserAvatarProps) {
   )
 }
 
+type PresenceListItemProps = {
+  user: ActiveUserWithDetails
+}
+
+function PresenceListItem({ user }: PresenceListItemProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const avatarRef = useRef<HTMLDivElement>(null)
+  const rowRef = useRef<HTMLButtonElement>(null)
+  const [imageError, setImageError] = useState(false)
+  const isValidProfilePic = user.profilePic && user.profilePic !== 'undefined' && user.profilePic.trim() !== '' && !imageError
+  const initials = getUserInitials(user.name)
+  const statusLabel = getStatusLabel(user.status)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (rowRef.current?.contains(event.target as Node)) return
+      setIsOpen(false)
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    return () => window.removeEventListener('pointerdown', handlePointerDown)
+  }, [isOpen])
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={rowRef}
+        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[hsl(var(--ios-selection-bg))] transition-colors text-left"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-label={`View ${user.name} details`}
+      >
+        <div ref={avatarRef} className="relative">
+          {isValidProfilePic ? (
+            <img
+              src={user.profilePic}
+              alt={user.name}
+              className="h-7 w-7 rounded-full object-cover ring-1 ring-[hsl(var(--ios-divider))]"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-[10px] font-semibold text-primary-foreground ring-1 ring-[hsl(var(--ios-divider))]">
+              {initials || 'U'}
+            </div>
+          )}
+          <div className="absolute -bottom-0.5 -right-0.5">
+            <StatusIndicator status={user.status || 'offline'} size="sm" />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {statusLabel}
+            {user.activeTimer ? ' • Active timer' : ''}
+          </p>
+        </div>
+        {user.activeTimer && (
+          <span className="text-[11px] font-semibold text-primary tabular-nums">{user.activeTimer.duration}</span>
+        )}
+      </button>
+      <UserTooltip
+        user={user}
+        isVisible={isOpen}
+        anchorRef={avatarRef}
+        collapsed
+      />
+    </>
+  )
+}
+
 type ActiveUsersSectionProps = {
   collapsed: boolean
 }
@@ -642,6 +720,53 @@ export function ActiveUsersSection({ collapsed }: ActiveUsersSectionProps) {
 
   if (usersWithDetails.length === 0) {
     return null
+  }
+
+  const onlineCount = usersWithDetails.filter((user) => activeUsersMap.has(user.id)).length
+  const totalCount = usersWithDetails.length
+
+  if (collapsed) {
+    return (
+      <div className="w-full px-1">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'w-full rounded-xl border border-[hsl(var(--ios-sidebar-border))] bg-[hsl(var(--ios-footer-bg))]',
+                'px-2 py-2 flex flex-col items-center gap-2 text-muted-foreground',
+                'hover:text-foreground hover:bg-[hsl(var(--ios-selection-bg))] transition-all duration-200 ease-out'
+              )}
+              aria-label="Presence"
+            >
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Users className="h-5 w-5" />
+                <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[26px] px-1.5 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center">
+                  {onlineCount}/{totalCount}
+                </span>
+              </div>
+              <div className="h-0" aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="right"
+            align="center"
+            sideOffset={12}
+            className="w-72 p-0 overflow-hidden bg-[hsl(var(--ios-sidebar-bg))] border-[hsl(var(--ios-sidebar-border))]"
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[hsl(var(--ios-divider))] bg-[hsl(var(--ios-footer-bg))]">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Presence</span>
+              <span className="text-[11px] font-semibold text-foreground">{onlineCount}/{totalCount} online</span>
+            </div>
+            <div className="max-h-72 overflow-y-auto py-1">
+              {usersWithDetails.map((user) => (
+                <PresenceListItem key={user.id} user={user} />
+              ))}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    )
   }
 
   return (

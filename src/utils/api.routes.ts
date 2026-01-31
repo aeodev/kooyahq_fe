@@ -342,28 +342,61 @@ export const GET_FINANCE_SUMMARY = (startDate?: string, endDate?: string) => {
   if (endDate) params.append('endDate', endDate)
   return `/finance/summary${params.toString() ? `?${params.toString()}` : ''}`
 }
-export const GET_EXPENSES = (filters?: { startDate?: string; endDate?: string; category?: string; vendor?: string; employeeId?: string; search?: string }) => {
+export const GET_EXPENSES = (filters?: { startDate?: string; endDate?: string; category?: string; vendor?: string; search?: string; page?: number; limit?: number }) => {
   const params = new URLSearchParams()
   if (filters?.startDate) params.append('startDate', filters.startDate)
   if (filters?.endDate) params.append('endDate', filters.endDate)
   if (filters?.category) params.append('category', filters.category)
   if (filters?.vendor) params.append('vendor', filters.vendor)
-  if (filters?.employeeId) params.append('employeeId', filters.employeeId)
   if (filters?.search) params.append('search', filters.search)
+  if (filters?.page) params.append('page', filters.page.toString())
+  if (filters?.limit) params.append('limit', filters.limit.toString())
   return `/finance/expenses${params.toString() ? `?${params.toString()}` : ''}`
 }
 export const GET_EXPENSE = (id: string) => `/finance/expenses/${id}`
 export const CREATE_EXPENSE = () => `/finance/expenses`
 export const UPDATE_EXPENSE = (id: string) => `/finance/expenses/${id}`
 export const DELETE_EXPENSE = (id: string) => `/finance/expenses/${id}`
-export const GET_EMPLOYEE_COSTS = (filters?: { startDate?: string; endDate?: string; employeeId?: string; costType?: string }) => {
+export const GET_EMPLOYEE_COSTS = (filters?: { startDate?: string; endDate?: string; employeeId?: string; search?: string; page?: number; limit?: number }) => {
   const params = new URLSearchParams()
   if (filters?.startDate) params.append('startDate', filters.startDate)
   if (filters?.endDate) params.append('endDate', filters.endDate)
   if (filters?.employeeId) params.append('employeeId', filters.employeeId)
-  if (filters?.costType) params.append('costType', filters.costType)
+  if (filters?.search) params.append('search', filters.search)
+  if (filters?.page) params.append('page', filters.page.toString())
+  if (filters?.limit) params.append('limit', filters.limit.toString())
   return `/finance/employee-costs${params.toString() ? `?${params.toString()}` : ''}`
 }
+
+export const GET_EXPENSE_OPTIONS = () => `/finance/expenses/options`
+export const GET_EMPLOYEE_COST_OPTIONS = () => `/finance/employee-costs/options`
+
+export const GET_RECURRING_EXPENSES = (filters?: { status?: string; frequency?: string; search?: string; page?: number; limit?: number }) => {
+  const params = new URLSearchParams()
+  if (filters?.status) params.append('status', filters.status)
+  if (filters?.frequency) params.append('frequency', filters.frequency)
+  if (filters?.search) params.append('search', filters.search)
+  if (filters?.page) params.append('page', filters.page.toString())
+  if (filters?.limit) params.append('limit', filters.limit.toString())
+  return `/finance/recurring-expenses${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const CREATE_RECURRING_EXPENSE = () => `/finance/recurring-expenses`
+export const UPDATE_RECURRING_EXPENSE = (id: string) => `/finance/recurring-expenses/${id}`
+export const DELETE_RECURRING_EXPENSE = (id: string) => `/finance/recurring-expenses/${id}`
+
+export const GET_RECURRING_EMPLOYEE_COSTS = (filters?: { status?: string; frequency?: string; employeeId?: string; search?: string; page?: number; limit?: number }) => {
+  const params = new URLSearchParams()
+  if (filters?.status) params.append('status', filters.status)
+  if (filters?.frequency) params.append('frequency', filters.frequency)
+  if (filters?.employeeId) params.append('employeeId', filters.employeeId)
+  if (filters?.search) params.append('search', filters.search)
+  if (filters?.page) params.append('page', filters.page.toString())
+  if (filters?.limit) params.append('limit', filters.limit.toString())
+  return `/finance/recurring-employee-costs${params.toString() ? `?${params.toString()}` : ''}`
+}
+export const CREATE_RECURRING_EMPLOYEE_COST = () => `/finance/recurring-employee-costs`
+export const UPDATE_RECURRING_EMPLOYEE_COST = (id: string) => `/finance/recurring-employee-costs/${id}`
+export const DELETE_RECURRING_EMPLOYEE_COST = (id: string) => `/finance/recurring-employee-costs/${id}`
 export const CREATE_EMPLOYEE_COST = () => `/finance/employee-costs`
 export const UPDATE_EMPLOYEE_COST = (id: string) => `/finance/employee-costs/${id}`
 export const DELETE_EMPLOYEE_COST = (id: string) => `/finance/employee-costs/${id}`

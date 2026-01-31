@@ -30,6 +30,7 @@ import { toast } from 'sonner'
 import axiosInstance from '@/utils/axios.instance'
 import { EXPORT_USERS } from '@/utils/api.routes'
 import { PERMISSION_LIST, PERMISSIONS } from '@/constants/permissions'
+import { useAuthStore } from '@/stores/auth.store'
 
 type UsersSectionProps = {
   canViewUsers: boolean
@@ -79,12 +80,18 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
   {
     label: 'SuperAdmin',
     description: 'System-wide access override',
-    permissions: [PERMISSIONS.SYSTEM_FULL_ACCESS, PERMISSIONS.SYSTEM_LOGS, PERMISSIONS.COST_ANALYTICS_FULL_ACCESS],
+    permissions: [
+      PERMISSIONS.SYSTEM_FULL_ACCESS,
+      PERMISSIONS.SYSTEM_LOGS,
+      PERMISSIONS.COST_ANALYTICS_FULL_ACCESS,
+      PERMISSIONS.FINANCE_FULL_ACCESS,
+    ],
   },
   {
     label: 'Admin',
     description: 'Manage projects, content, and system tools',
     permissions: [
+      PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.PROJECTS_MANAGE,
       PERMISSIONS.SERVER_MANAGEMENT_MANAGE,
       PERMISSIONS.BOARD_FULL_ACCESS,
@@ -92,7 +99,6 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
       PERMISSIONS.AI_NEWS_FULL_ACCESS,
       PERMISSIONS.GALLERY_FULL_ACCESS,
       PERMISSIONS.TIME_ENTRY_FULL_ACCESS,
-      PERMISSIONS.COST_ANALYTICS_FULL_ACCESS,
       PERMISSIONS.MEDIA_FULL_ACCESS,
       PERMISSIONS.POST_FULL_ACCESS,
       PERMISSIONS.NOTIFICATION_FULL_ACCESS,
@@ -125,7 +131,6 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
       PERMISSIONS.TIME_ENTRY_CREATE,
       PERMISSIONS.TIME_ENTRY_UPDATE,
       PERMISSIONS.TIME_ENTRY_DELETE,
-      PERMISSIONS.COST_ANALYTICS_VIEW,
       PERMISSIONS.GAME_FULL_ACCESS,
       PERMISSIONS.PRESENCE_FULL_ACCESS,
       PERMISSIONS.MEDIA_UPLOAD,
@@ -158,7 +163,6 @@ const PERMISSION_TEMPLATES: Array<{ label: string; description: string; permissi
       PERMISSIONS.GALLERY_READ,
       PERMISSIONS.MEET_FULL_ACCESS,
       PERMISSIONS.GAME_FULL_ACCESS,
-      PERMISSIONS.COST_ANALYTICS_VIEW,
       PERMISSIONS.MEDIA_UPLOAD,
       PERMISSIONS.MEDIA_READ,
       PERMISSIONS.MEDIA_DELETE,
@@ -195,6 +199,8 @@ const normalizeText = (value?: string | null) => (value || '').trim().toLowerCas
 
 export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps) {
   const canExportUsers = canManageUsers
+  const can = useAuthStore((state) => state.can)
+  const canManageSalary = useMemo(() => can(PERMISSIONS.SYSTEM_FULL_ACCESS), [can])
   const { data: employees, loading, error, fetchEmployees } = useEmployees()
   const { updateEmployee, loading: updating } = useUpdateEmployee()
   const { deleteEmployee } = useDeleteEmployee()
@@ -572,7 +578,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       email: employee.email,
       position: employee.position || '',
       birthday: employee.birthday ? employee.birthday.split('T')[0] : '',
-      monthlySalary: employee.monthlySalary?.toString() || '',
+      monthlySalary: canManageSalary ? employee.monthlySalary?.toString() || '' : '',
       permissions: employee.permissions || [],
     })
     setValidationErrors({})
@@ -612,17 +618,17 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
     if (editData.birthday !== currentBirthday) {
       updates.birthday = editData.birthday ? editData.birthday : undefined
     }
-    // Handle monthly salary update
-    if (editData.monthlySalary) {
-        const salaryAmount = parseFloat(editData.monthlySalary)
-        if (!isNaN(salaryAmount) && salaryAmount >= 0) {
-          const currentSalary = editingEmployee.monthlySalary || 0
+    // Handle monthly salary update (super admin only)
+    if (canManageSalary && editData.monthlySalary) {
+      const salaryAmount = parseFloat(editData.monthlySalary)
+      if (!isNaN(salaryAmount) && salaryAmount >= 0) {
+        const currentSalary = editingEmployee.monthlySalary || 0
         // Only update if the amount differs from current (allowing for small floating point differences)
         if (Math.abs(salaryAmount - currentSalary) > 0.01) {
           updates.monthlySalary = salaryAmount
         }
       }
-    } else {
+    } else if (canManageSalary) {
       // If salary is cleared, set to 0
       const currentSalary = editingEmployee.monthlySalary || 0
       if (currentSalary !== 0) {
@@ -754,11 +760,11 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
 
     const normalizedPerms = normalizePermissionsWithDependencies(createUserData.permissions)
     
-    // Parse salary if provided
+    // Parse salary if provided (super admin only)
     let monthlySalary: number | undefined = undefined
-    if (createUserData.monthlySalary) {
-        const salaryAmount = parseFloat(createUserData.monthlySalary)
-        if (!isNaN(salaryAmount) && salaryAmount >= 0) {
+    if (canManageSalary && createUserData.monthlySalary) {
+      const salaryAmount = parseFloat(createUserData.monthlySalary)
+      if (!isNaN(salaryAmount) && salaryAmount >= 0) {
         monthlySalary = salaryAmount
       }
     }
@@ -768,7 +774,7 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
       email: createUserData.email.trim(),
       position: createUserData.position.trim() || undefined,
       birthday: createUserData.birthday || undefined,
-      monthlySalary,
+      ...(canManageSalary ? { monthlySalary } : {}),
       permissions: normalizedPerms,
     })
 
@@ -1169,11 +1175,12 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                 />
                 {createValidationErrors.birthday && <p className="text-xs text-destructive">{createValidationErrors.birthday}</p>}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="create-monthlySalary">Monthly Salary</Label>
-                <div className="relative">
+              {canManageSalary && (
+                <div className="space-y-2">
+                  <Label htmlFor="create-monthlySalary">Monthly Salary</Label>
+                  <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                    ₱
+                      ₱
                     </span>
                     <Input
                       id="create-monthlySalary"
@@ -1185,8 +1192,9 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                       placeholder="e.g., 50000"
                       className="pl-8"
                     />
+                  </div>
                 </div>
-              </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 Manage/update permissions automatically keep the matching view permission on.
               </p>
@@ -1438,11 +1446,12 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                   />
                   {validationErrors.birthday && <p className="text-xs text-destructive">{validationErrors.birthday}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-monthlySalary">Monthly Salary</Label>
-                  <div className="relative">
+                {canManageSalary && (
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-monthlySalary">Monthly Salary</Label>
+                    <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                      ₱
+                        ₱
                       </span>
                       <Input
                         id="edit-monthlySalary"
@@ -1454,8 +1463,9 @@ export function UsersSection({ canViewUsers, canManageUsers }: UsersSectionProps
                         placeholder="e.g., 50000"
                         className="pl-8"
                       />
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">
                     Manage/update permissions automatically keep the matching view permission on.

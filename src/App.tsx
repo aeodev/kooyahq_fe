@@ -417,12 +417,7 @@ function App() {
             path="/cost-analytics"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[
-                  PERMISSIONS.SYSTEM_FULL_ACCESS,
-                  PERMISSIONS.COST_ANALYTICS_VIEW,
-                  PERMISSIONS.COST_ANALYTICS_EDIT,
-                  PERMISSIONS.COST_ANALYTICS_FULL_ACCESS
-                ]}>
+                <PermissionGate anyOf={[PERMISSIONS.SYSTEM_FULL_ACCESS]}>
                   <DashboardLayout>
                     <CostAnalytics />
                   </DashboardLayout>
@@ -434,11 +429,7 @@ function App() {
             path="/finance"
             element={
               <PrivateRoute fallback={null}>
-                <PermissionGate anyOf={[
-                  PERMISSIONS.FINANCE_VIEW,
-                  PERMISSIONS.FINANCE_FULL_ACCESS,
-                  PERMISSIONS.SYSTEM_FULL_ACCESS
-                ]}>
+                <PermissionGate anyOf={[PERMISSIONS.SYSTEM_FULL_ACCESS]}>
                   <DashboardLayout>
                     <Finance />
                   </DashboardLayout>
