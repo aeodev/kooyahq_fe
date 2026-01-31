@@ -1,18 +1,14 @@
 import { useState } from 'react'
 import { useTeamContacts } from '@/hooks/chat.hooks'
 import { useChatStore } from '@/stores/chat.store'
-import { useAuthStore } from '@/stores/auth.store'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
-import { cn } from '@/utils/cn'
 import { MessageCircle, Search, Users } from 'lucide-react'
 import { StatusIndicator } from '@/components/ui/status-indicator'
 
 export function TeamContacts({ onStartConversation }: { onStartConversation?: (conversationId: string) => void }) {
   const { teamContacts, loading } = useTeamContacts()
   const { getOrCreateDirectConversation } = useChatStore()
-  const { user } = useAuthStore()
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredContacts = teamContacts.filter((contact) => {

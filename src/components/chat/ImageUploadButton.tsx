@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Image as ImageIcon, X } from 'lucide-react'
+import { Image as ImageIcon } from 'lucide-react'
 import axiosInstance from '@/utils/axios.instance'
 import { UPLOAD_MEDIA } from '@/utils/api.routes'
 import { cn } from '@/utils/cn'

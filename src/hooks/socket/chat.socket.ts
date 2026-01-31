@@ -20,7 +20,7 @@ import type {
  */
 export function registerChatHandlers(
   socket: Socket,
-  eventHandlers: Map<string, (...args: unknown[]) => void>
+  eventHandlers: Map<string, (...args: any[]) => void>
 ): void {
   const handleMessageAck = (data: ChatMessageAckEvent) => {
     const { updateMessageStatus } = useChatStore.getState()

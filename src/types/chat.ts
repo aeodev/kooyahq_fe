@@ -13,7 +13,7 @@ export interface Conversation {
   updatedAt: string
 }
 
-export interface ConversationWithParticipants extends Conversation {
+export type ConversationWithParticipants = Omit<Conversation, 'participants'> & {
   participants: Array<{
     id: string
     name: string

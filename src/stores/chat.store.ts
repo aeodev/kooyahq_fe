@@ -55,12 +55,14 @@ type ChatActions = {
   removeMember: (conversationId: string, userId: string) => Promise<void>
   leaveGroup: (conversationId: string) => Promise<void>
   addMessage: (conversationId: string, message: MessageWithSender) => void
+  updateMessage: (conversationId: string, messageId: string, updates: Partial<MessageWithSender>) => void
   updateMessageStatus: (cid: string, updates: Partial<MessageWithSender>) => void
   removeMessage: (conversationId: string, messageId: string) => void
   syncMessages: (conversationId: string, messages: MessageWithSender[]) => void
   setTyping: (conversationId: string, userId: string, isTyping: boolean) => void
   updateUnreadCount: (conversationId: string, count: number) => void
   getLastMessageTimestamp: (conversationId: string) => string | null
+  setLastSyncPoint: (conversationId: string, messageId: string, timestamp: string) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   archiveConversation: (conversationId: string) => Promise<void>
@@ -528,6 +530,40 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     })
   },
 
+  updateMessage: (conversationId: string, messageId: string, updates: Partial<MessageWithSender>) => {
+    set((state) => {
+      const messages = state.messages.get(conversationId) || []
+      const messageIndex = messages.findIndex((message) => message.id === messageId)
+      if (messageIndex === -1) {
+        return state
+      }
+
+      const updatedMessage = { ...messages[messageIndex], ...updates }
+      const updatedMessages = [...messages]
+      updatedMessages[messageIndex] = updatedMessage
+
+      const newMessagesMap = new Map(state.messages)
+      newMessagesMap.set(conversationId, updatedMessages)
+
+      const messageMap = new Map(state.messageMap)
+      messageMap.set(updatedMessage.cid, updatedMessage)
+
+      const updatedConversations = state.conversations.map((c) => {
+        if (c.id !== conversationId) return c
+        if (c.lastMessageId === messageId || c.lastMessage?.id === messageId) {
+          return { ...c, lastMessage: updatedMessage }
+        }
+        return c
+      })
+
+      return {
+        messages: newMessagesMap,
+        messageMap,
+        conversations: updatedConversations,
+      }
+    })
+  },
+
   updateMessageStatus: (cid: string, updates: Partial<MessageWithSender>) => {
     set((state) => {
       const messageMap = new Map(state.messageMap)
@@ -616,6 +652,20 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
   getLastMessageTimestamp: (conversationId: string): string | null => {
     return get().lastMessageTimestamp[conversationId] || null
+  },
+
+  setLastSyncPoint: (conversationId: string, messageId: string, timestamp: string) => {
+    set((state) => ({
+      lastMessageTimestamp: {
+        ...state.lastMessageTimestamp,
+        [conversationId]: timestamp,
+      },
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId
+          ? { ...c, lastMessageAt: timestamp, lastMessageId: messageId }
+          : c
+      ),
+    }))
   },
 
   setTyping: (conversationId: string, userId: string, isTyping: boolean) => {

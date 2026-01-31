@@ -1236,7 +1236,7 @@ function RecurringExpenseForm({
       category: category || undefined,
       notes: notes || undefined,
       frequency,
-      startDate: new Date(startDate),
+      startDate,
     })
 
     setAmount('')
@@ -1368,7 +1368,7 @@ function RecurringEmployeeCostForm({
       vendor: vendor || undefined,
       category: category || undefined,
       frequency,
-      startDate: new Date(startDate),
+      startDate,
     })
 
     setEmployeeId('')
@@ -1505,7 +1505,7 @@ function ExpenseForm({
       vendor: vendor || undefined,
       category: category || undefined,
       notes: description || undefined,
-      effectiveDate: new Date(effectiveDate),
+      effectiveDate,
     })
 
     // Reset form
@@ -1622,7 +1622,7 @@ function EmployeeCostForm({
       amount: parseFloat(amount),
       vendor: vendor || undefined,
       category: category || undefined,
-      effectiveDate: new Date(effectiveDate),
+      effectiveDate,
     })
 
     // Reset form

@@ -31,7 +31,7 @@ export function UserSearchModal({ isOpen, onClose, onStartConversation }: UserSe
   const [loading, setLoading] = useState(false)
   const { user } = useAuthStore()
   const { getOrCreateDirectConversation } = useChatStore()
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { data: activeUsers = [] } = useActiveUsersQuery()
   const { data: allUsers = [] } = useUsersQuery()
 

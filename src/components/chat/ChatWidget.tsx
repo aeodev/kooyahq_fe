@@ -15,7 +15,7 @@ import type { ConversationWithParticipants, MessageWithSender } from '@/types/ch
 export function ChatWidget() {
   const { user } = useAuthStore()
   const { conversations, sendMessage, setActiveConversation } = useChatStore()
-  const { conversations: conversationsList } = useChatConversations()
+  useChatConversations()
   const { activeConversationId, setActiveConversation: setActive } = useActiveConversation()
   const { messages } = useChatMessages(activeConversationId)
   const { typingUserIds, startTyping, stopTyping } = useChatTyping(activeConversationId)
