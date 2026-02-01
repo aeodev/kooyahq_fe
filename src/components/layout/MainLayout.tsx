@@ -36,8 +36,22 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <Link to="/" className="text-lg font-semibold tracking-tight text-primary font-[Poppins]">
-            KooyaHQ
+          <Link to="/" className="flex items-center">
+            <span
+              role="img"
+              aria-label="Kooya"
+              className="inline-block h-8 aspect-[800/264] bg-primary"
+              style={{
+                maskImage: "url('/kooya-logo-white.png')",
+                maskRepeat: 'no-repeat',
+                maskSize: 'contain',
+                maskPosition: 'center',
+                WebkitMaskImage: "url('/kooya-logo-white.png')",
+                WebkitMaskRepeat: 'no-repeat',
+                WebkitMaskSize: 'contain',
+                WebkitMaskPosition: 'center',
+              }}
+            />
           </Link>
           <div className="ml-auto flex items-center gap-2">
             <NotificationBell />

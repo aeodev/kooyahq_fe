@@ -479,53 +479,53 @@ export function Notifications() {
         }}
       >
         {selectedNotification && selectedSummary && (
-          <DialogContent className="max-w-xl">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selectedSummary.title}</DialogTitle>
               {selectedSummary.description && (
                 <DialogDescription>{selectedSummary.description}</DialogDescription>
               )}
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
-                <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                <div className="grid gap-2 text-sm grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Status</div>
+                    <div className="text-xs uppercase text-muted-foreground mb-0.5">Status</div>
                     <div className="font-medium">{selectedNotification.read ? 'Read' : 'Unread'}</div>
                   </div>
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Type</div>
+                    <div className="text-xs uppercase text-muted-foreground mb-0.5">Type</div>
                     <div className="font-medium">{selectedTypeLabel}</div>
                   </div>
                   {selectedActorName && (
                     <div>
-                      <div className="text-xs uppercase text-muted-foreground">Actor</div>
+                      <div className="text-xs uppercase text-muted-foreground mb-0.5">Actor</div>
                       <div className="font-medium">{selectedActorName}</div>
                       {selectedNotification.actor?.email && (
-                        <div className="text-xs text-muted-foreground">{selectedNotification.actor.email}</div>
+                        <div className="text-xs text-muted-foreground truncate">{selectedNotification.actor.email}</div>
                       )}
                     </div>
                   )}
                   {selectedReference && (
                     <div>
-                      <div className="text-xs uppercase text-muted-foreground">Reference</div>
-                      <div className="font-medium">{selectedReference}</div>
+                      <div className="text-xs uppercase text-muted-foreground mb-0.5">Reference</div>
+                      <div className="font-medium truncate">{selectedReference}</div>
                     </div>
                   )}
                   <div>
-                    <div className="text-xs uppercase text-muted-foreground">Received</div>
-                    <div className="font-medium">{selectedTimestamp}</div>
+                    <div className="text-xs uppercase text-muted-foreground mb-0.5">Received</div>
+                    <div className="font-medium text-xs">{selectedTimestamp}</div>
                   </div>
                 </div>
               </div>
               {selectedMetadataEntries.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-xs uppercase text-muted-foreground">Details</div>
-                  <div className="grid gap-2">
+                <div className="space-y-2">
+                  <div className="text-xs uppercase text-muted-foreground font-semibold">Details</div>
+                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {selectedMetadataEntries.map((entry) => (
                       <div
                         key={entry.key}
-                        className="flex flex-col gap-1 rounded-md border border-border/60 bg-background px-3 py-2"
+                        className="flex flex-col gap-0.5 rounded-md border border-border/60 bg-background px-2.5 py-1.5"
                       >
                         <div className="text-[11px] uppercase text-muted-foreground">{entry.label}</div>
                         <div className="text-sm font-medium text-foreground break-words">{entry.value}</div>
