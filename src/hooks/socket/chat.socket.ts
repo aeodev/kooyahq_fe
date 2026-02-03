@@ -38,10 +38,8 @@ export function registerChatHandlers(
 
   const handleNewMessage = async (data: ChatMessageReceivedEvent) => {
     const { addMessage } = useChatMessagesStore.getState()
-    const { 
-      activeConversationId, 
-      updateUnreadCount, 
-      unreadCounts,
+    const {
+      activeConversationId,
       conversations,
       fetchConversation,
       updateConversationLastMessage

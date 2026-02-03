@@ -278,7 +278,7 @@ export const useChatMessagesStore = create<MessagesState & MessagesActions>((set
     return get().lastMessageTimestamp[conversationId] || null
   },
 
-  setLastSyncPoint: (conversationId: string, messageId: string, timestamp: string) => {
+  setLastSyncPoint: (conversationId: string, _messageId: string, timestamp: string) => {
     set((state) => ({
       lastMessageTimestamp: {
         ...state.lastMessageTimestamp,
