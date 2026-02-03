@@ -117,7 +117,21 @@ export function ChatWidget() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
-          <MessageCircle className="h-5 w-5 text-primary" />
+          <div className="relative">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            {totalUnread > 0 && (
+              <span className={cn(
+                "absolute -top-1 -right-1 rounded-full bg-destructive border-2 border-card flex items-center justify-center",
+                totalUnread === 1 ? "h-2.5 w-2.5" : "h-4 w-4 min-w-[16px] px-0.5"
+              )}>
+                {totalUnread > 9 ? (
+                  <span className="text-[9px] font-bold text-destructive-foreground leading-none">9+</span>
+                ) : totalUnread > 1 ? (
+                  <span className="text-[9px] font-bold text-destructive-foreground leading-none">{totalUnread}</span>
+                ) : null}
+              </span>
+            )}
+          </div>
           <h3 className="font-semibold text-sm">
             {view === 'chat' && activeConversation
               ? getConversationDisplayName(activeConversation)
