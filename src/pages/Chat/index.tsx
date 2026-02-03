@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useChatStore } from '@/stores/chat.store'
+import { useChatConversationsStore } from '@/stores/chat-conversations.store'
+import { useChatMessagesStore } from '@/stores/chat-messages.store'
 import { useChatConversations, useChatMessages, useChatTyping, useActiveConversation, useChatUnread } from '@/hooks/chat.hooks'
 import { useAuthStore } from '@/stores/auth.store'
 import { Input } from '@/components/ui/input'
@@ -30,7 +31,18 @@ import type { ConversationWithParticipants, MessageWithSender } from '@/types/ch
 
 export function Chat() {
   const { user } = useAuthStore()
-  const { conversations, archivedConversations, loading, loadingArchived, archivedFetched, sendMessage, setActiveConversation, fetchArchivedConversations, fetchMessages, archiveConversation, unarchiveConversation, deleteConversation } = useChatStore()
+  const conversations = useChatConversationsStore((state) => state.conversations)
+  const archivedConversations = useChatConversationsStore((state) => state.archivedConversations)
+  const loading = useChatConversationsStore((state) => state.loading)
+  const loadingArchived = useChatConversationsStore((state) => state.loadingArchived)
+  const archivedFetched = useChatConversationsStore((state) => state.archivedFetched)
+  const sendMessage = useChatMessagesStore((state) => state.sendMessage)
+  const setActiveConversation = useChatConversationsStore((state) => state.setActiveConversation)
+  const fetchArchivedConversations = useChatConversationsStore((state) => state.fetchArchivedConversations)
+  const fetchMessages = useChatMessagesStore((state) => state.fetchMessages)
+  const archiveConversation = useChatConversationsStore((state) => state.archiveConversation)
+  const unarchiveConversation = useChatConversationsStore((state) => state.unarchiveConversation)
+  const deleteConversation = useChatConversationsStore((state) => state.deleteConversation)
   const { refetch: refetchConversations } = useChatConversations()
   const { activeConversationId, setActiveConversation: setActive } = useActiveConversation()
   const { messages } = useChatMessages(activeConversationId)
@@ -256,7 +268,7 @@ export function Chat() {
   const handleMarkAsUnread = (conversationId: string) => {
     // Increment unread count
     const currentCount = getUnreadCount(conversationId)
-    useChatStore.getState().updateUnreadCount(conversationId, currentCount + 1)
+    useChatConversationsStore.getState().updateUnreadCount(conversationId, currentCount + 1)
   }
 
   const handlePinConversation = (conversationId: string) => {
@@ -289,14 +301,14 @@ export function Chat() {
   const handleClearChat = async (conversationId: string) => {
     if (confirm('Are you sure you want to clear all messages in this chat? This action cannot be undone.')) {
       // Clear messages from store
-      const messages = useChatStore.getState().messages
+      const messages = useChatMessagesStore.getState().messages
       messages.delete(conversationId)
-      useChatStore.setState({ messages: new Map(messages) })
+      useChatMessagesStore.setState({ messages: new Map(messages) })
     }
   }
 
   const handleExportChat = (conversationId: string) => {
-    const messages = useChatStore.getState().messages.get(conversationId) || []
+    const messages = useChatMessagesStore.getState().messages.get(conversationId) || []
     const conversation = conversations.find(c => c.id === conversationId)
     const content = messages.map(msg => {
       const date = format(new Date(msg.createdAt), 'MMM d, yyyy h:mm a')

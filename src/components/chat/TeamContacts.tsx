@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTeamContacts } from '@/hooks/chat.hooks'
-import { useChatStore } from '@/stores/chat.store'
+import { useChatConversationsStore } from '@/stores/chat-conversations.store'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
 import { MessageCircle, Search, Users } from 'lucide-react'
@@ -8,7 +8,7 @@ import { StatusIndicator } from '@/components/ui/status-indicator'
 
 export function TeamContacts({ onStartConversation }: { onStartConversation?: (conversationId: string) => void }) {
   const { teamContacts, loading } = useTeamContacts()
-  const { getOrCreateDirectConversation } = useChatStore()
+  const getOrCreateDirectConversation = useChatConversationsStore((state) => state.getOrCreateDirectConversation)
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredContacts = teamContacts.filter((contact) => {

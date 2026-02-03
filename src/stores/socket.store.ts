@@ -9,6 +9,7 @@ import { registerAIAssistantHandlers } from '@/hooks/socket/ai-assistant.socket'
 import { registerThemeSettingsHandlers } from '@/hooks/socket/theme-settings.socket'
 import { registerAnnouncementHandlers } from '@/hooks/socket/announcement.socket'
 import { registerChatHandlers } from '@/hooks/socket/chat.socket'
+import { useChatConversationsStore } from './chat-conversations.store'
 
 type SocketState = {
   socket: Socket | null
@@ -78,6 +79,7 @@ export const useSocketStore = create<SocketStore>((set) => {
 
     const handleConnect = () => {
       set({ connected: true, connecting: false, error: null })
+      useChatConversationsStore.getState().fetchConversations()
     }
 
     const handleDisconnect = () => {

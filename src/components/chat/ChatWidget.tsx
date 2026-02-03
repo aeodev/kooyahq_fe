@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useChatStore } from '@/stores/chat.store'
+import { useChatConversationsStore } from '@/stores/chat-conversations.store'
+import { useChatMessagesStore } from '@/stores/chat-messages.store'
 import { useChatConversations, useChatMessages, useChatTyping, useActiveConversation, useChatUnread } from '@/hooks/chat.hooks'
 import { useAuthStore } from '@/stores/auth.store'
 import { Input } from '@/components/ui/input'
@@ -14,12 +15,14 @@ import type { ConversationWithParticipants, MessageWithSender } from '@/types/ch
 
 export function ChatWidget() {
   const { user } = useAuthStore()
-  const { conversations, sendMessage, setActiveConversation } = useChatStore()
+  const conversations = useChatConversationsStore((state) => state.conversations)
+  const sendMessage = useChatMessagesStore((state) => state.sendMessage)
+  const setActiveConversation = useChatConversationsStore((state) => state.setActiveConversation)
   useChatConversations()
   const { activeConversationId, setActiveConversation: setActive } = useActiveConversation()
   const { messages } = useChatMessages(activeConversationId)
   const { typingUserIds, startTyping, stopTyping } = useChatTyping(activeConversationId)
-  const { getTotalUnread, getUnreadCount } = useChatUnread()
+  const { getUnreadCount, unreadCounts } = useChatUnread()
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [view, setView] = useState<'list' | 'chat'>('list')
@@ -27,7 +30,7 @@ export function ChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messageInputRef = useRef<HTMLInputElement>(null)
 
-  const totalUnread = getTotalUnread()
+  const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0)
   const activeConversation = conversations.find((c) => c.id === activeConversationId)
 
   useEffect(() => {
@@ -137,7 +140,6 @@ export function ChatWidget() {
               ? getConversationDisplayName(activeConversation)
               : 'Chat'}
           </h3>
-          {totalUnread > 0 && view === 'list' && <UnreadBadge count={totalUnread} />}
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -177,7 +179,11 @@ export function ChatWidget() {
                 <div className="text-center text-muted-foreground py-8 text-sm">No conversations yet</div>
               ) : (
                 <div className="space-y-1">
-                  {conversations.map((conv) => {
+                  {[...conversations].sort((a, b) => {
+                    const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
+                    const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
+                    return bTime - aTime
+                  }).map((conv) => {
                     const unreadCount = getUnreadCount(conv.id)
                     return (
                       <button

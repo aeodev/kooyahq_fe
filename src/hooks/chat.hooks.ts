@@ -1,5 +1,7 @@
 import { useEffect, useCallback, useRef, useState, useMemo } from 'react'
-import { useChatStore } from '@/stores/chat.store'
+import { useChatConversationsStore } from '@/stores/chat-conversations.store'
+import { useChatMessagesStore } from '@/stores/chat-messages.store'
+import { useChatTypingStore } from '@/stores/chat-typing.store'
 import { useSocketStore } from '@/stores/socket.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useActiveUsersQuery } from '@/hooks/queries/game.queries'
@@ -9,57 +11,49 @@ import { GET_CHAT_TEAM_CONTACTS } from '@/utils/api.routes'
 
 type Timeout = ReturnType<typeof setTimeout>
 
-/**
- * Hook to fetch and manage chat conversations
- */
 export function useChatConversations() {
-  const { conversations, loading, error, fetchConversations } = useChatStore()
+  const conversations = useChatConversationsStore((state) => state.conversations)
+  const loading = useChatConversationsStore((state) => state.loading)
+  const error = useChatConversationsStore((state) => state.error)
+  const fetchConversations = useChatConversationsStore((state) => state.fetchConversations)
 
   useEffect(() => {
     fetchConversations()
   }, [fetchConversations])
 
-  return {
-    conversations,
-    loading,
-    error,
-    refetch: fetchConversations,
-  }
+  return { conversations, loading, error, refetch: fetchConversations }
 }
 
-/**
- * Hook to manage messages for a specific conversation
- */
-export function useChatMessages(conversationId: string | null) {
-  const { messages, loading, fetchMessages, activeConversationId } = useChatStore()
-  const messagesList = conversationId ? messages.get(conversationId) || [] : []
+const EMPTY_MESSAGES: never[] = []
 
-  const loadMore = useCallback(
-    (before?: string) => {
-      if (!conversationId) return
-      fetchMessages(conversationId, { before })
-    },
-    [conversationId, fetchMessages]
-  )
+export function useChatMessages(conversationId: string | null) {
+  const messagesMap = useChatMessagesStore((state) => state.messages)
+  const loading = useChatMessagesStore((state) => state.loading)
+  const fetchMessages = useChatMessagesStore((state) => state.fetchMessages)
+  const fetchedConversations = useChatMessagesStore((state) => state.fetchedConversations)
+  const activeConversationId = useChatConversationsStore((state) => state.activeConversationId)
+
+  const messages = useMemo(() => {
+    if (!conversationId) return EMPTY_MESSAGES
+    return messagesMap.get(conversationId) || EMPTY_MESSAGES
+  }, [conversationId, messagesMap])
+
+  const hasFetched = useMemo(() => {
+    if (!conversationId) return true
+    return fetchedConversations.has(conversationId)
+  }, [conversationId, fetchedConversations])
 
   useEffect(() => {
-    if (conversationId && activeConversationId === conversationId && messagesList.length === 0) {
+    if (conversationId && activeConversationId === conversationId && !hasFetched) {
       fetchMessages(conversationId)
     }
-  }, [conversationId, activeConversationId, messagesList.length, fetchMessages])
+  }, [conversationId, activeConversationId, hasFetched, fetchMessages])
 
-  return {
-    messages: messagesList,
-    loading,
-    loadMore,
-  }
+  return { messages, loading }
 }
 
-/**
- * Hook to handle typing indicators
- */
 export function useChatTyping(conversationId: string | null) {
-  const { typingUsers } = useChatStore()
+  const typingUsers = useChatTypingStore((state) => state.typingUsers)
   const socket = useSocketStore((state) => state.socket)
   const user = useAuthStore((state) => state.user)
   const typingTimeoutRef = useRef<Timeout | null>(null)
@@ -69,7 +63,6 @@ export function useChatTyping(conversationId: string | null) {
 
     socket.emit('chat:typing-start', { conversationId })
     
-    // Auto-stop typing after 3 seconds
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
     }
@@ -107,11 +100,8 @@ export function useChatTyping(conversationId: string | null) {
   }
 }
 
-/**
- * Hook to get unread counts
- */
 export function useChatUnread() {
-  const { unreadCounts } = useChatStore()
+  const unreadCounts = useChatConversationsStore((state) => state.unreadCounts)
 
   const getUnreadCount = useCallback(
     (conversationId: string) => {
@@ -131,29 +121,25 @@ export function useChatUnread() {
   }
 }
 
-/**
- * Hook to manage active conversation and socket room
- */
 export function useActiveConversation() {
-  const { activeConversationId, setActiveConversation, markAsRead, getLastMessageTimestamp } = useChatStore()
+  const activeConversationId = useChatConversationsStore((state) => state.activeConversationId)
+  const setActiveConversation = useChatConversationsStore((state) => state.setActiveConversation)
+  const markAsRead = useChatConversationsStore((state) => state.markAsRead)
+  const getLastMessageTimestamp = useChatMessagesStore((state) => state.getLastMessageTimestamp)
   const socket = useSocketStore((state) => state.socket)
 
   useEffect(() => {
     if (!socket || !activeConversationId) return
 
-    // Join conversation room
     socket.emit('chat:join', activeConversationId)
 
-    // Mark as read
     markAsRead(activeConversationId)
 
     return () => {
-      // Leave conversation room on cleanup
       socket.emit('chat:leave', activeConversationId)
     }
   }, [socket, activeConversationId, markAsRead])
 
-  // Handle reconnection sync
   useEffect(() => {
     if (!socket) return
 
@@ -180,9 +166,6 @@ export function useActiveConversation() {
   }
 }
 
-/**
- * Hook to fetch team contacts for chat with real-time status from active users (same as sidebar)
- */
 export function useTeamContacts() {
   const [teamContacts, setTeamContacts] = useState<Array<{
     id: string
@@ -196,7 +179,6 @@ export function useTeamContacts() {
   const { data: activeUsers = [] } = useActiveUsersQuery()
   const { data: allUsers = [] } = useUsersQuery()
 
-  // Create a map of active users for quick lookup (same logic as sidebar)
   const activeUsersMap = useMemo(() => {
     const map = new Map<string, boolean>()
     activeUsers.forEach((activeUser) => {
@@ -205,7 +187,6 @@ export function useTeamContacts() {
     return map
   }, [activeUsers])
 
-  // Create a map of all users for status lookup
   const usersMap = useMemo(() => {
     const map = new Map<string, { status?: string }>()
     allUsers.forEach((u) => {
@@ -220,7 +201,6 @@ export function useTeamContacts() {
       try {
         const response = await axiosInstance.get(GET_CHAT_TEAM_CONTACTS())
         const contacts = response.data.data || []
-        // Filter out current user
         const filteredContacts = contacts.filter((contact: any) => contact.id !== user?.id)
         setTeamContacts(filteredContacts)
       } catch (error) {
@@ -234,20 +214,16 @@ export function useTeamContacts() {
     fetchTeamContacts()
   }, [user?.id])
 
-  // Merge contacts with real-time status from active users (same logic as sidebar)
   const contactsWithStatus = useMemo(() => {
     return teamContacts.map((contact) => {
       const isOnline = activeUsersMap.get(contact.id) || false
       const userData = usersMap.get(contact.id)
       
-      // Determine status: if user is in activeUsers, they're online (or use their status preference), otherwise offline
       let status: 'online' | 'busy' | 'away' | 'offline' = 'offline'
       
       if (isOnline) {
-        // If online, use their status preference, default to 'online'
         status = (userData?.status as 'online' | 'busy' | 'away' | 'offline') || 'online'
       } else {
-        // Always show offline status explicitly
         status = 'offline'
       }
 
@@ -256,7 +232,6 @@ export function useTeamContacts() {
         status,
       }
     }).sort((a, b) => {
-      // Sort: online users first, then by name
       if (a.status !== 'offline' && b.status === 'offline') return -1
       if (a.status === 'offline' && b.status !== 'offline') return 1
       return a.name.localeCompare(b.name)

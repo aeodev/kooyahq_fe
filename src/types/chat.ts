@@ -21,6 +21,7 @@ export type ConversationWithParticipants = Omit<Conversation, 'participants'> & 
     profilePic?: string
   }>
   lastMessage?: Message
+  unreadCounts?: Record<string, number>
 }
 
 export interface Message {

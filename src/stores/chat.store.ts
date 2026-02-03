@@ -22,18 +22,23 @@ import type {
   MessageWithSender,
 } from '@/types/chat'
 
+const sortMessagesByCreatedAt = (messages: MessageWithSender[]): MessageWithSender[] => {
+  return [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+}
+
 type ChatState = {
   conversations: ConversationWithParticipants[]
   archivedConversations: ConversationWithParticipants[]
   activeConversationId: string | null
-  messages: Map<string, MessageWithSender[]> // conversationId -> messages array
-  messageMap: Map<string, MessageWithSender> // cid -> message for O(1) lookups
+  messages: Map<string, MessageWithSender[]>
+  messageMap: Map<string, MessageWithSender>
+  fetchedConversations: Set<string>
   typingUsers: Record<string, Set<string>>
   unreadCounts: Record<string, number>
-  lastMessageTimestamp: Record<string, string> // For delta sync
+  lastMessageTimestamp: Record<string, string>
   loading: boolean
   loadingArchived: boolean
-  archivedFetched: boolean // Track if we've attempted to fetch archived conversations
+  archivedFetched: boolean
   error: string | null
   pendingConversationRequests: Map<string, Promise<ConversationWithParticipants>>
 }
@@ -44,7 +49,7 @@ type ChatActions = {
   fetchConversation: (id: string) => Promise<void>
   setActiveConversation: (id: string | null) => void
   fetchMessages: (conversationId: string, options?: { page?: number; limit?: number; before?: string }) => Promise<void>
-  sendMessage: (conversationId: string, content: string, type?: string, attachments?: any[], replyTo?: string) => Promise<string> // Returns CID
+  sendMessage: (conversationId: string, content: string, type?: string, attachments?: any[], replyTo?: string) => Promise<string>
   markAsRead: (conversationId: string) => Promise<void>
   findDirectConversationByUserId: (userId: string) => ConversationWithParticipants | null
   getOrCreateDirectConversation: (userId: string) => Promise<ConversationWithParticipants>
@@ -76,6 +81,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   activeConversationId: null,
   messages: new Map(),
   messageMap: new Map(),
+  fetchedConversations: new Set(),
   typingUsers: {},
   unreadCounts: {},
   lastMessageTimestamp: {},
@@ -89,8 +95,19 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const response = await axiosInstance.get(GET_CHAT_CONVERSATIONS())
+      const conversations = response.data.data || []
+      const currentUser = useAuthStore.getState().user
+      
+      const unreadCounts: Record<string, number> = {}
+      conversations.forEach((conv: ConversationWithParticipants) => {
+        if (conv.unreadCounts && currentUser?.id) {
+          unreadCounts[conv.id] = conv.unreadCounts[currentUser.id] || 0
+        }
+      })
+      
       set({
-        conversations: response.data.data || [],
+        conversations,
+        unreadCounts: { ...get().unreadCounts, ...unreadCounts },
         loading: false,
       })
     } catch (error: any) {
@@ -105,8 +122,19 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     set({ loadingArchived: true, error: null })
     try {
       const response = await axiosInstance.get(`${GET_CHAT_CONVERSATIONS()}?archived=true`)
+      const conversations = response.data.data || []
+      const currentUser = useAuthStore.getState().user
+      
+      const unreadCounts: Record<string, number> = {}
+      conversations.forEach((conv: ConversationWithParticipants) => {
+        if (conv.unreadCounts && currentUser?.id) {
+          unreadCounts[conv.id] = conv.unreadCounts[currentUser.id] || 0
+        }
+      })
+      
       set({
-        archivedConversations: response.data.data || [],
+        archivedConversations: conversations,
+        unreadCounts: { ...get().unreadCounts, ...unreadCounts },
         loadingArchived: false,
         archivedFetched: true,
       })
@@ -124,6 +152,13 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     try {
       const response = await axiosInstance.get(GET_CHAT_CONVERSATION(id))
       const conversation = response.data.data
+      const currentUser = useAuthStore.getState().user
+      
+      // Update unread count if available
+      const unreadCounts: Record<string, number> = {}
+      if (conversation.unreadCounts && currentUser?.id) {
+        unreadCounts[conversation.id] = conversation.unreadCounts[currentUser.id] || 0
+      }
       
       // Update conversations list
       set((state) => ({
@@ -132,6 +167,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         ).concat(
           state.conversations.find((c) => c.id === id) ? [] : [conversation]
         ),
+        unreadCounts: { ...state.unreadCounts, ...unreadCounts },
         loading: false,
       }))
     } catch (error: any) {
@@ -167,18 +203,18 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         const messageIds = new Set(existingMessages.map((m) => m.id))
         const uniqueNewMessages = newMessages.filter((m: MessageWithSender) => !messageIds.has(m.id))
 
-        const updatedMessages = options.before
-          ? [...uniqueNewMessages, ...existingMessages]
-          : [...existingMessages, ...uniqueNewMessages]
+        const updatedMessages = sortMessagesByCreatedAt(
+          options.before
+            ? [...uniqueNewMessages, ...existingMessages]
+            : [...existingMessages, ...uniqueNewMessages]
+        )
 
         const newMessagesMap = new Map(state.messages)
         newMessagesMap.set(conversationId, updatedMessages)
 
-        // Update messageMap for O(1) lookups
         const newMessageMap = new Map(state.messageMap)
         uniqueNewMessages.forEach(msg => newMessageMap.set(msg.cid, msg))
 
-        // Update last message timestamp
         const newLastMessageTimestamp = { ...state.lastMessageTimestamp }
         if (updatedMessages.length > 0) {
           newLastMessageTimestamp[conversationId] = updatedMessages[updatedMessages.length - 1].createdAt
@@ -188,6 +224,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
           messages: newMessagesMap,
           messageMap: newMessageMap,
           lastMessageTimestamp: newLastMessageTimestamp,
+          fetchedConversations: new Set([...state.fetchedConversations, conversationId]),
           loading: false,
         }
       })
@@ -200,15 +237,12 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   sendMessage: async (conversationId: string, content: string, type = 'text', attachments?: any[], replyTo?: string): Promise<string> => {
-    // Generate CID for idempotency
     const cid = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-    // Validate inputs before sending
     if (!conversationId || typeof conversationId !== 'string') {
       throw new Error('Conversation ID is required')
     }
 
-    // Allow empty content if there are attachments
     const hasAttachments = attachments && attachments.length > 0
     const hasContent = content && typeof content === 'string' && content.trim()
     
@@ -225,20 +259,18 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       attachments: attachments
     })
 
-    // Validate message type
     const validTypes = ['text', 'image', 'file', 'system']
     if (type && !validTypes.includes(type)) {
       throw new Error(`Invalid message type: ${type}. Must be one of: ${validTypes.join(', ')}`)
     }
 
-    // Create optimistic message
     const optimisticMessage: MessageWithSender = {
-      id: cid, // Temporary ID until server responds
+      id: cid,
       cid,
       conversationId,
       senderId: useAuthStore.getState().user?.id || '',
-      content: hasContent ? content.trim() : '', // Allow empty content if attachments exist
-      type: hasAttachments && !hasContent ? 'image' : (type as any), // Set type to image if only attachments
+      content: hasContent ? content.trim() : '',
+      type: hasAttachments && !hasContent ? 'image' : (type as any),
       status: 'sending',
       attachments: attachments || [],
       replyTo,
@@ -253,11 +285,9 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       }
     }
 
-    // Add optimistic message to state
     get().addMessage(conversationId, optimisticMessage)
 
     try {
-      // Emit via socket (will be handled by socket handlers)
       const { socket } = useSocketStore.getState()
       if (socket) {
         const messageType = hasAttachments && !hasContent ? 'image' : (type || 'text')
@@ -284,7 +314,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
       return cid
     } catch (error: any) {
-      // Mark as error in optimistic update
       get().updateMessageStatus(cid, { status: 'error' })
       set({
         error: error.response?.data?.message || 'Failed to send message',
@@ -303,7 +332,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         },
       }))
     } catch (error) {
-      // Silently fail - not critical
       console.error('Failed to mark as read:', error)
     }
   },
@@ -322,30 +350,25 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   getOrCreateDirectConversation: async (userId: string) => {
-    // 1. Check local cache first
     const existing = get().findDirectConversationByUserId(userId)
     if (existing) {
       return existing
     }
     
-    // 2. Only call API if not found locally
     return get().createDirectConversation(userId)
   },
 
   createDirectConversation: async (userId: string) => {
-    // Check if already exists before API call (defensive check)
     const existing = get().findDirectConversationByUserId(userId)
     if (existing) {
       return existing
     }
 
-    // Request deduplication: check if there's already a pending request
     const pendingRequests = get().pendingConversationRequests
     if (pendingRequests.has(userId)) {
       return pendingRequests.get(userId)!
     }
 
-    // Create the request promise
     const requestPromise = (async () => {
       set({ loading: true, error: null })
       try {
@@ -353,10 +376,8 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         const conversation = response.data.data
         
         set((state) => {
-          // Prevent duplicate conversations in state
           const alreadyExists = state.conversations.some(c => c.id === conversation.id)
           
-          // Remove from pending requests
           const updatedPendingRequests = new Map(state.pendingConversationRequests)
           updatedPendingRequests.delete(userId)
           
@@ -371,7 +392,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         
         return conversation
       } catch (error: any) {
-        // Remove from pending requests on error
         set((state) => {
           const updatedPendingRequests = new Map(state.pendingConversationRequests)
           updatedPendingRequests.delete(userId)
@@ -385,7 +405,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       }
     })()
 
-    // Store the pending request
     const updatedPendingRequests = new Map(pendingRequests)
     updatedPendingRequests.set(userId, requestPromise)
     set({ pendingConversationRequests: updatedPendingRequests })
@@ -501,19 +520,23 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       const existingMessages = state.messages.get(conversationId) || []
       const messageMap = new Map(state.messageMap)
 
-      // Prevent duplicates by CID (idempotency)
-      if (messageMap.has(message.cid)) {
+      const duplicateByCid = message.cid && messageMap.has(message.cid)
+      const duplicateById = message.id && existingMessages.some((m) => m.id === message.id)
+      
+      if (duplicateByCid || duplicateById) {
         return state
       }
 
-      const newMessages = [...existingMessages, message]
+      const newMessages = sortMessagesByCreatedAt([...existingMessages, message])
       const newMessagesMap = new Map(state.messages)
       newMessagesMap.set(conversationId, newMessages)
 
-      // Add to messageMap for O(1) lookups
-      messageMap.set(message.cid, message)
+      if (message.cid) {
+        messageMap.set(message.cid, message)
+      } else if (message.id) {
+        messageMap.set(message.id, message)
+      }
 
-      // Update last message timestamp
       const newLastMessageTimestamp = { ...state.lastMessageTimestamp }
       newLastMessageTimestamp[conversationId] = message.createdAt
 
@@ -598,7 +621,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       const existingMessages = state.messages.get(conversationId) || []
       const messageMap = new Map(state.messageMap)
 
-      // Merge messages, avoiding duplicates by CID
       const mergedMessages = [...existingMessages]
       messages.forEach(msg => {
         if (!messageMap.has(msg.cid)) {
@@ -607,16 +629,14 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         }
       })
 
-      // Sort by createdAt
-      mergedMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      const sortedMessages = sortMessagesByCreatedAt(mergedMessages)
 
       const newMessagesMap = new Map(state.messages)
-      newMessagesMap.set(conversationId, mergedMessages)
+      newMessagesMap.set(conversationId, sortedMessages)
 
-      // Update last message timestamp
       const newLastMessageTimestamp = { ...state.lastMessageTimestamp }
-      if (mergedMessages.length > 0) {
-        newLastMessageTimestamp[conversationId] = mergedMessages[mergedMessages.length - 1].createdAt
+      if (sortedMessages.length > 0) {
+        newLastMessageTimestamp[conversationId] = sortedMessages[sortedMessages.length - 1].createdAt
       }
 
       return {
@@ -635,7 +655,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       const updatedMessages = messages.filter((m) => m.id !== messageId)
       const removedMessage = messages.find(m => m.id === messageId)
 
-      // Remove from messageMap if found
       if (removedMessage) {
         messageMap.delete(removedMessage.cid)
       }
@@ -703,7 +722,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     try {
       const response = await axiosInstance.post(ARCHIVE_CONVERSATION(conversationId))
       const conversation = response.data.data
-      // Remove from conversations list and add to archived list
       set((state) => ({
         conversations: state.conversations.filter((c) => c.id !== conversationId),
         archivedConversations: [...state.archivedConversations, conversation],
@@ -724,7 +742,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     try {
       const response = await axiosInstance.post(UNARCHIVE_CONVERSATION(conversationId))
       const conversation = response.data.data
-      // Remove from archived list and add back to conversations list
       set((state) => ({
         archivedConversations: state.archivedConversations.filter((c) => c.id !== conversationId),
         conversations: [...state.conversations, conversation],
@@ -743,7 +760,6 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     set({ loading: true, error: null })
     try {
       await axiosInstance.delete(DELETE_CONVERSATION(conversationId))
-      // Remove from conversations list
       set((state) => ({
         conversations: state.conversations.filter((c) => c.id !== conversationId),
         activeConversationId: state.activeConversationId === conversationId ? null : state.activeConversationId,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useChatStore } from '@/stores/chat.store'
+import { useChatConversationsStore } from '@/stores/chat-conversations.store'
 import axiosInstance from '@/utils/axios.instance'
 import { GET_USERS } from '@/utils/api.routes'
 import { Input } from '@/components/ui/input'
@@ -30,7 +30,7 @@ export function UserSearchModal({ isOpen, onClose, onStartConversation }: UserSe
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
   const { user } = useAuthStore()
-  const { getOrCreateDirectConversation } = useChatStore()
+  const getOrCreateDirectConversation = useChatConversationsStore((state) => state.getOrCreateDirectConversation)
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { data: activeUsers = [] } = useActiveUsersQuery()
   const { data: allUsers = [] } = useUsersQuery()

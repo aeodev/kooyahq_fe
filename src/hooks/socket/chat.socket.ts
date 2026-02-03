@@ -1,5 +1,8 @@
 import type { Socket } from 'socket.io-client'
-import { useChatStore } from '@/stores/chat.store'
+import { useChatMessagesStore } from '@/stores/chat-messages.store'
+import { useChatConversationsStore } from '@/stores/chat-conversations.store'
+import { useChatTypingStore } from '@/stores/chat-typing.store'
+import { useAuthStore } from '@/stores/auth.store'
 import type {
   ChatMessageReceivedEvent,
   ChatTypingEvent,
@@ -14,48 +17,104 @@ import type {
   ChatDeltaSyncEvent,
 } from '@/types/chat'
 
-/**
- * Register socket handlers for chat module
- * Called when socket connects
- */
 export function registerChatHandlers(
   socket: Socket,
   eventHandlers: Map<string, (...args: any[]) => void>
 ): void {
   const handleMessageAck = (data: ChatMessageAckEvent) => {
-    const { updateMessageStatus } = useChatStore.getState()
+    const { updateMessageStatus } = useChatMessagesStore.getState()
 
     if (data.status === 'success') {
-      // Update message with server ID and mark as sent
       updateMessageStatus(data.cid, {
         id: data.id,
         status: 'sent'
       })
     } else if (data.status === 'error') {
-      // Mark message as failed
       updateMessageStatus(data.cid, {
         status: 'error'
       })
     }
-    // For 'duplicate' status, we don't need to do anything as message is already processed
   }
 
-  const handleNewMessage = (data: ChatMessageReceivedEvent) => {
-    const { addMessage, updateUnreadCount, activeConversationId } = useChatStore.getState()
-    addMessage(data.conversationId, data.message)
+  const handleNewMessage = async (data: ChatMessageReceivedEvent) => {
+    const { addMessage } = useChatMessagesStore.getState()
+    const { 
+      activeConversationId, 
+      updateUnreadCount, 
+      unreadCounts,
+      conversations,
+      fetchConversation,
+      updateConversationLastMessage
+    } = useChatConversationsStore.getState()
+    const { messages } = useChatMessagesStore.getState()
+    const { user } = useAuthStore.getState()
+    
+    // Single duplicate check by cid or id
+    const existingMessages = messages.get(data.conversationId) || []
+    const alreadyExists = existingMessages.some(
+      (m) => (m.cid && m.cid === data.message.cid) || m.id === data.message.id
+    )
+    
+    if (!alreadyExists) {
+      addMessage(data.conversationId, data.message)
+    }
 
-    // Update unread count if not active conversation
-    if (activeConversationId !== data.conversationId) {
-      const currentCount = useChatStore.getState().unreadCounts[data.conversationId] || 0
-      updateUnreadCount(data.conversationId, currentCount + 1)
+    const conversationExists = conversations.some(c => c.id === data.conversationId)
+    const isNotActive = activeConversationId !== data.conversationId
+    const isNotFromSelf = data.message.senderId !== user?.id
+    
+    if (!conversationExists) {
+      try {
+        await fetchConversation(data.conversationId)
+      } catch (error) {
+        console.error('Failed to fetch conversation:', error)
+      }
+    }
+    
+    updateConversationLastMessage(data.conversationId, {
+      id: data.message.id,
+      cid: data.message.cid,
+      senderId: data.message.senderId,
+      content: data.message.content,
+      type: data.message.type,
+      createdAt: data.message.createdAt,
+    })
+    
+    if (isNotActive && isNotFromSelf) {
+      const state = useChatConversationsStore.getState()
+      const currentCount = state.unreadCounts[data.conversationId] || 0
+      state.updateUnreadCount(data.conversationId, currentCount + 1)
+    }
+
+    if (isNotActive && isNotFromSelf && 'Notification' in window && Notification.permission === 'granted') {
+      const updatedConversations = useChatConversationsStore.getState().conversations
+      const conversation = updatedConversations.find(c => c.id === data.conversationId)
+      const conversationName = conversation?.type === 'group' 
+        ? conversation.name || 'Group Chat'
+        : conversation?.participants.find(p => p.id !== user?.id)?.name || data.message.sender.name
+      
+      const notification = new Notification(conversationName, {
+        body: data.message.content || 'Sent an attachment',
+        icon: data.message.sender.profilePic || undefined,
+        tag: `chat-${data.conversationId}`,
+        requireInteraction: false,
+      })
+
+      setTimeout(() => {
+        notification.close()
+      }, 5000)
+
+      notification.onclick = () => {
+        window.focus()
+        notification.close()
+      }
     }
   }
 
   const handleDeltaMessages = (data: ChatDeltaSyncEvent) => {
-    const { syncMessages, setLastSyncPoint } = useChatStore.getState()
+    const { syncMessages, setLastSyncPoint } = useChatMessagesStore.getState()
     syncMessages(data.conversationId, data.messages)
 
-    // Update sync timestamp
     if (data.messages.length > 0) {
       const latestMessage = data.messages[data.messages.length - 1]
       setLastSyncPoint(data.conversationId, latestMessage.id, latestMessage.createdAt)
@@ -63,16 +122,16 @@ export function registerChatHandlers(
   }
 
   const handleTyping = (data: ChatTypingEvent) => {
-    const { setTyping } = useChatStore.getState()
+    const { setTyping } = useChatTypingStore.getState()
     setTyping(data.conversationId, data.userId, data.isTyping)
   }
 
   const handleRead = (data: ChatReadEvent) => {
-    const { updateMessage, activeConversationId } = useChatStore.getState()
+    const { updateMessage } = useChatMessagesStore.getState()
+    const { activeConversationId } = useChatConversationsStore.getState()
     
     if (data.messageId) {
-      // Update specific message read status
-      const messages = useChatStore.getState().messages.get(data.conversationId) || []
+      const messages = useChatMessagesStore.getState().messages.get(data.conversationId) || []
       const message = messages.find((m) => m.id === data.messageId)
       if (message) {
         const readBy = message.readBy || []
@@ -89,8 +148,7 @@ export function registerChatHandlers(
         }
       }
     } else if (activeConversationId === data.conversationId) {
-      // Mark all messages as read for this user
-      const messages = useChatStore.getState().messages.get(data.conversationId) || []
+      const messages = useChatMessagesStore.getState().messages.get(data.conversationId) || []
       messages.forEach((message) => {
         const readBy = message.readBy || []
         if (!readBy.some((r) => r.userId === data.userId)) {
@@ -109,8 +167,8 @@ export function registerChatHandlers(
   }
 
   const handleConversationUpdated = (data: ChatConversationUpdatedEvent) => {
-    const { conversations } = useChatStore.getState()
-    useChatStore.setState({
+    const { conversations } = useChatConversationsStore.getState()
+    useChatConversationsStore.setState({
       conversations: conversations.map((c) =>
         c.id === data.conversation.id ? data.conversation : c
       ),
@@ -118,32 +176,29 @@ export function registerChatHandlers(
   }
 
   const handleMemberAdded = (data: ChatMemberAddedEvent) => {
-    const { fetchConversation } = useChatStore.getState()
-    // Refresh conversation to get updated participant list
+    const { fetchConversation } = useChatConversationsStore.getState()
     fetchConversation(data.conversationId)
   }
 
   const handleMemberRemoved = (data: ChatMemberRemovedEvent) => {
-    const { fetchConversation } = useChatStore.getState()
-    // Refresh conversation to get updated participant list
+    const { fetchConversation } = useChatConversationsStore.getState()
     fetchConversation(data.conversationId)
   }
 
   const handleMessageEdited = (data: ChatMessageEditedEvent) => {
-    const { updateMessage } = useChatStore.getState()
+    const { updateMessage } = useChatMessagesStore.getState()
     updateMessage(data.message.conversationId, data.message.id, data.message)
   }
 
   const handleMessageDeleted = (data: ChatMessageDeletedEvent) => {
-    const { removeMessage } = useChatStore.getState()
+    const { removeMessage } = useChatMessagesStore.getState()
     removeMessage(data.conversationId, data.messageId)
   }
 
   const handleError = (data: ChatErrorEvent) => {
-    useChatStore.getState().setError(data.message)
+    useChatConversationsStore.getState().setError(data.message)
   }
 
-  // Register event listeners
   socket.on('message_ack', handleMessageAck)
   socket.on('new_message', handleNewMessage)
   socket.on('delta_messages', handleDeltaMessages)
@@ -156,7 +211,6 @@ export function registerChatHandlers(
   socket.on('chat:message-deleted', handleMessageDeleted)
   socket.on('chat:error', handleError)
 
-  // Store handlers for cleanup
   eventHandlers.set('message_ack', handleMessageAck)
   eventHandlers.set('new_message', handleNewMessage)
   eventHandlers.set('delta_messages', handleDeltaMessages)
