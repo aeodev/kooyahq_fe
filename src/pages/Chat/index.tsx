@@ -25,9 +25,10 @@ import { EmojiPickerButton } from '@/components/chat/EmojiPickerButton'
 import { UserSearchModal } from '@/components/chat/UserSearchModal'
 import { cn } from '@/utils/cn'
 import { format, isToday, isYesterday } from 'date-fns'
-import { Send, Plus, Users, Settings, MessageCircle, ArrowLeft, Archive, Trash2, MoreVertical, ArchiveRestore, X, Search, ChevronDown, Pin, BellOff, User, Download, Ban, Eye } from 'lucide-react'
+import { Send, Plus, Users, Settings, MessageCircle, ArrowLeft, Archive, Trash2, MoreVertical, ArchiveRestore, X, Search, ChevronDown, Pin, BellOff, User, Download, Ban, Eye, Video, PhoneCall } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ConversationWithParticipants, MessageWithSender } from '@/types/chat'
+import { useChatCallContext } from '@/contexts/chat-call.context'
 
 export function Chat() {
   const { user } = useAuthStore()
@@ -61,6 +62,11 @@ export function Chat() {
   const messageInputRef = useRef<HTMLInputElement>(null)
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId)
+  const {
+    status: callStatus,
+    startCall,
+  } = useChatCallContext()
+
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -839,6 +845,26 @@ export function Chat() {
                   
                   {/* Actions */}
                   <div className="flex items-center gap-0.5 flex-shrink-0">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 rounded-lg hover:bg-accent/50 transition-all"
+                      onClick={() => startCall('audio')}
+                      disabled={callStatus !== 'idle'}
+                      title={callStatus === 'idle' ? 'Start audio call' : 'Call in progress'}
+                    >
+                      <PhoneCall className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 rounded-lg hover:bg-accent/50 transition-all"
+                      onClick={() => startCall('video')}
+                      disabled={callStatus !== 'idle'}
+                      title={callStatus === 'idle' ? 'Start video call' : 'Call in progress'}
+                    >
+                      <Video className="h-4 w-4" />
+                    </Button>
                     {activeConversation.type === 'group' && (
                       <Button 
                         size="icon" 
